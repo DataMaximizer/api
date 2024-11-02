@@ -7,7 +7,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      - MONGODB_URI=mongodb://mongo:27017/api-boilerplate
+      - MONGODB_URI=mongodb://mongo:27017/api-datamax
       - REDIS_URI=redis://redis:6379
     depends_on:
       - mongo

@@ -6,9 +6,9 @@ const options: swaggerJsdoc.Options = {
 	definition: {
 		openapi: "3.0.0",
 		info: {
-			title: "API Boilerplate Documentation",
+			title: "API DATAMAX Documentation",
 			version: "1.0.0",
-			description: "API documentation for the Node.js TypeScript Boilerplate",
+			description: "API documentation for the Node.js TypeScript DATAMAX API",
 			license: {
 				name: "MIT",
 				url: "https://spdx.org/licenses/MIT.html",

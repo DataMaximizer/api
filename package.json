@@ -1,5 +1,5 @@
 {
-	"name": "api-boilerplate",
+	"name": "api-datamax",
 	"version": "1.0.0",
 	"scripts": {
 		"dev": "ts-node-dev --respawn --transpile-only --exit-child src/app.ts",
