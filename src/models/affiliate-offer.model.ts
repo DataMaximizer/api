@@ -1,87 +1,77 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export interface IAffiliateOffer extends Document {
-	title: string;
-	description: string;
-	productUrl: string;
-	affiliateUrl: string;
-	category: Schema.Types.ObjectId;
-	tags: string[];
-	commissionRate: number;
-	adminCommission: number;
-	userCommission: number;
-	isAdminOffer: boolean;
-	userId?: Schema.Types.ObjectId;
-	productInfo: {
-		price: number;
-		benefits: string[];
-		targetAudience: string[];
-		specifications: Record<string, any>;
-	};
-	status: "active" | "paused" | "expired";
-	lastChecked: Date;
-	isUrlValid: boolean;
-	aiAnalysis: {
-		keywords: string[];
-		suggestedCategories: string[];
-		productSentiment: number;
-		marketPotential: number;
-	};
-	performance: {
-		clicks: number;
-		conversions: number;
-		revenue: number;
-		conversionRate: number;
-	};
+export enum OfferStatus {
+	ACTIVE = "active",
+	PAUSED = "paused",
+	DELETED = "deleted",
 }
 
-const affiliateOfferSchema = new Schema<IAffiliateOffer>(
+export interface IOfferCategory {
+	name: string;
+	description?: string;
+}
+
+export interface IAffiliateOffer extends Document {
+	name: string;
+	description: string;
+	url: string;
+	categories: string[];
+	tags: string[];
+	commissionRate: number;
+	status: OfferStatus;
+	productInfo: {
+		description?: string;
+		benefits?: string[];
+		pricing?: string;
+		targetAudience?: string;
+	};
+	userId: Schema.Types.ObjectId;
+	isAdminOffer: boolean;
+	userCommissionRate?: number;
+	lastChecked?: Date;
+	lastActive?: Date;
+	metadata?: Record<string, any>;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+const offerSchema = new Schema<IAffiliateOffer>(
 	{
-		title: { type: String, required: true },
+		name: { type: String, required: true },
 		description: { type: String, required: true },
-		productUrl: { type: String, required: true },
-		affiliateUrl: { type: String, required: true },
-		category: {
-			type: Schema.Types.ObjectId,
-			ref: "ProductCategory",
-			required: true,
-		},
+		url: { type: String, required: true },
+		categories: [{ type: String, required: true }],
 		tags: [{ type: String }],
 		commissionRate: { type: Number, required: true },
-		adminCommission: { type: Number, required: true },
-		userCommission: { type: Number, required: true },
-		isAdminOffer: { type: Boolean, default: false },
-		userId: { type: Schema.Types.ObjectId, ref: "User" },
-		productInfo: {
-			price: { type: Number, required: true },
-			benefits: [{ type: String }],
-			targetAudience: [{ type: String }],
-			specifications: { type: Schema.Types.Mixed },
-		},
 		status: {
 			type: String,
-			enum: ["active", "paused", "expired"],
-			default: "active",
+			enum: Object.values(OfferStatus),
+			default: OfferStatus.ACTIVE,
 		},
-		lastChecked: { type: Date },
-		isUrlValid: { type: Boolean, default: true },
-		aiAnalysis: {
-			keywords: [{ type: String }],
-			suggestedCategories: [{ type: String }],
-			productSentiment: { type: Number },
-			marketPotential: { type: Number },
+		productInfo: {
+			description: String,
+			benefits: [String],
+			pricing: String,
+			targetAudience: String,
 		},
-		performance: {
-			clicks: { type: Number, default: 0 },
-			conversions: { type: Number, default: 0 },
-			revenue: { type: Number, default: 0 },
-			conversionRate: { type: Number, default: 0 },
-		},
+		userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+		isAdminOffer: { type: Boolean, default: false },
+		userCommissionRate: Number,
+		lastChecked: Date,
+		lastActive: Date,
+		metadata: Schema.Types.Mixed,
 	},
-	{ timestamps: true },
+	{
+		timestamps: true,
+	},
 );
+
+offerSchema.index({ status: 1 });
+offerSchema.index({ categories: 1 });
+offerSchema.index({ tags: 1 });
+offerSchema.index({ userId: 1 });
 
 export const AffiliateOffer = mongoose.model<IAffiliateOffer>(
 	"AffiliateOffer",
-	affiliateOfferSchema,
+	offerSchema,
 );

@@ -6,6 +6,7 @@ import { setupSwagger } from "./config/swagger";
 import authRoutes from "./routes/auth.routes";
 import smtpRoutes from "./routes/smtp.routes";
 import adminRoutes from "./routes/admin.routes";
+import affiliateRoutes from "./routes/affiliate.routes";
 import { authenticate, authorize } from "./middlewares/auth.middleware";
 import { UserType } from "./models/user.model";
 
@@ -29,6 +30,7 @@ setupSwagger(app);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/smtp", smtpRoutes);
+app.use("/api/affiliate", affiliateRoutes);
 
 /**
  * @openapi
