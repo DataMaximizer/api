@@ -6,9 +6,21 @@ import {
 	createOfferSchema,
 	updateOfferSchema,
 } from "../utils/affiliate.validation";
+
+import { UrlAnalysisController } from "../controllers/url-analysis.controller";
+
+import { z } from "zod";
 import { UserType } from "../models/user.model";
 
 const router = Router();
+
+const createOfferFromUrlSchema = z.object({
+	url: z.string().url("Invalid URL format"),
+	commissionRate: z
+		.number()
+		.min(0)
+		.max(100, "Commission rate must be between 0 and 100"),
+});
 
 router.post(
 	"/offers",
@@ -31,6 +43,13 @@ router.post(
 	authenticate,
 	authorize([UserType.OWNER]),
 	AffiliateController.validateOffers,
+);
+
+router.post(
+	"/analyze-url",
+	authenticate,
+	validateRequest(createOfferFromUrlSchema),
+	(req, res, next) => UrlAnalysisController.createOfferFromUrl(req, res, next),
 );
 
 export default router;

@@ -1,0 +1,24 @@
+import { Router } from "express";
+import { UrlAnalysisController } from "../controllers/url-analysis.controller";
+import { authenticate } from "../middlewares/auth.middleware";
+import { validateRequest } from "../middlewares/validation.middleware";
+import { z } from "zod";
+
+const router = Router();
+
+const createOfferFromUrlSchema = z.object({
+	url: z.string().url("Invalid URL format"),
+	commissionRate: z
+		.number()
+		.min(0)
+		.max(100, "Commission rate must be between 0 and 100"),
+});
+
+router.post(
+	"/analyze-url",
+	authenticate,
+	validateRequest(createOfferFromUrlSchema),
+	(req, res, next) => UrlAnalysisController.createOfferFromUrl(req, res, next),
+);
+
+export default router;

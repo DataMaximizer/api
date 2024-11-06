@@ -15,11 +15,12 @@ const port = process.env.PORT || 5000;
 
 // CORS configuration
 const corsOptions = {
-	origin: process.env.FRONTEND_URL || "http://localhost:3000",
+	origin: "*",
 	methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
 	allowedHeaders: ["Content-Type", "Authorization"],
-	credentials: true, // If you're using cookies or authentication
+	credentials: true,
 	optionsSuccessStatus: 200,
+	maxAge: 86400,
 };
 
 app.use(cors(corsOptions));

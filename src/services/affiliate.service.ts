@@ -7,6 +7,8 @@ import {
 	IAffiliateOffer,
 } from "../models/affiliate-offer.model";
 import { logger } from "../config/logger";
+import { load } from "cheerio";
+import { OfferEnhancementService } from "./offer-enhancement.service";
 
 const openai = new OpenAI({
 	apiKey: process.env.OPENAI_API_KEY,
@@ -14,7 +16,19 @@ const openai = new OpenAI({
 
 export class AffiliateService {
 	static async createOffer(offerData: Partial<IAffiliateOffer>) {
-		const offer = new AffiliateOffer(offerData);
+		const enhancedOfferData =
+			await OfferEnhancementService.enhanceOfferDescription(offerData);
+
+		const offer = new AffiliateOffer(enhancedOfferData);
+
+		offer.categories = OfferEnhancementService.validateCategories(
+			offer.categories,
+		);
+
+		if (offer.tags && offer.tags.length > 3) {
+			offer.tags = offer.tags.slice(0, 3);
+		}
+
 		await this.scanAndEnrichOffer(offer);
 		return offer.save();
 	}
@@ -28,19 +42,57 @@ export class AffiliateService {
 				return;
 			}
 
+			// Scrape webpage content
+			const pageContent = await this.scrapeWebpage(offer.url);
+
 			// Gather product information using OpenAI
-			const productInfo = await this.gatherProductInfo(offer.url);
+			const productInfo = await this.gatherProductInfo(
+				pageContent,
+				offer.description,
+			);
 			offer.productInfo = productInfo;
 
-			// Auto-generate tags
-			const tags = await this.generateTags(productInfo);
-			offer.tags = [...new Set([...offer.tags, ...tags])];
+			// Auto-generate tags and merge with user tags (up to 5 total)
+			const aiTags = await this.generateTags(productInfo);
+			const uniqueTags = new Set([...offer.tags, ...aiTags]);
+			offer.tags = Array.from(uniqueTags).slice(0, 5);
 
 			offer.lastChecked = new Date();
 			offer.lastActive = new Date();
 		} catch (error) {
 			logger.error("Error enriching offer:", error);
 			throw error;
+		}
+	}
+
+	private static async scrapeWebpage(url: string): Promise<string> {
+		try {
+			const response = await axios.get(url);
+			const $ = load(response.data);
+
+			// Remove scripts, styles, and other non-content elements
+			$("script").remove();
+			$("style").remove();
+
+			// Extract relevant content
+			const title = $("title").text();
+			const description = $('meta[name="description"]').attr("content") || "";
+			const mainContent = $(
+				"main, article, .product-description, #product-description",
+			).text();
+			const price = $('.price, .product-price, [class*="price"]')
+				.first()
+				.text();
+
+			return `
+        Title: ${title.trim()}
+        Description: ${description.trim()}
+        Price: ${price.trim()}
+        Content: ${mainContent.trim()}
+      `.substring(0, 3000); // Limit content length for OpenAI
+		} catch (error) {
+			logger.error("Error scraping webpage:", error);
+			return "";
 		}
 	}
 
@@ -53,40 +105,85 @@ export class AffiliateService {
 		}
 	}
 
-	static async gatherProductInfo(url: string) {
+	static async gatherProductInfo(pageContent: string, userDescription: string) {
 		try {
-			const response = await axios.get(url);
-			const content = response.data;
-
 			const prompt = `
-        Analyze this product page content and extract the following information:
-        1. Product description
-        2. Key benefits (as bullet points)
-        3. Pricing information
-        4. Target audience
-        
-        Content: ${content.substring(0, 2000)}
+        Analyze this product page content and extract the following information in a clear, structured format:
+
+        Current user description: "${userDescription}"
+
+        Please provide:
+        1. An enhanced product description (improve the user description if possible)
+        2. List 3-5 key benefits (as bullet points)
+        3. Clear pricing information
+        4. Target audience description
+        5. Suggest 2-3 best categories for this product
+
+        Product Content:
+        ${pageContent}
+
+        Return the response in this exact format:
+        Description: [enhanced description]
+        Benefits:
+        - [benefit 1]
+        - [benefit 2]
+        - [benefit 3]
+        Pricing: [pricing info]
+        Target Audience: [audience description]
+        Categories: [category1, category2, category3]
       `;
 
 			const completion = await openai.chat.completions.create({
 				model: "gpt-3.5-turbo",
-				messages: [{ role: "user", content: prompt }],
+				messages: [
+					{
+						role: "system",
+						content:
+							"You are a product analysis expert. Provide concise, accurate information focused on key selling points and target audience.",
+					},
+					{ role: "user", content: prompt },
+				],
 			});
 
 			const result = completion.choices[0].message?.content;
 			if (!result) throw new Error("No response from OpenAI");
 
-			// Parse the response into structured data
+			// Parse the structured response
 			const sections = result.split("\n\n");
+			const benefitsSection =
+				sections.find((s) => s.startsWith("Benefits:")) || "";
+			const benefits = benefitsSection
+				.split("\n")
+				.filter((line) => line.startsWith("-"))
+				.map((line) => line.replace("-", "").trim());
+
 			return {
-				description: sections[0],
-				benefits: sections[1]?.split("\n").filter((b: string) => b.trim()),
-				pricing: sections[2],
-				targetAudience: sections[3],
+				description: sections[0].replace("Description:", "").trim(),
+				benefits,
+				pricing: sections
+					.find((s) => s.startsWith("Pricing:"))
+					?.replace("Pricing:", "")
+					.trim(),
+				targetAudience: sections
+					.find((s) => s.startsWith("Target Audience:"))
+					?.replace("Target Audience:", "")
+					.trim(),
+				suggestedCategories: sections
+					.find((s) => s.startsWith("Categories:"))
+					?.replace("Categories:", "")
+					.trim()
+					.split(",")
+					.map((c) => c.trim()),
 			};
 		} catch (error) {
 			logger.error("Error gathering product info:", error);
-			return {};
+			return {
+				description: userDescription,
+				benefits: [],
+				pricing: "",
+				targetAudience: "",
+				suggestedCategories: [],
+			};
 		}
 	}
 
@@ -95,19 +192,34 @@ export class AffiliateService {
 	): Promise<string[]> {
 		try {
 			const prompt = `
-        Generate relevant tags based on this product information:
-        ${JSON.stringify(productInfo)}
+        Based on this product information, generate up to 5 relevant tags.
+        Product info: ${JSON.stringify(productInfo)}
         
-        Return only a comma-separated list of tags.
+        Rules:
+        1. Return ONLY a comma-separated list of tags
+        2. Each tag should be 1-2 words maximum
+        3. Focus on product category, features, and target audience
+        4. Use common e-commerce terminology
+        5. Keep it concise and relevant
       `;
 
 			const completion = await openai.chat.completions.create({
 				model: "gpt-3.5-turbo",
-				messages: [{ role: "user", content: prompt }],
+				messages: [
+					{
+						role: "system",
+						content:
+							"You are a product tagging expert. Return only the requested tags, nothing else.",
+					},
+					{ role: "user", content: prompt },
+				],
 			});
 
 			const tags = completion.choices[0].message?.content?.split(",") || [];
-			return tags.map((tag: string) => tag.trim().toLowerCase());
+			return tags
+				.map((tag: string) => tag.trim().toLowerCase())
+				.filter((tag: string) => tag.length > 0)
+				.slice(0, 5);
 		} catch (error) {
 			logger.error("Error generating tags:", error);
 			return [];
@@ -118,7 +230,15 @@ export class AffiliateService {
 		const offer = await AffiliateOffer.findById(id);
 		if (!offer) throw new Error("Offer not found");
 
-		// If URL changed, rescan and enrich
+		if (updateData.description || updateData.categories) {
+			const enhancedData =
+				await OfferEnhancementService.enhanceOfferDescription({
+					...offer.toObject(),
+					...updateData,
+				});
+			updateData = { ...updateData, ...enhancedData };
+		}
+
 		if (updateData.url && updateData.url !== offer.url) {
 			offer.url = updateData.url;
 			await this.scanAndEnrichOffer(offer);
