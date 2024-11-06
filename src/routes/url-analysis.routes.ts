@@ -21,4 +21,8 @@ router.post(
 	(req, res, next) => UrlAnalysisController.createOfferFromUrl(req, res, next),
 );
 
+router.delete("/analyze-url/:id", authenticate, (req, res, next) => {
+	UrlAnalysisController.deleteAnalysis(req, res, next);
+});
+
 export default router;

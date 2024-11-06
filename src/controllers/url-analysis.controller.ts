@@ -40,4 +40,18 @@ export class UrlAnalysisController {
 			next(error);
 		}
 	}
+
+	static async deleteAnalysis(
+		req: Request,
+		res: Response,
+		next: NextFunction,
+	): Promise<void> {
+		try {
+			await UrlAnalysisService.deleteAnalysis(req.params.id);
+			res.status(200).json({ success: true });
+		} catch (error) {
+			logger.error("Error in deleteAnalysis:", error);
+			next(error);
+		}
+	}
 }

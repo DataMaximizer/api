@@ -10,8 +10,10 @@ import { logger } from "../config/logger";
 import { load } from "cheerio";
 import { OfferEnhancementService } from "./offer-enhancement.service";
 
+import { OPENAI_API_KEY } from "../local";
+
 const openai = new OpenAI({
-	apiKey: process.env.OPENAI_API_KEY,
+	apiKey: OPENAI_API_KEY,
 });
 
 export class AffiliateService {

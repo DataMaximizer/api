@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { IAffiliateOffer, IProductInfo } from "../models/affiliate-offer.model";
 import { logger } from "../config/logger";
+import { OPENAI_API_KEY } from "../local";
 
 // Standard e-commerce categories with subcategories
 const CATEGORY_HIERARCHY = {
@@ -55,7 +56,7 @@ interface EnhancedContent {
 
 export class OfferEnhancementService {
 	private static readonly openai = new OpenAI({
-		apiKey: process.env.OPENAI_API_KEY,
+		apiKey: OPENAI_API_KEY,
 	});
 
 	static async enhanceOfferDescription(

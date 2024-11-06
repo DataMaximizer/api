@@ -1,8 +1,19 @@
 import OpenAI from "openai";
 import axios from "axios";
 import { load } from "cheerio";
-import { IAffiliateOffer, OfferStatus } from "../models/affiliate-offer.model"; // Removed IProductInfo
+import {
+	AffiliateOffer,
+	IAffiliateOffer,
+	OfferStatus,
+} from "../models/affiliate-offer.model"; // Removed IProductInfo
 import { logger } from "../config/logger";
+
+import {
+	PREDEFINED_CATEGORIES,
+	CATEGORY_HIERARCHY,
+} from "../constants/categories";
+
+import { OPENAI_API_KEY } from "../local";
 
 interface ScrapedData {
 	title: string;
@@ -24,8 +35,10 @@ interface GeneratedContent {
 }
 
 const openai = new OpenAI({
-	apiKey: process.env.OPENAI_API_KEY,
+	apiKey: OPENAI_API_KEY,
 });
+
+const predefinedCategories = PREDEFINED_CATEGORIES;
 
 export class UrlAnalysisService {
 	static async createOfferFromUrl(
@@ -141,8 +154,8 @@ export class UrlAnalysisService {
       4. 3-5 Key Benefits (bullet points)
       5. 3-5 Main Features (bullet points)
       6. Target Audience Description
-      7. 2-3 Category Suggestions
-      8. 3-5 Relevant Tags
+      7. 3-5 Most Relevant Categories from this list ONLY: ${PREDEFINED_CATEGORIES.join(", ")}
+      8. 5-8 Relevant Tags (short, 1-2 words each, highly relevant for search and categorization)
 
       Format response as JSON with these exact keys:
       {
@@ -159,7 +172,7 @@ export class UrlAnalysisService {
 
 		try {
 			const completion = await openai.chat.completions.create({
-				model: "gpt-3.5-turbo",
+				model: "gpt-4-turbo",
 				messages: [
 					{
 						role: "system",
@@ -172,11 +185,9 @@ export class UrlAnalysisService {
 			});
 
 			const content = JSON.parse(
-				// @ts-ignore
-				completion.choices[0].message.content,
+				completion.choices[0].message?.content || "{}",
 			) as GeneratedContent;
 
-			// Validate required fields
 			const requiredFields: (keyof GeneratedContent)[] = [
 				"name",
 				"description",
@@ -187,6 +198,12 @@ export class UrlAnalysisService {
 				"categories",
 				"tags",
 			];
+
+			content.categories = content.categories.filter((category) =>
+				predefinedCategories.includes(category),
+			);
+
+			content.tags = Array.from(new Set(content.tags)).slice(0, 8);
 
 			for (const field of requiredFields) {
 				if (!content[field]) {
@@ -204,6 +221,21 @@ export class UrlAnalysisService {
 		} catch (error) {
 			logger.error("Error generating offer content:", error);
 			throw new Error("Failed to generate offer content");
+		}
+	}
+
+	static async deleteAnalysis(id: string): Promise<void> {
+		try {
+			// If you have a dedicated model for URL analysis, use it here
+			await AffiliateOffer.findByIdAndDelete(id);
+
+			// If you're just storing temporary data, you might want to clear cache or temporary storage
+
+			// For now, we'll just return as success
+			return;
+		} catch (error) {
+			logger.error("Error deleting analysis:", error);
+			throw new Error("Failed to delete analysis");
 		}
 	}
 }

@@ -6,12 +6,16 @@ import { setupSwagger } from "./config/swagger";
 import authRoutes from "./routes/auth.routes";
 import smtpRoutes from "./routes/smtp.routes";
 import adminRoutes from "./routes/admin.routes";
+import campaignRoutes from "./routes/campaign.routes";
 import affiliateRoutes from "./routes/affiliate.routes";
 import { authenticate, authorize } from "./middlewares/auth.middleware";
 import { UserType } from "./models/user.model";
+import dotenv from "dotenv";
 
 const app = express();
 const port = process.env.PORT || 5000;
+
+dotenv.config();
 
 // CORS configuration
 const corsOptions = {
@@ -32,6 +36,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/smtp", smtpRoutes);
 app.use("/api/affiliate", affiliateRoutes);
+app.use("/api/campaigns", campaignRoutes);
 
 /**
  * @openapi

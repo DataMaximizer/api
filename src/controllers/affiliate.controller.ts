@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AffiliateService } from "../services/affiliate.service";
 import { logger } from "../config/logger";
+import { UrlAnalysisService } from "../services/url-analysis.service";
 
 export class AffiliateController {
 	static async createOffer(req: Request, res: Response) {
@@ -122,6 +123,32 @@ export class AffiliateController {
 		} catch (error) {
 			logger.error("Error validating offers:", error);
 			res.status(500).json({ error: "Failed to validate offers" });
+		}
+	}
+
+	static async deleteAnalyzedUrl(req: Request, res: Response) {
+		try {
+			const { id } = req.params;
+
+			if (!id) {
+				return res.status(400).json({
+					success: false,
+					error: "Analysis ID is required",
+				});
+			}
+
+			await UrlAnalysisService.deleteAnalysis(id);
+
+			res.json({
+				success: true,
+				message: "Analysis deleted successfully",
+			});
+		} catch (error) {
+			logger.error("Error deleting analyzed URL:", error);
+			res.status(500).json({
+				success: false,
+				error: "Failed to delete analysis",
+			});
 		}
 	}
 }
