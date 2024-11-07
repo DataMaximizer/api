@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { SmtpProvider } from "../models/smtp.model";
 import { logger } from "../config/logger";
+import { SmtpService } from "../services/smtp.service";
 
 class SmtpController {
 	async createProvider(req: Request, res: Response): Promise<void> {
@@ -133,6 +134,69 @@ class SmtpController {
 			logger.error("Error updating SMTP provider:", error);
 			res.status(500).json({
 				message: "Error updating SMTP provider",
+				error: error instanceof Error ? error.message : "Unknown error",
+			});
+		}
+	}
+
+	async testConnection(req: Request, res: Response): Promise<void> {
+		try {
+			const { id } = req.params;
+			const isConnected = await SmtpService.testSmtpConnection(id);
+
+			res.json({
+				success: isConnected,
+				message: isConnected
+					? "SMTP connection successful"
+					: "SMTP connection failed",
+			});
+		} catch (error) {
+			logger.error("Error testing SMTP connection:", error);
+			res.status(500).json({
+				success: false,
+				message: "Failed to test SMTP connection",
+				error: error instanceof Error ? error.message : "Unknown error",
+			});
+		}
+	}
+
+	async sendTestEmail(req: Request, res: Response): Promise<void> {
+		try {
+			const { id } = req.params;
+			const { to } = req.body;
+
+			if (!to) {
+				res.status(400).json({
+					success: false,
+					message: "Recipient email is required",
+				});
+				return;
+			}
+
+			const result = await SmtpService.sendEmail({
+				providerId: id,
+				to,
+				subject: "SMTP Test Email",
+				html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h1 style="color: #2563eb;">SMTP Test Email</h1>
+            <p>This is a test email to verify your SMTP configuration.</p>
+            <p style="color: #4b5563;">Sent at: ${new Date().toLocaleString()}</p>
+          </div>
+        `,
+				text: "SMTP Test Email\n\nThis is a test email to verify your SMTP configuration.",
+			});
+
+			res.json({
+				success: true,
+				message: "Test email sent successfully",
+				data: { messageId: result.messageId },
+			});
+		} catch (error) {
+			logger.error("Error sending test email:", error);
+			res.status(500).json({
+				success: false,
+				message: "Failed to send test email",
 				error: error instanceof Error ? error.message : "Unknown error",
 			});
 		}
