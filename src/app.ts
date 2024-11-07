@@ -8,6 +8,7 @@ import smtpRoutes from "./routes/smtp.routes";
 import adminRoutes from "./routes/admin.routes";
 import campaignRoutes from "./routes/campaign.routes";
 import affiliateRoutes from "./routes/affiliate.routes";
+import formRoutes from "./routes/form.routes";
 import { authenticate, authorize } from "./middlewares/auth.middleware";
 import { UserType } from "./models/user.model";
 import dotenv from "dotenv";
@@ -37,6 +38,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/smtp", smtpRoutes);
 app.use("/api/affiliate", affiliateRoutes);
 app.use("/api/campaigns", campaignRoutes);
+app.use("/api/forms", formRoutes);
 
 /**
  * @openapi
