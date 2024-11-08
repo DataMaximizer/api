@@ -194,4 +194,29 @@ export class FormController {
 			});
 		}
 	}
+
+	static async getPublicForm(req: AuthRequest, res: Response): Promise<void> {
+		try {
+			// Note: Not passing userId for public form access
+			const form = await FormService.getFormById(req.params.id as string);
+
+			if (!form) {
+				res.status(404).json({
+					success: false,
+					error: "Form not found",
+				});
+				return;
+			}
+
+			res.json({
+				success: true,
+				data: form,
+			});
+		} catch (error) {
+			res.status(500).json({
+				success: false,
+				error: "Failed to fetch form",
+			});
+		}
+	}
 }

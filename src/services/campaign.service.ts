@@ -7,6 +7,8 @@ import {
 } from "../models/campaign.model";
 import { logger } from "../config/logger";
 import { OPENAI_API_KEY } from "../local";
+import { EmailTemplateService } from "./email-template.service";
+import { SmtpService } from "./smtp.service";
 
 const COPYWRITING_FRAMEWORKS = [
 	"PAS (Problem-Agitate-Solution)",
@@ -211,14 +213,33 @@ export class CampaignService {
 		}
 	}
 
-	static async updateCampaignStatus(
-		campaignId: string,
-		status: CampaignStatus,
+	static async sendCampaignEmail(
+		campaign: any,
+		subscriber: any,
+		template: string,
+		data: Record<string, any>,
 	) {
 		try {
-			await Campaign.findByIdAndUpdate(campaignId, { status });
+			let emailContent = EmailTemplateService.createEmailTemplate(template, {
+				...data,
+				subscriberEmail: subscriber.email,
+				unsubscribeLink: `${process.env.NEXT_PUBLIC_API_URL}/unsubscribe/${subscriber._id}`,
+			});
+
+			emailContent = EmailTemplateService.addTrackingToTemplate(
+				emailContent,
+				subscriber._id,
+				campaign._id,
+			);
+
+			await SmtpService.sendEmail({
+				providerId: campaign.smtpProviderId,
+				to: subscriber.email,
+				subject: campaign.subject,
+				html: emailContent,
+			});
 		} catch (error) {
-			logger.error("Error updating campaign status:", error);
+			logger.error("Error sending campaign email:", error);
 			throw error;
 		}
 	}

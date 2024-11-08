@@ -2,16 +2,19 @@ import { Request, Response } from "express";
 import { SubscriberService } from "../services/subscriber.service";
 import { logger } from "../config/logger";
 import { IUser } from "../models/user.model";
+import { Form } from "../models/form.model";
+import { ISubscriber, Subscriber } from "../models/subscriber.model";
 
 interface AuthRequest extends Request {
 	user?: IUser;
 }
 
 export class SubscriberController {
-	static async addSubscriber(req: AuthRequest, res: Response) {
+	static async addSubscriber(req: AuthRequest, res: Response): Promise<void> {
 		try {
 			if (!req.user?._id) {
-				return res.status(401).json({ success: false, error: "Unauthorized" });
+				res.status(401).json({ success: false, error: "Unauthorized" });
+				return;
 			}
 
 			const subscriberData = {
@@ -34,10 +37,11 @@ export class SubscriberController {
 		}
 	}
 
-	static async createList(req: AuthRequest, res: Response) {
+	static async createList(req: AuthRequest, res: Response): Promise<void> {
 		try {
 			if (!req.user?._id) {
-				return res.status(401).json({ success: false, error: "Unauthorized" });
+				res.status(401).json({ success: false, error: "Unauthorized" });
+				return;
 			}
 
 			const listData = {
@@ -53,16 +57,34 @@ export class SubscriberController {
 		}
 	}
 
-	static async getSubscribers(req: AuthRequest, res: Response) {
+	static async getSubscribers(req: AuthRequest, res: Response): Promise<void> {
 		try {
 			if (!req.user?._id) {
-				return res.status(401).json({ success: false, error: "Unauthorized" });
+				res.status(401).json({ success: false, error: "Unauthorized" });
+				return;
 			}
 
-			const subscribers = await SubscriberService.getSubscribers(
-				req.user._id.toString(),
-				req.query,
-			);
+			const subscribers = await Subscriber.aggregate([
+				{ $match: { userId: req.user._id } },
+				{
+					$addFields: {
+						metrics: {
+							$ifNull: [
+								"$metrics",
+								{
+									opens: 0,
+									clicks: 0,
+									conversions: 0,
+									bounces: 0,
+									revenue: 0,
+								},
+							],
+						},
+						engagementScore: { $ifNull: ["$engagementScore", 0] },
+					},
+				},
+			]);
+
 			res.json({ success: true, data: subscribers });
 		} catch (error) {
 			logger.error("Error in getSubscribers:", error);
@@ -72,10 +94,11 @@ export class SubscriberController {
 		}
 	}
 
-	static async getLists(req: AuthRequest, res: Response) {
+	static async getLists(req: AuthRequest, res: Response): Promise<void> {
 		try {
 			if (!req.user?._id) {
-				return res.status(401).json({ success: false, error: "Unauthorized" });
+				res.status(401).json({ success: false, error: "Unauthorized" });
+				return;
 			}
 
 			const lists = await SubscriberService.getLists(req.user._id.toString());
@@ -86,10 +109,14 @@ export class SubscriberController {
 		}
 	}
 
-	static async exportSubscribers(req: AuthRequest, res: Response) {
+	static async exportSubscribers(
+		req: AuthRequest,
+		res: Response,
+	): Promise<void> {
 		try {
 			if (!req.user?._id) {
-				return res.status(401).json({ success: false, error: "Unauthorized" });
+				res.status(401).json({ success: false, error: "Unauthorized" });
+				return;
 			}
 
 			const { listId } = req.query;
@@ -104,6 +131,42 @@ export class SubscriberController {
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to export subscribers" });
+		}
+	}
+
+	static async addPublicSubscriber(req: Request, res: Response): Promise<void> {
+		try {
+			const { formId, data, email, metadata } = req.body;
+
+			// First get the form to get the userId
+			const form = await Form.findById(formId);
+			if (!form) {
+				res.status(404).json({ success: false, error: "Form not found" });
+				return;
+			}
+
+			const subscriberData: Partial<ISubscriber> = {
+				formId,
+				userId: form.userId,
+				data,
+				email,
+				metadata,
+				status: "active" as const, // Explicitly type as literal
+				lastInteraction: new Date(),
+			};
+
+			const subscriber = await SubscriberService.addSubscriber(subscriberData);
+
+			res.status(201).json({
+				success: true,
+				data: subscriber,
+			});
+		} catch (error) {
+			logger.error("Error in addPublicSubscriber:", error);
+			res.status(400).json({
+				success: false,
+				error: "Failed to add subscriber",
+			});
 		}
 	}
 }

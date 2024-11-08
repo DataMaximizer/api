@@ -3,16 +3,22 @@ import cors from "cors";
 import { connectDB } from "./config/database";
 import { logger } from "./config/logger";
 import { setupSwagger } from "./config/swagger";
-import authRoutes from "./routes/auth.routes";
-import smtpRoutes from "./routes/smtp.routes";
-import adminRoutes from "./routes/admin.routes";
-import campaignRoutes from "./routes/campaign.routes";
-import affiliateRoutes from "./routes/affiliate.routes";
-import formRoutes from "./routes/form.routes";
-import subscriberRoutes from "./routes/subscriber.routes";
 import { authenticate, authorize } from "./middlewares/auth.middleware";
 import { UserType } from "./models/user.model";
 import dotenv from "dotenv";
+
+import {
+	authRoutes,
+	smtpRoutes,
+	adminRoutes,
+	trackingRoutes,
+	campaignRoutes,
+	affiliateRoutes,
+	formRoutes,
+	subscriberRoutes,
+} from "./routes";
+
+import { SchedulerService } from "./services/scheduler.service";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -41,6 +47,7 @@ app.use("/api/affiliate", affiliateRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/forms", formRoutes);
 app.use("/api/subscribers", subscriberRoutes);
+app.use("/api/metrics/track", trackingRoutes);
 
 /**
  * @openapi
@@ -109,6 +116,9 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 const startServer = async (): Promise<void> => {
 	try {
 		await connectDB();
+
+		SchedulerService.initializeScheduledTasks();
+
 		app.listen(port, () => {
 			logger.info(`Server running on port ${port}`);
 			logger.info(
