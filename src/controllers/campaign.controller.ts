@@ -1,6 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import { CampaignService } from "../services/campaign.service";
 import { Campaign } from "../models/campaign.model";
+import { AffiliateService } from "../services/affiliate.service";
+import { AIContentService } from "../services/ai-content.service";
+import { logger } from "../config/logger";
+import { ContentFramework, WritingTone } from "../models/ai-content.model";
 
 export class CampaignController {
 	static async createCampaign(
@@ -186,18 +190,131 @@ export class CampaignController {
 		}
 	}
 
-	static async updateStatus(
+	static async generateContent(
 		req: Request,
 		res: Response,
 		next: NextFunction,
-	): Promise<void> {
+	) {
 		try {
-			const { status } = req.body;
-			await CampaignService.updateCampaignStatus(req.params.id, status);
+			const { offerId, framework, tone, numberOfVariants = 3 } = req.body;
+
+			logger.info(
+				`Generating content for offer ${offerId} with framework ${framework} and tone ${tone}`,
+			);
+
+			const offer = await AffiliateService.getOfferById(offerId);
+			if (!offer) {
+				res.status(404).json({
+					success: false,
+					error: "Offer not found",
+				});
+				return;
+			}
+
+			if (!Object.values(ContentFramework).includes(framework)) {
+				res.status(400).json({
+					success: false,
+					error: `Invalid framework. Must be one of: ${Object.values(ContentFramework).join(", ")}`,
+				});
+				return;
+			}
+
+			if (!Object.values(WritingTone).includes(tone)) {
+				res.status(400).json({
+					success: false,
+					error: `Invalid tone. Must be one of: ${Object.values(WritingTone).join(", ")}`,
+				});
+				return;
+			}
+
+			const variants = await AIContentService.generateContentVariants(
+				{
+					name: offer.name,
+					description: offer.description,
+					productInfo: offer.productInfo,
+					tags: offer.tags,
+					price: offer.productInfo.pricing,
+					targetAudience: offer.productInfo.targetAudience,
+					benefits: offer.productInfo.benefits || [],
+					uniqueSellingPoints: offer.productInfo.uniqueSellingPoints || [],
+				},
+				framework as ContentFramework,
+				tone as WritingTone,
+				numberOfVariants,
+			);
 
 			res.json({
 				success: true,
-				message: "Campaign status updated successfully",
+				data: variants,
+			});
+		} catch (error) {
+			logger.error("Error generating content:", error);
+			next(error);
+		}
+	}
+
+	static async regenerateVariant(
+		req: Request,
+		res: Response,
+		next: NextFunction,
+	) {
+		try {
+			const { offerId, framework, tone } = req.body;
+
+			const offer = await AffiliateService.getOfferById(offerId);
+			if (!offer) {
+				res.status(404).json({
+					success: false,
+					error: "Offer not found",
+				});
+				return;
+			}
+
+			const variants = await AIContentService.generateContentVariants(
+				{
+					name: offer.name,
+					description: offer.description,
+					productInfo: offer.productInfo,
+					tags: offer.tags,
+					price: offer.productInfo.pricing,
+					targetAudience: offer.productInfo.targetAudience,
+					benefits: offer.productInfo.benefits || [],
+					uniqueSellingPoints: offer.productInfo.uniqueSellingPoints || [],
+				},
+				framework,
+				tone,
+				1,
+			);
+
+			res.json({
+				success: true,
+				data: variants[0],
+			});
+		} catch (error) {
+			logger.error("Error regenerating variant:", error);
+			next(error);
+		}
+	}
+
+	static async updateStatus(req: Request, res: Response, next: NextFunction) {
+		try {
+			const { status } = req.body;
+			const campaign = await CampaignService.updateCampaignStatus(
+				req.params.id,
+				status,
+			);
+
+			if (!campaign) {
+				res.status(404).json({
+					success: false,
+					error: "Campaign not found",
+				});
+				return;
+			}
+
+			res.json({
+				success: true,
+				data: campaign,
 			});
 		} catch (error) {
 			next(error);

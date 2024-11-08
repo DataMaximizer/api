@@ -21,14 +21,12 @@ export class UrlAnalysisController {
 				return;
 			}
 
-			// First analyze the URL and create offer data
 			const offerData = await UrlAnalysisService.createOfferFromUrl(
 				url,
 				userId.toString(),
 				commissionRate,
 			);
 
-			// Then use the existing affiliate service to create the offer
 			const offer = await AffiliateService.createOffer(offerData);
 
 			res.status(201).json({

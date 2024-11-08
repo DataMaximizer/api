@@ -13,7 +13,6 @@ export class SmtpService {
 
 			console.log("chegou aqui", provider.host);
 
-			// Special configuration for Brevo (formerly Sendinblue)
 			if (
 				provider.host.includes("brevo") ||
 				provider.host.includes("sendinblue")
@@ -32,7 +31,6 @@ export class SmtpService {
 					},
 				};
 			} else {
-				// Default SMTP configuration for other providers
 				config = {
 					host: provider.host,
 					port: provider.port,
@@ -46,7 +44,6 @@ export class SmtpService {
 
 			const transporter = nodemailer.createTransport(config);
 
-			// Verify connection configuration
 			await transporter.verify();
 
 			this.transporters.set(provider._id.toString(), transporter);
@@ -142,10 +139,8 @@ export class SmtpService {
 		userId: string,
 	): Promise<ISmtpProvider | null> {
 		try {
-			// Get all active SMTP providers for the user
 			const providers = await SmtpProvider.find({ userId });
 
-			// Simple round-robin rotation - you can implement more sophisticated logic
 			const provider = providers[Math.floor(Math.random() * providers.length)];
 
 			return provider;

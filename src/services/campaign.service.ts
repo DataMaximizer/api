@@ -243,4 +243,27 @@ export class CampaignService {
 			throw error;
 		}
 	}
+
+	static async updateCampaignStatus(
+		campaignId: string,
+		status: CampaignStatus,
+	): Promise<ICampaign | null> {
+		try {
+			const campaign = await Campaign.findByIdAndUpdate(
+				campaignId,
+				{ status },
+				{ new: true },
+			);
+
+			if (!campaign) {
+				logger.warn(`Campaign not found for status update: ${campaignId}`);
+				return null;
+			}
+
+			return campaign;
+		} catch (error) {
+			logger.error("Error updating campaign status:", error);
+			throw error;
+		}
+	}
 }

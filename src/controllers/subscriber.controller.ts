@@ -138,7 +138,6 @@ export class SubscriberController {
 		try {
 			const { formId, data, email, metadata } = req.body;
 
-			// First get the form to get the userId
 			const form = await Form.findById(formId);
 			if (!form) {
 				res.status(404).json({ success: false, error: "Form not found" });
@@ -151,7 +150,7 @@ export class SubscriberController {
 				data,
 				email,
 				metadata,
-				status: "active" as const, // Explicitly type as literal
+				status: "active" as const,
 				lastInteraction: new Date(),
 			};
 

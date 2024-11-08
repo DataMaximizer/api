@@ -1,4 +1,3 @@
-// src/models/smtp.model.ts
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface ISmtpProvider extends Document {
@@ -35,7 +34,6 @@ const smtpProviderSchema = new Schema<ISmtpProvider>(
 	{ timestamps: true },
 );
 
-// Ensure user can't create duplicate provider names
 smtpProviderSchema.index({ userId: 1, name: 1 }, { unique: true });
 
 export const SmtpProvider = mongoose.model<ISmtpProvider>(

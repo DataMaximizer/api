@@ -13,7 +13,6 @@ export class SubscriberService {
 		try {
 			const subscriber = await Subscriber.create(subscriberData);
 
-			// Update subscriber count for each list
 			if (subscriber.lists?.length) {
 				await SubscriberList.updateMany(
 					{ _id: { $in: subscriber.lists } },

@@ -197,7 +197,6 @@ export class FormController {
 
 	static async getPublicForm(req: AuthRequest, res: Response): Promise<void> {
 		try {
-			// Note: Not passing userId for public form access
 			const form = await FormService.getFormById(req.params.id as string);
 
 			if (!form) {

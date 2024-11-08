@@ -6,6 +6,7 @@ import { setupSwagger } from "./config/swagger";
 import { authenticate, authorize } from "./middlewares/auth.middleware";
 import { UserType } from "./models/user.model";
 import dotenv from "dotenv";
+import swaggerUi from "swagger-ui-express";
 
 import {
 	authRoutes,
@@ -19,11 +20,33 @@ import {
 } from "./routes";
 
 import { SchedulerService } from "./services/scheduler.service";
+import swaggerJSDoc from "swagger-jsdoc";
 
 const app = express();
 const port = process.env.PORT || 5000;
 
 dotenv.config();
+
+const swaggerOptions = {
+	definition: {
+		openapi: "3.0.0",
+		info: {
+			title: "API Documentation",
+			version: "1.0.0",
+			description: "API endpoints documentation",
+		},
+		servers: [
+			{
+				url: `http://localhost:${process.env.PORT || 5000}`,
+				description: "Development server",
+			},
+		],
+	},
+	// Path to the API docs
+	apis: ["./src/**/*.ts"],
+};
+
+const swaggerSpec = swaggerJSDoc(swaggerOptions);
 
 // CORS configuration
 const corsOptions = {
@@ -49,55 +72,12 @@ app.use("/api/forms", formRoutes);
 app.use("/api/subscribers", subscriberRoutes);
 app.use("/api/metrics/track", trackingRoutes);
 
-/**
- * @openapi
- * /api/profile:
- *   get:
- *     tags:
- *       - User
- *     summary: Get user profile
- *     description: Retrieve the profile of the authenticated user
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: User profile retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 user:
- *                   $ref: '#/components/schemas/User'
- *       401:
- *         description: Unauthorized
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
 app.get("/api/profile", authenticate, (req: Request, res: Response) => {
 	res.json({ user: req.user });
 });
 
-/**
- * @openapi
- * /api/admin/dashboard:
- *   get:
- *     tags:
- *       - Admin
- *     summary: Get admin dashboard
- *     description: Retrieve admin dashboard data (owner access only)
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Dashboard data retrieved successfully
- *       403:
- *         description: Forbidden - Not an admin
- *       401:
- *         description: Unauthorized
- */
 app.get(
 	"/api/admin/dashboard",
 	authenticate,

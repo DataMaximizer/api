@@ -37,24 +37,20 @@ export class AffiliateService {
 
 	static async scanAndEnrichOffer(offer: IAffiliateOffer) {
 		try {
-			// Check if URL is alive
 			const isAlive = await this.checkUrlStatus(offer.url);
 			if (!isAlive) {
 				offer.status = OfferStatus.PAUSED;
 				return;
 			}
 
-			// Scrape webpage content
 			const pageContent = await this.scrapeWebpage(offer.url);
 
-			// Gather product information using OpenAI
 			const productInfo = await this.gatherProductInfo(
 				pageContent,
 				offer.description,
 			);
 			offer.productInfo = productInfo;
 
-			// Auto-generate tags and merge with user tags (up to 5 total)
 			const aiTags = await this.generateTags(productInfo);
 			const uniqueTags = new Set([...offer.tags, ...aiTags]);
 			offer.tags = Array.from(uniqueTags).slice(0, 5);
@@ -72,11 +68,9 @@ export class AffiliateService {
 			const response = await axios.get(url);
 			const $ = load(response.data);
 
-			// Remove scripts, styles, and other non-content elements
 			$("script").remove();
 			$("style").remove();
 
-			// Extract relevant content
 			const title = $("title").text();
 			const description = $('meta[name="description"]').attr("content") || "";
 			const mainContent = $(
@@ -91,7 +85,7 @@ export class AffiliateService {
         Description: ${description.trim()}
         Price: ${price.trim()}
         Content: ${mainContent.trim()}
-      `.substring(0, 3000); // Limit content length for OpenAI
+      `.substring(0, 3000);
 		} catch (error) {
 			logger.error("Error scraping webpage:", error);
 			return "";
@@ -150,7 +144,6 @@ export class AffiliateService {
 			const result = completion.choices[0].message?.content;
 			if (!result) throw new Error("No response from OpenAI");
 
-			// Parse the structured response
 			const sections = result.split("\n\n");
 			const benefitsSection =
 				sections.find((s) => s.startsWith("Benefits:")) || "";

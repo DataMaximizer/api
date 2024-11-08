@@ -14,13 +14,13 @@ export interface IOfferCategory {
 export interface IProductInfo {
 	description?: string;
 	benefits?: string[];
-	features?: string[]; // Added new field
+	features?: string[];
 	pricing?: string;
 	targetAudience?: string;
-	uniqueSellingPoints?: string[]; // Added new field
-	suggestedCategories?: string[]; // Added new field
-	marketingHighlights?: string[]; // Added new field for key marketing points
-	technicalDetails?: Record<string, any>; // Added for technical specifications
+	uniqueSellingPoints?: string[];
+	suggestedCategories?: string[];
+	marketingHighlights?: string[];
+	technicalDetails?: Record<string, any>;
 }
 
 export interface IAffiliateOffer extends Document {
@@ -46,13 +46,13 @@ const productInfoSchema = new Schema(
 	{
 		description: String,
 		benefits: [String],
-		features: [String], // Added new field
+		features: [String],
 		pricing: String,
 		targetAudience: String,
-		uniqueSellingPoints: [String], // Added new field
-		suggestedCategories: [String], // Added new field
-		marketingHighlights: [String], // Added new field
-		technicalDetails: Schema.Types.Mixed, // Added new field
+		uniqueSellingPoints: [String],
+		suggestedCategories: [String],
+		marketingHighlights: [String],
+		technicalDetails: Schema.Types.Mixed,
 	},
 	{ _id: false },
 );
@@ -86,22 +86,19 @@ const offerSchema = new Schema<IAffiliateOffer>(
 	},
 );
 
-// Indexes for better query performance
 offerSchema.index({ status: 1 });
 offerSchema.index({ categories: 1 });
 offerSchema.index({ tags: 1 });
 offerSchema.index({ userId: 1 });
-offerSchema.index({ "productInfo.suggestedCategories": 1 }); // Added new index
-offerSchema.index({ createdAt: -1 }); // Added index for timestamp sorting
+offerSchema.index({ "productInfo.suggestedCategories": 1 });
+offerSchema.index({ createdAt: -1 });
 offerSchema.index({
 	name: "text",
 	description: "text",
 	"productInfo.description": "text",
-}); // Added text search index
+});
 
-// Pre-save middleware to ensure proper formatting
 offerSchema.pre("save", function (next) {
-	// Ensure arrays don't have duplicates
 	if (this.tags) {
 		this.tags = [...new Set(this.tags)];
 	}
@@ -114,7 +111,6 @@ offerSchema.pre("save", function (next) {
 		];
 	}
 
-	// Update lastActive if status is being changed to ACTIVE
 	if (this.isModified("status") && this.status === OfferStatus.ACTIVE) {
 		this.lastActive = new Date();
 	}

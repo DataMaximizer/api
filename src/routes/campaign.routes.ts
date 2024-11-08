@@ -6,6 +6,8 @@ import {
 	createCampaignSchema,
 	updateCampaignSchema,
 	generateVariantsSchema,
+	generateContentSchema,
+	regenerateVariantSchema,
 	updateMetricsSchema,
 } from "../utils/campaign.validation";
 
@@ -56,5 +58,19 @@ router.put(
 
 // Update campaign status
 router.put("/:id/status", authenticate, CampaignController.updateStatus);
+
+router.post(
+	"/generate",
+	authenticate,
+	validateRequest(generateContentSchema),
+	CampaignController.generateContent,
+);
+
+router.post(
+	"/regenerate-variant",
+	authenticate,
+	validateRequest(regenerateVariantSchema),
+	CampaignController.regenerateVariant,
+);
 
 export default router;

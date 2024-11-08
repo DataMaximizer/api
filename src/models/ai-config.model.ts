@@ -36,7 +36,7 @@ const aiConfigSchema = new Schema<IAIConfigDocument>(
 			unique: true,
 		},
 		provider: { type: String, enum: Object.values(AIProvider), required: true },
-		modelName: { type: String, required: true }, // Changed from 'model' to 'modelName'
+		modelName: { type: String, required: true },
 		apiKey: { type: String, required: true },
 		temperature: { type: Number, min: 0, max: 2, default: 0.7 },
 	},

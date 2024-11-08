@@ -4,7 +4,6 @@ import { logger } from "../config/logger";
 
 export class SchedulerService {
 	static initializeScheduledTasks() {
-		// Run cleanup tasks daily at midnight
 		schedule.scheduleJob("0 0 * * *", async () => {
 			try {
 				logger.info("Starting scheduled subscriber cleanup");
@@ -15,7 +14,6 @@ export class SchedulerService {
 			}
 		});
 
-		// Run engagement score updates every 6 hours
 		schedule.scheduleJob("0 */6 * * *", async () => {
 			try {
 				logger.info("Starting scheduled engagement score update");

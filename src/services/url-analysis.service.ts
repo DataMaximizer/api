@@ -5,7 +5,7 @@ import {
 	AffiliateOffer,
 	IAffiliateOffer,
 	OfferStatus,
-} from "../models/affiliate-offer.model"; // Removed IProductInfo
+} from "../models/affiliate-offer.model";
 import { logger } from "../config/logger";
 
 import {
@@ -226,12 +226,8 @@ export class UrlAnalysisService {
 
 	static async deleteAnalysis(id: string): Promise<void> {
 		try {
-			// If you have a dedicated model for URL analysis, use it here
 			await AffiliateOffer.findByIdAndDelete(id);
 
-			// If you're just storing temporary data, you might want to clear cache or temporary storage
-
-			// For now, we'll just return as success
 			return;
 		} catch (error) {
 			logger.error("Error deleting analysis:", error);

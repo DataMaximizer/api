@@ -6,7 +6,6 @@ import { SmtpService } from "../services/smtp.service";
 class SmtpController {
 	async createProvider(req: Request, res: Response): Promise<void> {
 		try {
-			// Check for existing provider with same name for this user
 			const existing = await SmtpProvider.findOne({
 				userId: req.user?.id,
 				name: req.body.name,

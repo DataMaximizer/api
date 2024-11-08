@@ -3,7 +3,7 @@ import { logger } from "../config/logger";
 
 export class SubscriberCleanupService {
 	static readonly DORMANCY_THRESHOLD_DAYS = 90;
-	static readonly LOW_ENGAGEMENT_THRESHOLD = 0.1; // 10% engagement rate
+	static readonly LOW_ENGAGEMENT_THRESHOLD = 0.1;
 	static readonly BOUNCE_THRESHOLD = 3;
 
 	static async performCleanup() {
@@ -117,7 +117,6 @@ export class SubscriberCleanupService {
 			lastInteraction,
 		} = subscriber;
 
-		// Weight factors for different engagement types
 		const weights = {
 			opens: 1,
 			clicks: 2,
@@ -125,7 +124,6 @@ export class SubscriberCleanupService {
 			recency: 0.5,
 		};
 
-		// Calculate base score from actions
 		let score =
 			(opens * weights.opens +
 				clicks * weights.clicks +

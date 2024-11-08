@@ -25,10 +25,8 @@ export class EmailTemplateService {
 		subscriberId: string,
 		campaignId?: string,
 	): string {
-		// Add tracking pixel
 		const trackingPixel = this.generateTrackingPixel(subscriberId, campaignId);
 
-		// Replace links with tracking links
 		const contentWithTrackedLinks = content.replace(
 			/<a\s+href="([^"]+)"([^>]*)>/g,
 			(match, url, rest) => {
@@ -41,7 +39,6 @@ export class EmailTemplateService {
 			},
 		);
 
-		// Add tracking pixel at the end of the email body
 		return contentWithTrackedLinks.replace(
 			"</body>",
 			`${trackingPixel}</body>`,
@@ -52,7 +49,6 @@ export class EmailTemplateService {
 		template: string,
 		data: Record<string, any>,
 	): string {
-		// Replace variables in template
 		let compiledTemplate = template;
 		Object.entries(data).forEach(([key, value]) => {
 			compiledTemplate = compiledTemplate.replace(

@@ -41,10 +41,8 @@ const subscriberSchema = new Schema<ISubscriber>(
 	{ timestamps: true },
 );
 
-// Ensure user can't have duplicate email subscribers
 subscriberSchema.index({ userId: 1, email: 1 }, { unique: true });
 
-// Index for faster queries
 subscriberSchema.index({ status: 1 });
 subscriberSchema.index({ lists: 1 });
 subscriberSchema.index({ tags: 1 });

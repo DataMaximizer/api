@@ -3,7 +3,6 @@ import { AIConfigService } from "../services/ai-config.service";
 import { logger } from "../config/logger";
 import { IUser } from "../models/user.model";
 
-// Define extended Request type with user
 interface AuthRequest extends Request {
 	user?: IUser;
 }

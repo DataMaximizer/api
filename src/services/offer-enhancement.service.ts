@@ -3,7 +3,6 @@ import { IAffiliateOffer, IProductInfo } from "../models/affiliate-offer.model";
 import { logger } from "../config/logger";
 import { OPENAI_API_KEY } from "../local";
 
-// Standard e-commerce categories with subcategories
 const CATEGORY_HIERARCHY = {
 	electronics: {
 		name: "Electronics",
@@ -63,13 +62,10 @@ export class OfferEnhancementService {
 		offer: Partial<IAffiliateOffer>,
 	): Promise<Partial<IAffiliateOffer>> {
 		try {
-			// Generate enhanced description using structured approach
 			const enhancedContent = await this.generateEnhancedContent(offer);
 
-			// Generate appropriate categories
 			const suggestedCategories = await this.suggestCategories(enhancedContent);
 
-			// Create the enhanced product info object
 			const enhancedProductInfo: IProductInfo = {
 				description: enhancedContent.detailedDescription,
 				benefits: enhancedContent.benefits,
@@ -79,7 +75,6 @@ export class OfferEnhancementService {
 				suggestedCategories: suggestedCategories,
 			};
 
-			// Merge existing and enhanced content
 			return {
 				...offer,
 				description: enhancedContent.description,

@@ -21,7 +21,6 @@ const subscriberListSchema = new Schema<ISubscriberList>(
 	{ timestamps: true },
 );
 
-// Ensure user can't create duplicate list names
 subscriberListSchema.index({ userId: 1, name: 1 }, { unique: true });
 
 export const SubscriberList = mongoose.model<ISubscriberList>(
