@@ -2,6 +2,8 @@ node_modules
 dist
 coverage
 .env
+.env.local
 *.log
-local.ts
-
+files.md
+api.md
+ts_files_backup

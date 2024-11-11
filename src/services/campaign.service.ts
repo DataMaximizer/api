@@ -55,6 +55,8 @@ export class CampaignService {
 		apiKey: OPENAI_API_KEY,
 	});
 
+	private static readonly BATCH_SIZE = 100;
+
 	static async createCampaign(
 		campaignData: Partial<ICampaign>,
 	): Promise<ICampaign> {

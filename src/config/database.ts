@@ -1,23 +1,23 @@
 import mongoose from "mongoose";
 import { logger } from "./logger";
 
-const MONGODB_URI =
-	process.env.MONGODB_URI || "mongodb://localhost:27017/api-datamax";
+require("dotenv").config();
 
-const options = {
+const options: mongoose.ConnectOptions = {
 	autoIndex: true,
-	serverSelectionTimeoutMS: 30000,
-	connectTimeoutMS: 30000,
+	maxPoolSize: 10,
+	serverSelectionTimeoutMS: 5000,
 	socketTimeoutMS: 45000,
+	family: 4,
+	// keepAlive: true,
+	// keepAliveInitialDelay: 300000,
 };
 
 export async function connectDB(): Promise<void> {
 	try {
-		mongoose.set("strictQuery", true);
-
-		await mongoose.connect(MONGODB_URI, options);
-
-		logger.info("Successfully connected to MongoDB.");
+		mongoose.connection.on("connected", () => {
+			logger.info("MongoDB connected successfully");
+		});
 
 		mongoose.connection.on("error", (error) => {
 			logger.error("MongoDB connection error:", error);
@@ -26,6 +26,19 @@ export async function connectDB(): Promise<void> {
 		mongoose.connection.on("disconnected", () => {
 			logger.warn("MongoDB disconnected. Attempting to reconnect...");
 		});
+
+		process.on("SIGINT", async () => {
+			try {
+				await mongoose.connection.close();
+				logger.info("MongoDB connection closed through app termination");
+				process.exit(0);
+			} catch (err) {
+				logger.error("Error closing MongoDB connection:", err);
+				process.exit(1);
+			}
+		});
+
+		await mongoose.connect(process.env.MONGODB_URI || "", options);
 	} catch (error) {
 		logger.error("Failed to connect to MongoDB:", error);
 		process.exit(1);

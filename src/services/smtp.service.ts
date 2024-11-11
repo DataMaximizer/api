@@ -3,7 +3,49 @@ import { logger } from "../config/logger";
 import nodemailer, { Transporter } from "nodemailer";
 
 export class SmtpService {
-	private static transporters: Map<string, Transporter> = new Map();
+	private static transporters: Map<
+		string,
+		{
+			transporter: Transporter;
+			lastUsed: number;
+		}
+	> = new Map();
+
+	private static readonly TRANSPORTER_TIMEOUT = 30 * 60 * 1000;
+	private static readonly CLEANUP_INTERVAL = 15 * 60 * 1000;
+	private static readonly POOL_CONFIG = {
+		pool: true,
+		maxConnections: 5,
+		maxMessages: 100,
+		rateDelta: 1000,
+		rateLimit: 5,
+	};
+
+	static initCleanupInterval(): void {
+		setInterval(() => {
+			SmtpService.cleanupUnusedTransporters();
+		}, SmtpService.CLEANUP_INTERVAL);
+	}
+
+	private static async cleanupUnusedTransporters(): Promise<void> {
+		const now = Date.now();
+		const transporterEntries = Array.from(SmtpService.transporters.entries());
+
+		for (const [id, { transporter, lastUsed }] of transporterEntries) {
+			if (now - lastUsed > SmtpService.TRANSPORTER_TIMEOUT) {
+				try {
+					transporter.close();
+					SmtpService.transporters.delete(id);
+					logger.info(`Closed inactive SMTP transporter for provider ${id}`);
+				} catch (error) {
+					logger.error(
+						`Error closing SMTP transporter for provider ${id}:`,
+						error,
+					);
+				}
+			}
+		}
+	}
 
 	static async initializeTransporter(
 		provider: ISmtpProvider,
@@ -11,13 +53,12 @@ export class SmtpService {
 		try {
 			let config: any;
 
-			console.log("chegou aqui", provider.host);
-
 			if (
 				provider.host.includes("brevo") ||
 				provider.host.includes("sendinblue")
 			) {
 				config = {
+					...this.POOL_CONFIG,
 					host: "smtp-relay.brevo.com",
 					port: 587,
 					secure: false,
@@ -32,6 +73,7 @@ export class SmtpService {
 				};
 			} else {
 				config = {
+					...this.POOL_CONFIG,
 					host: provider.host,
 					port: provider.port,
 					secure: provider.secure,
@@ -39,14 +81,24 @@ export class SmtpService {
 						user: provider.mail,
 						pass: provider.password,
 					},
+					connectionTimeout: 5000,
+					greetingTimeout: 5000,
+					socketTimeout: 10000,
 				};
 			}
 
 			const transporter = nodemailer.createTransport(config);
+			const isValid = await transporter.verify();
 
-			await transporter.verify();
+			if (!isValid) {
+				throw new Error("Transporter verification failed");
+			}
 
-			this.transporters.set(provider._id.toString(), transporter);
+			SmtpService.transporters.set(provider._id.toString(), {
+				transporter,
+				lastUsed: Date.now(),
+			});
+
 			return transporter;
 		} catch (error: any) {
 			logger.error(
@@ -59,17 +111,19 @@ export class SmtpService {
 
 	static async getTransporter(providerId: string): Promise<Transporter> {
 		try {
-			const existingTransporter = this.transporters.get(providerId);
+			const existingTransporter = SmtpService.transporters.get(providerId);
 
-			if (!existingTransporter) {
-				const provider = await SmtpProvider.findById(providerId);
-				if (!provider) {
-					throw new Error("SMTP provider not found");
-				}
-				return await this.initializeTransporter(provider);
+			if (existingTransporter) {
+				existingTransporter.lastUsed = Date.now();
+				return existingTransporter.transporter;
 			}
 
-			return existingTransporter;
+			const provider = await SmtpProvider.findById(providerId);
+			if (!provider) {
+				throw new Error("SMTP provider not found");
+			}
+
+			return this.initializeTransporter(provider);
 		} catch (error: any) {
 			logger.error(
 				`Failed to get transporter for provider ${providerId}:`,
@@ -94,13 +148,14 @@ export class SmtpService {
 		text?: string;
 		attachments?: any[];
 	}) {
+		let transporter: Transporter | null = null;
 		try {
 			const provider = await SmtpProvider.findById(providerId);
 			if (!provider) {
 				throw new Error("SMTP provider not found");
 			}
 
-			const transporter = await this.getTransporter(providerId);
+			transporter = await this.getTransporter(providerId);
 
 			const mailOptions = {
 				from: `${provider.fromName} <${provider.fromEmail}>`,
@@ -109,6 +164,11 @@ export class SmtpService {
 				html,
 				text,
 				attachments,
+				headers: {
+					"X-Priority": "1",
+					"X-MSMail-Priority": "High",
+					Importance: "high",
+				},
 			};
 
 			const result = await transporter.sendMail(mailOptions);
@@ -121,17 +181,22 @@ export class SmtpService {
 	}
 
 	static async testSmtpConnection(providerId: string): Promise<boolean> {
+		let transporter: Transporter | null = null;
 		try {
 			const provider = await SmtpProvider.findById(providerId);
 			if (!provider) {
 				throw new Error("SMTP provider not found");
 			}
 
-			await this.initializeTransporter(provider);
+			transporter = await this.initializeTransporter(provider);
 			return true;
 		} catch (error: any) {
 			logger.error("SMTP connection test failed:", error);
 			return false;
+		} finally {
+			if (transporter && !this.POOL_CONFIG.pool) {
+				transporter.close();
+			}
 		}
 	}
 
@@ -139,10 +204,16 @@ export class SmtpService {
 		userId: string,
 	): Promise<ISmtpProvider | null> {
 		try {
-			const providers = await SmtpProvider.find({ userId });
+			const providers = await SmtpProvider.find({
+				userId,
+				deletedAt: null,
+			}).select("-password");
+
+			if (!providers.length) {
+				return null;
+			}
 
 			const provider = providers[Math.floor(Math.random() * providers.length)];
-
 			return provider;
 		} catch (error) {
 			logger.error("Failed to rotate SMTP provider:", error);
@@ -150,3 +221,5 @@ export class SmtpService {
 		}
 	}
 }
+
+SmtpService.initCleanupInterval();
