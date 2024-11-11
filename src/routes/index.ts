@@ -6,6 +6,7 @@ import campaignRoutes from "./campaign.routes";
 import affiliateRoutes from "./affiliate.routes";
 import formRoutes from "./form.routes";
 import subscriberRoutes from "./subscriber.routes";
+import profileRoutes from "./profile.routes";
 
 export {
 	authRoutes,
@@ -16,4 +17,5 @@ export {
 	affiliateRoutes,
 	formRoutes,
 	subscriberRoutes,
+	profileRoutes,
 };

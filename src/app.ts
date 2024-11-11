@@ -17,6 +17,7 @@ import {
 	affiliateRoutes,
 	formRoutes,
 	subscriberRoutes,
+	profileRoutes,
 } from "./routes";
 
 import { SchedulerService } from "./services/scheduler.service";
@@ -74,9 +75,7 @@ app.use("/api/metrics/track", trackingRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-app.get("/api/profile", authenticate, (req: Request, res: Response) => {
-	res.json({ user: req.user });
-});
+app.use("/api/profile", profileRoutes);
 
 app.get(
 	"/api/admin/dashboard",
