@@ -57,4 +57,5 @@ jobs:
           --platform managed \
           --allow-unauthenticated \
           --set-env-vars OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+          --set-env-vars PORT=${{ secrets.OPENAI_API_KEY }} \
           --set-env-vars MONGODB_URI=${{ secrets.MONGODB_URI }} \
