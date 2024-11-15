@@ -28,37 +28,36 @@ export class CampaignController {
 		}
 	}
 
-	static async getCampaigns(
-		req: Request,
-		res: Response,
-		next: NextFunction,
-	): Promise<void> {
+	static async getCampaigns(req: Request, res: Response): Promise<void> {
 		try {
-			const { status, type, page = 1, limit = 10 } = req.query;
-			const query: any = { userId: req.user?._id };
+			logger.info("Fetching campaigns with query:", req.query);
 
-			if (status) query.status = status;
-			if (type) query.type = type;
+			const filter: any = {};
+			if (req.query.type) {
+				filter.type = req.query.type.toString();
+			}
 
-			const campaigns = await Campaign.find(query)
-				.sort({ createdAt: -1 })
-				.skip((Number(page) - 1) * Number(limit))
-				.limit(Number(limit))
-				.populate("smtpProviderId", "name");
+			logger.info("Using filter:", filter);
 
-			const total = await Campaign.countDocuments(query);
+			const campaigns = await Campaign.find(filter)
+				.populate("offerId")
+				.lean()
+				.exec();
+
+			logger.info(`Found ${campaigns.length} campaigns`);
 
 			res.json({
 				success: true,
 				data: campaigns,
-				pagination: {
-					total,
-					page: Number(page),
-					pages: Math.ceil(total / Number(limit)),
-				},
 			});
 		} catch (error) {
-			next(error);
+			logger.error("Error in getCampaigns:", error);
+			res.status(500).json({
+				success: false,
+				error:
+					error instanceof Error ? error.message : "Unknown error occurred",
+				details: error,
+			});
 		}
 	}
 
@@ -249,6 +248,29 @@ export class CampaignController {
 			});
 		} catch (error) {
 			logger.error("Error generating content:", error);
+			next(error);
+		}
+	}
+
+	static async generateCustomContent(
+		req: Request,
+		res: Response,
+		next: NextFunction,
+	): Promise<void> {
+		try {
+			const { offerId, prompt, tone, style } = req.body;
+
+			const variant = await CampaignService.generateCustomEmailContent(
+				offerId,
+				prompt,
+				tone,
+			);
+
+			res.json({
+				success: true,
+				data: variant,
+			});
+		} catch (error) {
 			next(error);
 		}
 	}

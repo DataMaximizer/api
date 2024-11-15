@@ -268,4 +268,37 @@ export class CampaignService {
 			throw error;
 		}
 	}
+
+	static async generateCustomEmailContent(
+		customPrompt: string,
+		tone: string,
+		style: string,
+	): Promise<string> {
+		const prompt = `
+    Write a marketing email with the following specifications:
+    Custom Instructions: ${customPrompt}
+    Tone: ${tone}
+    Writing Style: ${style}
+    
+    Requirements:
+    1. Maintain the specified tone and writing style throughout
+    2. Include a clear call to action
+    3. Keep it concise and engaging
+    4. Focus on the specific instructions provided
+  `;
+
+		const completion = await this.openai.chat.completions.create({
+			model: "gpt-3.5-turbo",
+			messages: [
+				{
+					role: "system",
+					content:
+						"You are an expert email copywriter skilled at following specific instructions while maintaining consistent tone and style.",
+				},
+				{ role: "user", content: prompt },
+			],
+		});
+
+		return completion.choices[0].message?.content || "";
+	}
 }

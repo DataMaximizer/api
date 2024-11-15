@@ -7,7 +7,7 @@ import {
 	updateCampaignSchema,
 	generateVariantsSchema,
 	generateContentSchema,
-	regenerateVariantSchema,
+	// regenerateVariantSchema,
 	updateMetricsSchema,
 } from "../utils/campaign.validation";
 
@@ -66,11 +66,11 @@ router.post(
 	CampaignController.generateContent,
 );
 
-router.post(
-	"/regenerate-variant",
-	authenticate,
-	validateRequest(regenerateVariantSchema),
-	CampaignController.regenerateVariant,
-);
+// router.post(
+// 	"/regenerate-variant",
+// 	authenticate,
+// 	validateRequest(regenerateVariantSchema),
+// 	CampaignController.regenerateVariant,
+// );
 
 export default router;

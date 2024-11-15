@@ -32,29 +32,19 @@ export interface ICampaign extends Document {
 	type: CampaignType;
 	status: CampaignStatus;
 	userId: Schema.Types.ObjectId;
-	segments: Schema.Types.ObjectId[];
-	variants: ICampaignVariant[];
-	schedule?: {
-		startDate: Date;
-		endDate?: Date;
-		sendTime?: string;
-	};
-	settings: {
-		fromName: string;
-		fromEmail?: string;
-		fromPhone?: string;
-		replyTo?: string;
-		customPrompts?: string[];
-	};
-	metrics: {
+	offerId: Schema.Types.ObjectId;
+	subject: string;
+	content: string;
+	framework?: string;
+	tone?: string;
+	smtpProviderId?: Schema.Types.ObjectId;
+	metrics?: {
 		totalSent: number;
 		totalOpens: number;
 		totalClicks: number;
 		totalConversions: number;
 		totalRevenue: number;
-		winningVariantId?: Schema.Types.ObjectId;
 	};
-	smtpProviderId: Schema.Types.ObjectId;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -87,32 +77,22 @@ const campaignSchema = new Schema<ICampaign>(
 			default: CampaignStatus.DRAFT,
 		},
 		userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-		segments: [{ type: Schema.Types.ObjectId, ref: "Segment" }],
-		variants: [campaignVariantSchema],
-		schedule: {
-			startDate: Date,
-			endDate: Date,
-			sendTime: String,
+		offerId: {
+			type: Schema.Types.ObjectId,
+			ref: "AffiliateOffer",
+			required: true,
 		},
-		settings: {
-			fromName: { type: String, required: true },
-			fromEmail: String,
-			fromPhone: String,
-			replyTo: String,
-			customPrompts: [String],
-		},
+		subject: { type: String, required: true },
+		content: { type: String, required: true },
+		framework: { type: String },
+		tone: { type: String },
+		smtpProviderId: { type: Schema.Types.ObjectId, ref: "SmtpProvider" },
 		metrics: {
 			totalSent: { type: Number, default: 0 },
 			totalOpens: { type: Number, default: 0 },
 			totalClicks: { type: Number, default: 0 },
 			totalConversions: { type: Number, default: 0 },
 			totalRevenue: { type: Number, default: 0 },
-			winningVariantId: Schema.Types.ObjectId,
-		},
-		smtpProviderId: {
-			type: Schema.Types.ObjectId,
-			ref: "SmtpProvider",
-			required: true,
 		},
 	},
 	{ timestamps: true },

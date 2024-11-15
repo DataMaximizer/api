@@ -38,7 +38,10 @@ export async function connectDB(): Promise<void> {
 			}
 		});
 
-		await mongoose.connect(process.env.MONGODB_URI || "", options);
+		await mongoose.connect(
+			process.env.MONGODB_URI || "mongodb://localhost:27017",
+			options,
+		);
 	} catch (error) {
 		logger.error("Failed to connect to MongoDB:", error);
 		process.exit(1);

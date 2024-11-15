@@ -3,24 +3,15 @@ import { CampaignType, CampaignStatus } from "../models/campaign.model";
 import { ContentFramework, WritingTone } from "../models/ai-content.model";
 
 export const createCampaignSchema = z.object({
-	name: z.string().min(1, "Campaign name is required"),
-	type: z.enum([CampaignType.EMAIL, CampaignType.SMS]),
-	segments: z.array(z.string()),
-	schedule: z
-		.object({
-			startDate: z.string().or(z.date()),
-			endDate: z.string().or(z.date()).optional(),
-			sendTime: z.string().optional(),
-		})
-		.optional(),
-	settings: z.object({
-		fromName: z.string().min(1, "From name is required"),
-		fromEmail: z.string().email().optional(),
-		fromPhone: z.string().optional(),
-		replyTo: z.string().email().optional(),
-		customPrompts: z.array(z.string()).optional(),
-	}),
-	smtpProviderId: z.string().min(1, "SMTP provider is required"),
+	offerId: z.string().min(1, "Offer ID is required"),
+	content: z.string().min(1, "Content is required"),
+	subject: z.string().min(1, "Subject is required"),
+	framework: z.string().optional(),
+	tone: z.string().optional(),
+	type: z.enum(["email", "sms"]).default("email"),
+	status: z
+		.enum(["draft", "scheduled", "running", "completed", "paused"])
+		.default("draft"),
 });
 
 export const updateCampaignSchema = createCampaignSchema.partial().extend({
@@ -36,28 +27,19 @@ export const updateCampaignSchema = createCampaignSchema.partial().extend({
 });
 
 export const generateContentSchema = z.object({
-	offerId: z.string({
-		required_error: "Offer ID is required",
-	}),
-	framework: z.string({
-		required_error: "Framework is required",
-	}),
-	tone: z.string({
-		required_error: "Tone is required",
-	}),
-	numberOfVariants: z.number().min(1).max(5).optional().default(3),
+	offerId: z.string().min(1, "Offer ID is required"),
+	framework: z.string().optional(),
+	tone: z.string().min(1, "Tone is required"),
+	numberOfVariants: z.number().min(1).max(5).optional(),
+	style: z.string().optional(),
+	prompt: z.string().optional(),
 });
 
-export const regenerateVariantSchema = z.object({
-	offerId: z.string({
-		required_error: "Offer ID is required",
-	}),
-	framework: z.string({
-		required_error: "Framework is required",
-	}),
-	tone: z.string({
-		required_error: "Tone is required",
-	}),
+export const generateCustomContentSchema = z.object({
+	offerId: z.string().min(1, "Offer ID is required"),
+	prompt: z.string().min(1, "Custom prompt is required"),
+	tone: z.string().min(1, "Tone is required"),
+	style: z.string().min(1, "Writing style is required"),
 });
 
 export const generateVariantsSchema = z.object({
