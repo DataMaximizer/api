@@ -2,6 +2,8 @@ import { Router } from "express";
 import { AuthController } from "../controllers/auth.controller";
 import { validateRequest } from "../middlewares/validation.middleware";
 import { createUserSchema } from "../utils/user.validation";
+import { authenticate } from "../middlewares/auth.middleware";
+import { AuthService } from "../services/auth.service";
 
 const router = Router();
 
@@ -88,5 +90,25 @@ router.post(
  *               $ref: '#/components/schemas/Error'
  */
 router.post("/login", AuthController.login);
+
+router.post("/refresh-token", async (req, res) => {
+	try {
+		const { refreshToken } = req.body;
+		const tokens = await AuthService.refreshToken(refreshToken);
+		res.json(tokens);
+	} catch (error) {
+		res.status(401).json({ error: "Invalid refresh token" });
+	}
+});
+
+router.post("/logout", authenticate, async (req, res) => {
+	try {
+		const { refreshToken } = req.body;
+		await AuthService.revokeToken(refreshToken);
+		res.json({ message: "Logged out successfully" });
+	} catch (error) {
+		res.status(400).json({ error: "Failed to logout" });
+	}
+});
 
 export default router;
