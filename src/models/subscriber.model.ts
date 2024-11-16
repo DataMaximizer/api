@@ -6,6 +6,7 @@ export interface IInteraction {
 	campaignId?: Types.ObjectId;
 	linkId?: string;
 	metadata?: Record<string, any>;
+	interactions?: string | number;
 }
 
 export interface IMetrics {
@@ -16,7 +17,7 @@ export interface IMetrics {
 	revenue: number;
 	lastOpen?: Date;
 	lastClick?: Date;
-	interactions: IInteraction[];
+	interactions?: IInteraction[];
 }
 
 export interface ISubscriber extends Document {

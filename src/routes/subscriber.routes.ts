@@ -8,6 +8,8 @@ import {
 	updateListSchema,
 } from "../utils/subscriber.validation";
 
+import multer from "multer";
+
 const router = Router();
 
 // Subscribers
@@ -32,5 +34,14 @@ router.get("/lists", authenticate, SubscriberController.getLists);
 
 // Export
 router.get("/export", authenticate, SubscriberController.exportSubscribers);
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+router.post(
+	"/import",
+	authenticate,
+	upload.single("file"),
+	SubscriberController.importSubscribers,
+);
 
 export default router;
