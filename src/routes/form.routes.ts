@@ -34,6 +34,8 @@ router.get("/", authenticate, handleController(FormController.getForms));
 
 router.get("/:id", authenticate, handleController(FormController.getFormById));
 
+router.get("/:id/public", FormController.getPublicForm);
+
 router.put(
 	"/:id",
 	authenticate,

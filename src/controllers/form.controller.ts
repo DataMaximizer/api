@@ -2,6 +2,10 @@ import { Request, Response } from "express";
 import { FormService } from "../services/form.service";
 import { IUser } from "../models/user.model";
 import { Form } from "../models/form.model";
+import { SubscriberService } from "../services/subscriber.service";
+import { logger } from "../config/logger";
+import { ISubscriberList } from "../models/subscriber-list.model";
+import mongoose, { Types } from "mongoose";
 
 interface AuthRequest extends Request {
 	user?: IUser;
@@ -24,10 +28,20 @@ export class FormController {
 
 			const { defaultFields, fields, ...restFormData } = req.body;
 
+			const userId = new mongoose.Types.ObjectId(req.user._id.toString());
+
+			const list = (await SubscriberService.createList({
+				name: restFormData.title,
+				description: `List for form: ${restFormData.title}`,
+				userId,
+				tags: [],
+			})) as ISubscriberList;
+
 			const defaultFieldsArray = [];
 			if (defaultFields.name) {
 				defaultFieldsArray.push({
-					id: Date.now().toString() + "-name",
+					id: `${Date.now()}-name`,
+					userId: "",
 					label: "Name",
 					type: "text",
 					required: true,
@@ -36,7 +50,7 @@ export class FormController {
 			}
 			if (defaultFields.email) {
 				defaultFieldsArray.push({
-					id: Date.now().toString() + "-email",
+					id: `${Date.now()}-email`,
 					label: "Email",
 					type: "email",
 					required: true,
@@ -47,8 +61,9 @@ export class FormController {
 			const formData = {
 				...restFormData,
 				fields: [...defaultFieldsArray, ...fields],
-				userId: req.user._id,
+				userId,
 				defaultFields,
+				listId: list._id,
 			};
 
 			const form = await Form.create(formData);
@@ -58,7 +73,7 @@ export class FormController {
 				data: form,
 			});
 		} catch (error) {
-			console.error("Error creating form:", error);
+			logger.error("Error creating form:", error);
 			res.status(400).json({
 				success: false,
 				error: "Failed to create form",
@@ -195,9 +210,9 @@ export class FormController {
 		}
 	}
 
-	static async getPublicForm(req: AuthRequest, res: Response): Promise<void> {
+	static async getPublicForm(req: Request, res: Response): Promise<void> {
 		try {
-			const form = await FormService.getFormById(req.params.id as string);
+			const form = await Form.findById(req.params.id).lean();
 
 			if (!form) {
 				res.status(404).json({
@@ -207,11 +222,21 @@ export class FormController {
 				return;
 			}
 
+			const formData = {
+				_id: form._id,
+				userId: form.userId,
+				title: form.title,
+				style: form.style,
+				fields: form.fields || [],
+				defaultFields: form.defaultFields,
+			};
+
 			res.json({
 				success: true,
-				data: form,
+				data: formData,
 			});
 		} catch (error) {
+			logger.error("Error fetching public form:", error);
 			res.status(500).json({
 				success: false,
 				error: "Failed to fetch form",

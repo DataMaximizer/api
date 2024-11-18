@@ -15,9 +15,8 @@ const router = Router();
 // Subscribers
 router.post(
 	"/",
-	authenticate,
 	validateRequest(createSubscriberSchema),
-	SubscriberController.addSubscriber,
+	SubscriberController.addPublicSubscriber,
 );
 
 router.get("/", authenticate, SubscriberController.getSubscribers);

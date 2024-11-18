@@ -5,6 +5,7 @@ import { IUser } from "../models/user.model";
 import { Form } from "../models/form.model";
 import { ISubscriber, Subscriber } from "../models/subscriber.model";
 import mongoose from "mongoose";
+import { Types } from "mongoose";
 
 interface AuthRequest extends Request {
 	user?: IUser;
@@ -140,20 +141,54 @@ export class SubscriberController {
 		try {
 			const { formId, data, email, metadata } = req.body;
 
-			const form = await Form.findById(formId);
+			if (!formId || !email) {
+				res.status(400).json({
+					success: false,
+					error: "Form ID and email are required",
+				});
+				return;
+			}
+
+			const form = await Form.findById(formId).lean();
+
 			if (!form) {
-				res.status(404).json({ success: false, error: "Form not found" });
+				res.status(404).json({
+					success: false,
+					error: "Form not found",
+				});
+				return;
+			}
+
+			if (!form.userId || !form.listId) {
+				res.status(400).json({
+					success: false,
+					error: "Invalid form configuration",
+				});
 				return;
 			}
 
 			const subscriberData: Partial<ISubscriber> = {
-				formId,
-				userId: new mongoose.Types.ObjectId(form.userId.toString()),
-				data,
-				email,
-				metadata,
-				status: "active" as const,
+				formId: new Types.ObjectId(formId),
+				userId: new Types.ObjectId(form.userId),
+				data: data || {},
+				email: email.toLowerCase(),
+				metadata: {
+					...metadata,
+					source: metadata?.source || "Public Form",
+					timestamp: new Date().toISOString(),
+				},
+				status: "active",
 				lastInteraction: new Date(),
+				lists: [new Types.ObjectId(form.listId)],
+				engagementScore: 0,
+				tags: [],
+				metrics: {
+					opens: 0,
+					clicks: 0,
+					conversions: 0,
+					bounces: 0,
+					revenue: 0,
+				},
 			};
 
 			const subscriber = await SubscriberService.addSubscriber(subscriberData);

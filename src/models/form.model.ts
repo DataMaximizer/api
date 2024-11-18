@@ -24,6 +24,7 @@ export interface IForm extends Document {
 		email: boolean;
 	};
 	status: "active" | "draft";
+	listId: Schema.Types.ObjectId;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -46,7 +47,18 @@ const formSchema = new Schema<IForm>(
 	{
 		title: { type: String, required: true },
 		userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-		fields: [formFieldSchema],
+		fields: [
+			{
+				id: String,
+				label: String,
+				type: String,
+				required: Boolean,
+				minLength: Number,
+				maxLength: Number,
+				value: String,
+				options: [String],
+			},
+		],
 		style: {
 			type: {
 				type: String,
@@ -63,6 +75,11 @@ const formSchema = new Schema<IForm>(
 			type: String,
 			enum: ["active", "draft"],
 			default: "draft",
+		},
+		listId: {
+			type: Schema.Types.ObjectId,
+			ref: "SubscriberList",
+			required: true,
 		},
 	},
 	{
