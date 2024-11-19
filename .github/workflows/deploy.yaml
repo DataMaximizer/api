@@ -53,6 +53,7 @@ jobs:
       - name: Deploy
         run: |
           gcloud run deploy ${{ env.SERVICE }} --image ${{ env.REGION }}-docker.pkg.dev/${{ secrets.PROJECT_ID }}/${{ env.SERVICE }}/${{ env.SERVICE }}:${{ github.sha }} \
+          --timeout 300 \
           --region ${{ env.REGION }} \
           --platform managed \
           --allow-unauthenticated \
