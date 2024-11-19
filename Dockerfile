@@ -17,7 +17,7 @@ COPY . .
 RUN pnpm build
 
 # Expose the application port
-EXPOSE 5000
+EXPOSE 8080
 
 # Start the application
 CMD ["pnpm", "dev"]
