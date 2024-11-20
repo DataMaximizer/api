@@ -20,6 +20,8 @@ import {
 	formRoutes,
 	subscriberRoutes,
 	profileRoutes,
+	metricsRoutes,
+	automatedEmailRoutes,
 } from "./routes";
 
 import { SchedulerService } from "./services/scheduler.service";
@@ -90,6 +92,9 @@ app.use("/api/campaigns", campaignRoutes);
 app.use("/api/forms", formRoutes);
 app.use("/api/subscribers", subscriberRoutes);
 app.use("/api/metrics/track", trackingRoutes);
+app.use("/api/automated-email", automatedEmailRoutes);
+
+app.use("/api/metrics", metricsRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 

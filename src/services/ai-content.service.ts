@@ -211,4 +211,33 @@ export class AIContentService {
 			},
 		};
 	}
+
+	static async generateAdditionalTags(productInfo: any): Promise<string[]> {
+		const prompt = `
+    Generate 10 highly specific marketing tags for this product:
+    ${JSON.stringify(productInfo)}
+    
+    Requirements:
+    1. Focus on unique selling points
+    2. Include target audience segments
+    3. Include product benefits
+    4. Keep each tag under 3 words
+    5. Return only comma-separated tags
+  `;
+
+		const completion = await this.openai.chat.completions.create({
+			model: "gpt-4",
+			messages: [
+				{
+					role: "system",
+					content:
+						"You are a product tagging specialist focused on marketing effectiveness.",
+				},
+				{ role: "user", content: prompt },
+			],
+		});
+
+		const tags = completion.choices[0].message?.content?.split(",") || [];
+		return tags.map((tag) => tag.trim().toLowerCase());
+	}
 }

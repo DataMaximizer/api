@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { UrlAnalysisService } from "../services/url-analysis.service";
 import { AffiliateService } from "../services/affiliate.service";
 import { logger } from "../config/logger";
+import { AutomatedEmailService } from "../services/automated-email.service";
 
 export class UrlAnalysisController {
 	static async createOfferFromUrl(
@@ -13,7 +14,7 @@ export class UrlAnalysisController {
 			const { url, commissionRate } = req.body;
 			const userId = req.user?._id;
 
-			if (!url || !commissionRate || !userId) {
+			if (!url || !userId) {
 				res.status(400).json({
 					success: false,
 					error: "URL, commission rate, and user ID are required",
@@ -49,6 +50,34 @@ export class UrlAnalysisController {
 			res.status(200).json({ success: true });
 		} catch (error) {
 			logger.error("Error in deleteAnalysis:", error);
+			next(error);
+		}
+	}
+
+	static async createCompleteOfferFromUrl(
+		req: Request,
+		res: Response,
+		next: NextFunction,
+	): Promise<void> {
+		try {
+			const { url, commissionRate, subscriberListId, smtpProviderId } =
+				req.body;
+			const userId = req.user?._id;
+
+			await AutomatedEmailService.processUrlAndGenerateEmail(
+				url,
+				commissionRate,
+				userId.toString(),
+				subscriberListId,
+				smtpProviderId,
+			);
+
+			res.status(201).json({
+				success: true,
+				message: "Offer created and email campaign sent successfully",
+			});
+		} catch (error) {
+			logger.error("Error in createOfferFromUrl:", error);
 			next(error);
 		}
 	}

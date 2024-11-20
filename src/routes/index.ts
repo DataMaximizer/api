@@ -7,6 +7,8 @@ import affiliateRoutes from "./affiliate.routes";
 import formRoutes from "./form.routes";
 import subscriberRoutes from "./subscriber.routes";
 import profileRoutes from "./profile.routes";
+import metricsRoutes from "./metrics.routes";
+import automatedEmailRoutes from "./automated-email.routes";
 
 export {
 	authRoutes,
@@ -18,4 +20,6 @@ export {
 	formRoutes,
 	subscriberRoutes,
 	profileRoutes,
+	metricsRoutes,
+	automatedEmailRoutes,
 };

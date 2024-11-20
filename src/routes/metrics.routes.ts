@@ -14,15 +14,23 @@ router.post(
 	authenticate,
 	MetricsController.trackClick,
 );
+
 router.post(
 	"/track/conversion/:subscriberId",
 	authenticate,
 	MetricsController.trackConversion,
 );
+
 router.post(
 	"/track/bounce/:subscriberId",
 	authenticate,
 	MetricsController.trackBounce,
+);
+
+router.get(
+	"/subscribers",
+	authenticate,
+	MetricsController.getSubscriberMetrics,
 );
 
 export default router;
