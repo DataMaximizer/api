@@ -3,8 +3,11 @@ import { SubscriberService } from "../services/subscriber.service";
 import { logger } from "../config/logger";
 import { IUser } from "../models/user.model";
 import { Form } from "../models/form.model";
-import { ISubscriber, Subscriber } from "../models/subscriber.model";
-import mongoose from "mongoose";
+import { Subscriber, ISubscriber } from "../models/subscriber.model";
+import {
+	SubscriberList,
+	ISubscriberList,
+} from "../models/subscriber-list.model";
 import { Types } from "mongoose";
 
 interface AuthRequest extends Request {
@@ -67,28 +70,27 @@ export class SubscriberController {
 				return;
 			}
 
-			const subscribers = await Subscriber.aggregate([
-				{ $match: { userId: req.user._id } },
-				{
-					$addFields: {
-						metrics: {
-							$ifNull: [
-								"$metrics",
-								{
-									opens: 0,
-									clicks: 0,
-									conversions: 0,
-									bounces: 0,
-									revenue: 0,
-								},
-							],
-						},
-						engagementScore: { $ifNull: ["$engagementScore", 0] },
-					},
-				},
-			]);
+			const page = parseInt(req.query.page as string) || 1; // Default to page 1
+			const limit = parseInt(req.query.limit as string) || 5; // Default to 10 items per page
+			const skip = (page - 1) * limit;
 
-			res.json({ success: true, data: subscribers });
+			const total = await Subscriber.countDocuments({ userId: req.user._id }); // Count total documents
+			const subscribers = await Subscriber.find({ userId: req.user._id })
+				.populate("lists", "name subscriberCount")
+				.sort({ createdAt: -1 })
+				.skip(skip)
+				.limit(limit);
+
+			res.json({
+				success: true,
+				data: subscribers,
+				meta: {
+					total,
+					page,
+					pages: Math.ceil(total / limit),
+					limit,
+				},
+			});
 		} catch (error) {
 			logger.error("Error in getSubscribers:", error);
 			res
@@ -211,71 +213,53 @@ export class SubscriberController {
 		res: Response,
 	): Promise<void> {
 		try {
-			if (!req.user?._id) {
-				res.status(401).json({ success: false, error: "Unauthorized" });
-				return;
-			}
-
-			if (!req.file) {
-				res.status(400).json({ success: false, error: "No file uploaded" });
-				return;
-			}
-
-			// Get the mappings from the request body
-			let mappings;
-			try {
-				mappings = JSON.parse(req.body.mappings);
-				if (!Array.isArray(mappings)) {
-					throw new Error("Mappings is not an array");
-				}
-			} catch (error) {
-				logger.error("Mappings parse error:", error);
+			if (!req.user?._id || !req.file) {
 				res
 					.status(400)
-					.json({ success: false, error: "Invalid mappings format" });
+					.json({ success: false, error: "Missing user ID or file" });
 				return;
 			}
 
-			// Read and parse CSV
+			const fileName = req.file.originalname.split(".")[0];
+			const userId = new Types.ObjectId(req.user._id.toString());
+
+			const listName = `Import - ${fileName} ${new Date().toISOString()}`;
+
+			const list = await SubscriberList.create({
+				name: listName,
+				description: `Imported from ${req.file.originalname}`,
+				userId,
+				subscriberCount: 0,
+				tags: ["imported"],
+			});
+
 			const fileContent = req.file.buffer.toString("utf-8");
 			const rows = fileContent.split("\n").filter((row) => row.trim());
-
-			if (rows.length === 0) {
-				res.status(400).json({ success: false, error: "Empty CSV file" });
-				return;
-			}
-
 			const headers = rows[0].split(",").map((header) => header.trim());
+			const mappings = JSON.parse(req.body.mappings);
 
-			// Validate mappings against headers
-			const invalidMappings = mappings.some(
-				(mapping) =>
-					!headers.includes(mapping.csvHeader) || !mapping.mappedField,
-			);
-
-			if (invalidMappings) {
-				res
-					.status(400)
-					.json({ success: false, error: "Invalid field mappings" });
-				return;
-			}
-
-			// Process each row
 			const subscribers = [];
 			let importedCount = 0;
 			let errorCount = 0;
-			let errorDetails = [];
+			const errorDetails = [];
 
 			for (let i = 1; i < rows.length; i++) {
 				try {
 					const row = rows[i].split(",").map((cell) => cell.trim());
-
-					// Create subscriber data structure matching ISubscriber interface
-					const subscriberData: Partial<ISubscriber> = {
-						userId: new mongoose.Types.ObjectId(req.user._id.toString()),
-						status: "active",
-						lastInteraction: new Date(),
+					const subscriberData = {
+						userId,
+						formId: list._id, // Use list ID as form ID for imports
+						lists: [list._id],
+						email: "",
+						status: "active" as const,
+						tags: [],
 						data: {},
+						lastInteraction: new Date(),
+						engagementScore: 0,
+						metadata: {
+							source: "import",
+							importDate: new Date(),
+						},
 						metrics: {
 							opens: 0,
 							clicks: 0,
@@ -283,11 +267,9 @@ export class SubscriberController {
 							bounces: 0,
 							revenue: 0,
 						},
-						tags: [],
-						engagementScore: 0,
 					};
 
-					// Map fields according to mappings
+					// Map fields
 					for (const mapping of mappings) {
 						const columnIndex = headers.indexOf(mapping.csvHeader);
 						if (columnIndex === -1) continue;
@@ -297,72 +279,26 @@ export class SubscriberController {
 
 						switch (mapping.mappedField) {
 							case "email":
-								// Validate email format
 								if (value.includes("@")) {
 									subscriberData.email = value.toLowerCase();
 								}
 								break;
-
 							case "tags":
-								// Split tags by semicolon and clean
 								subscriberData.tags = value
 									.split(";")
 									.map((tag) => tag.trim())
-									.filter((tag) => tag.length > 0);
+									.filter(Boolean);
 								break;
-
-							case "status":
-								// Validate status is one of the allowed values
-								if (["active", "inactive", "unsubscribed"].includes(value)) {
-									subscriberData.status = value as
-										| "active"
-										| "inactive"
-										| "unsubscribed";
-								}
-								break;
-
 							default:
-								// Store other fields in the data object
-								if (subscriberData.data) {
-									subscriberData.data[mapping.mappedField] = value;
-								}
+								subscriberData.data[mapping.mappedField] = value;
 						}
 					}
 
-					// Validate required fields
 					if (!subscriberData.email) {
 						throw new Error("Missing or invalid email");
 					}
 
-					// Check for existing subscriber with same email
-					const existingSubscriber = await Subscriber.findOne({
-						email: subscriberData.email,
-						userId: new mongoose.Types.ObjectId(req.user._id.toString()),
-					});
-
-					if (existingSubscriber) {
-						// Update existing subscriber
-						await Subscriber.updateOne(
-							{ _id: existingSubscriber._id },
-							{
-								$set: {
-									status: subscriberData.status,
-									data: { ...existingSubscriber.data, ...subscriberData.data },
-									tags: [
-										...new Set([
-											...existingSubscriber.tags,
-											...(subscriberData.tags || []),
-										]),
-									],
-									lastInteraction: new Date(),
-								},
-							},
-						);
-					} else {
-						// Add new subscriber
-						subscribers.push(subscriberData);
-					}
-
+					subscribers.push(subscriberData);
 					importedCount++;
 				} catch (error) {
 					errorCount++;
@@ -372,18 +308,12 @@ export class SubscriberController {
 				}
 			}
 
-			// Batch insert new subscribers
 			if (subscribers.length > 0) {
-				await Subscriber.insertMany(subscribers, { ordered: false });
+				await Subscriber.create(subscribers);
+				await SubscriberList.findByIdAndUpdate(list._id, {
+					subscriberCount: importedCount,
+				});
 			}
-
-			// Log success
-			logger.info("Import completed", {
-				userId: req.user._id,
-				imported: importedCount,
-				errors: errorCount,
-				total: rows.length - 1,
-			});
 
 			res.status(200).json({
 				success: true,
@@ -392,14 +322,18 @@ export class SubscriberController {
 					errors: errorCount,
 					total: rows.length - 1,
 					errorDetails,
+					list: {
+						_id: list._id,
+						name: listName,
+						subscriberCount: importedCount,
+					},
 				},
 			});
 		} catch (error) {
 			logger.error("Error in importSubscribers:", error);
 			res.status(500).json({
 				success: false,
-				error: "Failed to import subscribers",
-				details: error instanceof Error ? error.message : "Unknown error",
+				error: error instanceof Error ? error.message : "Unknown error",
 			});
 		}
 	}

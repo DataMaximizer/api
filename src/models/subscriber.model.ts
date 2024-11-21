@@ -21,26 +21,26 @@ export interface IMetrics {
 }
 
 export interface ISubscriber extends Document {
-	_id: Types.ObjectId;
-	formId: Types.ObjectId;
 	userId: Types.ObjectId;
-	data: Record<string, any>;
 	email: string;
 	status: "active" | "unsubscribed" | "bounced" | "inactive";
 	tags: string[];
-	lists: Types.ObjectId[];
+	lists: Types.ObjectId[]; // Add this field
 	lastInteraction: Date;
 	engagementScore: number;
 	metadata: {
 		ip?: string;
 		userAgent?: string;
 		source?: string;
-		bounceReason?: string;
-		bounceDate?: Date;
-		inactivationReason?: string;
-		inactivationDate?: Date;
 	};
-	metrics: IMetrics;
+	metrics: {
+		opens: number;
+		clicks: number;
+		conversions: number;
+		bounces: number;
+		revenue: number;
+	};
+	data: Record<string, any>;
 	createdAt: Date;
 	updatedAt: Date;
 }
