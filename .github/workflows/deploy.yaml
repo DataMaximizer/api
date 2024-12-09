@@ -1,4 +1,3 @@
-
 name: Deploy to Main
 
 on:
@@ -8,7 +7,7 @@ on:
 
 env:
   REGION: us-west1
-  SERVICE: datamax-api
+  SERVICE: inbox-engine-api
 
 jobs:
   deploy:
