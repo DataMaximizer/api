@@ -7,7 +7,7 @@ on:
 
 env:
   REGION: us-west1
-  SERVICE: inbox-engine-api
+  SERVICE: inbox-engine
 
 jobs:
   deploy:
