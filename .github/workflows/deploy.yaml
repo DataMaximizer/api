@@ -43,20 +43,19 @@ jobs:
       - name: Build Docker image
         run: docker build -t ${{ env.SERVICE }} .
 
-      - name: Tag image with image name
-        run: docker tag ${{ env.SERVICE }} us-west1-docker.pkg.dev/alert-streamer-442314-b9/${{ env.SERVICE }}:${{ github.sha }}
+      - name: Build image
+        run: docker tag ${{ env.SERVICE }} ${{ env.REGION }}-docker.pkg.dev/${{ secrets.PROJECT_ID }}/${{ env.SERVICE }}/${{ env.SERVICE }}:${{ github.sha }}
 
       - name: Push image
-        run: docker push us-west1-docker.pkg.dev/alert-streamer-442314-b9/${{ env.SERVICE }}:${{ github.sha }}
+        run: docker push ${{ env.REGION }}-docker.pkg.dev/${{ secrets.PROJECT_ID }}/${{ env.SERVICE }}/${{ env.SERVICE }}:${{ github.sha }}
 
       - name: Deploy
         run: |
-          gcloud run deploy ${{ env.SERVICE }} \
-            --image us-west1-docker.pkg.dev/alert-streamer-442314-b9/${{ env.SERVICE }}:${{ github.sha }} \
-            --timeout 300 \
-            --region ${{ env.REGION }} \
-            --platform managed \
-            --allow-unauthenticated \
-            --set-env-vars OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
-            --set-env-vars PORT=8080 \
-            --set-env-vars MONGODB_URI=$(printf %q "${{ secrets.MONGODB_URI }}")
+          gcloud run deploy ${{ env.SERVICE }} --image ${{ env.REGION }}-docker.pkg.dev/${{ secrets.PROJECT_ID }}/${{ env.SERVICE }}/${{ env.SERVICE }}:${{ github.sha }} \
+          --timeout 300 \
+          --region ${{ env.REGION }} \
+          --platform managed \
+          --allow-unauthenticated \
+          --set-env-vars OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+          --set-env-vars PORT=8080 \
+          --set-env-vars MONGODB_URI=$(printf %q "${{ secrets.MONGODB_URI }}") \
