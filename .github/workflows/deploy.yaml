@@ -43,7 +43,7 @@ jobs:
       - name: Build Docker image
         run: docker build -t ${{ env.SERVICE }} .
 
-      - name: Build image (updated repository name)
+      - name: Tag image with image name
         run: docker tag ${{ env.SERVICE }} us-west1-docker.pkg.dev/alert-streamer-442314-b9/${{ env.SERVICE }}:${{ github.sha }}
 
       - name: Push image
