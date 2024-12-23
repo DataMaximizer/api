@@ -8,6 +8,7 @@ import { Subscriber } from "../models/subscriber.model";
 import { ContentFramework, WritingTone } from "../models/ai-content.model";
 import { Document, Types } from "mongoose";
 import { logger } from "../config/logger";
+import { Response } from "express";
 
 interface ContentStrategy {
 	framework: ContentFramework;
@@ -64,8 +65,15 @@ export class AutomatedEmailService {
 		userId: string,
 		subscriberListId: string,
 		smtpProviderId: string,
+		res?: Response,
 	): Promise<void> {
 		try {
+			if (res) {
+				res.setHeader("Transfer-Encoding", "chunked");
+				res.setHeader("Content-Type", "text/event-stream");
+				res.setHeader("Cache-Control", "no-cache");
+				res.setHeader("Connection", "keep-alive");
+			}
 			// 1. Analyze URL and create offer
 			const offerData = await UrlAnalysisService.createOfferFromUrl(
 				url,

@@ -5,9 +5,11 @@ services:
     build: .
     ports:
       - "5000:5000"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
-      - MONGODB_URI=mongodb://mongo:27017/api-datamax
+      - MONGODB_URI=${MONGODB_URI}
       - REDIS_URI=redis://redis:6379
     depends_on:
       - mongo

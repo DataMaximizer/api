@@ -70,6 +70,7 @@ export class UrlAnalysisController {
 				userId.toString(),
 				subscriberListId,
 				smtpProviderId,
+				res,
 			);
 
 			res.status(201).json({
