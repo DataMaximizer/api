@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { connectDB } from "./config/database";
-import { logger } from "@config/logger";
+import { logger } from "./config/logger";
 import { setupSwagger } from "./config/swagger";
 import { authenticate, authorize } from "@core/middlewares/auth.middleware";
 import { UserType } from "@features/auth/models/user.model";
@@ -25,7 +25,7 @@ import {
   retargetingRoutes,
   abTestingRoutes,
   smsRoutes,
-  aiConfigRoutes
+  aiConfigRoutes,
 } from "./routes";
 
 import { SchedulerService } from "@features/shared/services/scheduler.service";
