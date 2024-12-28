@@ -15,10 +15,8 @@ export interface IForm extends Document {
 	title: string;
 	userId: Schema.Types.ObjectId;
 	fields: IFormField[];
-	style: {
-		type: "material" | "minimalistic" | "concise";
-		primaryColor: string;
-	};
+	style: string;
+	primaryColor: string;
 	defaultFields: {
 		name: boolean;
 		email: boolean;
@@ -47,26 +45,9 @@ const formSchema = new Schema<IForm>(
 	{
 		title: { type: String, required: true },
 		userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-		fields: [
-			{
-				id: String,
-				label: String,
-				type: String,
-				required: Boolean,
-				minLength: Number,
-				maxLength: Number,
-				value: String,
-				options: [String],
-			},
-		],
-		style: {
-			type: {
-				type: String,
-				enum: ["material", "minimalistic", "concise"],
-				default: "material",
-			},
-			primaryColor: { type: String, default: "#1a237e" },
-		},
+		fields: [formFieldSchema],
+		style: { type: String, default: "material" },
+		primaryColor: { type: String, default: "#1a237e" },
 		defaultFields: {
 			name: { type: Boolean, default: true },
 			email: { type: Boolean, default: true },

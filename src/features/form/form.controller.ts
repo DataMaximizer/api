@@ -26,12 +26,13 @@ export class FormController {
         return;
       }
 
-      const { defaultFields, fields, ...restFormData } = req.body;
+      const { defaultFields, fields, style, primaryColor, ...restFormData } = req.body;
 
       const userId = new mongoose.Types.ObjectId(req.user._id.toString());
 
+      const listName = `${restFormData.title}_${Date.now()}`;
       const list = (await SubscriberService.createList({
-        name: restFormData.title,
+        name: listName,
         description: `List for form: ${restFormData.title}`,
         userId,
         tags: [],
@@ -58,8 +59,13 @@ export class FormController {
         });
       }
 
+      const validStyles = ["material", "minimalistic", "concise"];
+      const formStyle = validStyles.includes(style) ? style : "material";
+
       const formData = {
         ...restFormData,
+        style: formStyle,
+        primaryColor: primaryColor || "#1a237e",
         fields: [...defaultFieldsArray, ...fields],
         userId,
         defaultFields,

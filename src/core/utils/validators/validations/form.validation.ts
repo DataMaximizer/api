@@ -10,15 +10,11 @@ export const formFieldSchema = z.object({
 	options: z.array(z.string()).optional(),
 });
 
-export const formStyleSchema = z.object({
-	type: z.enum(["material", "minimalistic", "concise"]),
-	primaryColor: z.string(),
-});
-
 export const createFormSchema = z.object({
 	title: z.string().min(1, "Form title is required"),
 	fields: z.array(formFieldSchema),
-	style: formStyleSchema,
+	style: z.enum(["material", "minimalistic", "concise"]).default("material"),
+	primaryColor: z.string().default("#1a237e"),
 	defaultFields: z.object({
 		name: z.boolean(),
 		email: z.boolean(),
