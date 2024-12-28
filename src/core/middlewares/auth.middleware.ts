@@ -35,6 +35,22 @@ export const authenticate = async (
   }
 };
 
+export const authorizeAdmin = (req: Request, res: Response, next: NextFunction): void => {
+  if (!req.user || ![UserType.OWNER, UserType.ADMIN].includes(req.user.type)) {
+    res.status(403).json({ error: "Forbidden - Admin access required" });
+    return;
+  }
+  next();
+};
+
+export const authorizeOwner = (req: Request, res: Response, next: NextFunction): void => {
+  if (!req.user || req.user.type !== UserType.OWNER) {
+    res.status(403).json({ error: "Forbidden - Owner access required" });
+    return;
+  }
+  next();
+};
+
 export const authorize = (allowedTypes: UserType[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user || !allowedTypes.includes(req.user.type)) {

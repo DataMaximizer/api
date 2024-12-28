@@ -9,7 +9,11 @@ const REFRESH_TOKEN_EXPIRES_IN = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export class AdminService {
   static async login(email: string, password: string) {
-    const user = await User.findOne({ email, type: UserType.OWNER });
+    const user = await User.findOne({
+      email,
+      type: { $in: [UserType.OWNER, UserType.ADMIN] }
+    });
+    
     if (!user) {
       throw new Error("Invalid credentials");
     }
@@ -24,7 +28,7 @@ export class AdminService {
       JWT_SECRET,
       {
         expiresIn: JWT_EXPIRES_IN,
-      },
+      }
     );
 
     const refreshToken = uuidv4();

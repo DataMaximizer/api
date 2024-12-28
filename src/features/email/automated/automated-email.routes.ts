@@ -19,8 +19,17 @@ router.post(
   validateRequest(automatedEmailSchema),
   async (req, res, next) => {
     try {
-      const { url, commissionRate, subscriberListId, smtpProviderId } =
-        req.body;
+      const { url, commissionRate, subscriberListId, smtpProviderId } = req.body;
+
+      // Set headers for SSE
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      // Helper function to send progress updates
+      const sendProgress = (step: string, message: string) => {
+        res.write(`data: ${JSON.stringify({ step, message })}\n\n`);
+      };
 
       await AutomatedEmailService.processUrlAndGenerateEmail(
         url,
@@ -28,13 +37,18 @@ router.post(
         req.user!._id.toString(),
         subscriberListId,
         smtpProviderId,
+        res
       );
 
-      res.status(201).json({
-        success: true,
-        message: "Automated email campaign initiated successfully",
-      });
+      // End the stream
+      res.write(`data: ${JSON.stringify({ step: "complete", message: "Process completed successfully" })}\n\n`);
+      res.end();
     } catch (error) {
+      // Send error through SSE if connection is still open
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ step: "error", message: error.message })}\n\n`);
+        res.end();
+      }
       next(error);
     }
   },
