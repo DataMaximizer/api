@@ -9,6 +9,7 @@ import {
 import { logger } from "@config/logger";
 import { load } from "cheerio";
 import { OfferEnhancementService } from "@features/shared/services/offer-enhancement.service";
+import { CacheService } from '@core/services/cache.service';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -17,6 +18,9 @@ const openai = new OpenAI({
 });
 
 export class AffiliateService {
+  private static CACHE_TTL = 3600; // 1 hour
+  private static CACHE_PREFIX = 'affiliate:offers';
+
   static async createOffer(offerData: Partial<IAffiliateOffer>) {
     const enhancedOfferData =
       await OfferEnhancementService.enhanceOfferDescription(offerData);
@@ -32,6 +36,7 @@ export class AffiliateService {
     }
 
     await this.scanAndEnrichOffer(offer);
+    await CacheService.del(`${this.CACHE_PREFIX}:*`);
     return offer.save();
   }
 
@@ -240,6 +245,10 @@ export class AffiliateService {
     }
 
     Object.assign(offer, updateData);
+    await Promise.all([
+      CacheService.del(`${this.CACHE_PREFIX}:*`),
+      CacheService.del(`${this.CACHE_PREFIX}:single:${JSON.stringify({ id })}`),
+    ]);
     return offer.save();
   }
 
@@ -248,29 +257,74 @@ export class AffiliateService {
     options: QueryOptions = {},
   ) {
     try {
-      return await AffiliateOffer.find(filters, null, options);
+      console.log('📥 Getting offers with filters:', JSON.stringify(filters));
+      console.log('⚙️ Query options:', JSON.stringify(options));
+
+      const cacheKey = CacheService.generateKey(this.CACHE_PREFIX, { filters, options });
+      const cachedData = await CacheService.get<IAffiliateOffer[]>(cacheKey);
+
+      if (cachedData) {
+        console.log(`✅ Retrieved ${cachedData.length} offers from cache`);
+        logger.debug('Returning cached offers');
+        return cachedData;
+      }
+
+      console.log('🔄 Cache miss - fetching from database');
+      const offers = await AffiliateOffer.find(filters, null, options);
+      console.log(`📝 Found ${offers.length} offers in database`);
+      
+      await CacheService.set(cacheKey, offers, this.CACHE_TTL);
+      return offers;
     } catch (error) {
       logger.error("Error in getOffers:", error);
+      console.error('❌ Error getting offers:', error);
       throw error;
     }
   }
 
   static async getOfferById(id: string) {
     try {
-      return await AffiliateOffer.findById(id);
+      console.log('🔍 Getting offer by ID:', id);
+      
+      const cacheKey = CacheService.generateKey(`${this.CACHE_PREFIX}:single`, { id });
+      const cachedOffer = await CacheService.get<IAffiliateOffer>(cacheKey);
+
+      if (cachedOffer) {
+        console.log('✅ Retrieved offer from cache:', cachedOffer._id);
+        logger.debug('Returning cached offer');
+        return cachedOffer;
+      }
+
+      console.log('🔄 Cache miss - fetching from database');
+      const offer = await AffiliateOffer.findById(id);
+      
+      if (offer) {
+        console.log('📝 Found offer in database:', offer._id);
+        await CacheService.set(cacheKey, offer, this.CACHE_TTL);
+      } else {
+        console.log('⚠️ No offer found with ID:', id);
+      }
+      
+      return offer;
     } catch (error) {
       logger.error("Error in getOfferById:", error);
+      console.error('❌ Error getting offer by ID:', error);
       throw error;
     }
   }
 
   static async deleteOffer(id: string) {
     try {
-      return await AffiliateOffer.findByIdAndUpdate(
+      const result = await AffiliateOffer.findByIdAndUpdate(
         id,
         { status: "deleted" },
         { new: true },
       );
+      await Promise.all([
+        CacheService.del(`${this.CACHE_PREFIX}:*`),
+        CacheService.del(`${this.CACHE_PREFIX}:single:${JSON.stringify({ id })}`),
+      ]);
+      return result;
     } catch (error) {
       logger.error("Error in deleteOffer:", error);
       throw error;

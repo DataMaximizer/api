@@ -30,6 +30,7 @@ import {
 
 import { SchedulerService } from "@features/shared/services/scheduler.service";
 import swaggerJSDoc from "swagger-jsdoc";
+import { CacheService } from '@core/services/cache.service';
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -122,6 +123,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 const startServer = async (): Promise<void> => {
   try {
     await connectDB();
+    await CacheService.initialize();
 
     SchedulerService.initializeScheduledTasks();
 
@@ -136,6 +138,19 @@ const startServer = async (): Promise<void> => {
     process.exit(1);
   }
 };
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received. Shutting down gracefully...');
+  await CacheService.disconnect();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  logger.info('SIGINT received. Shutting down gracefully...');
+  await CacheService.disconnect();
+  process.exit(0);
+});
 
 startServer();
 
