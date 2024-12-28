@@ -7,3 +7,4 @@ coverage
 files.md
 api.md
 ts_files_backup
+.env.development

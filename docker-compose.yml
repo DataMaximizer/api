@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   api:
@@ -6,14 +6,16 @@ services:
     ports:
       - "5000:5000"
     env_file:
-      - .env
+      - .env.development
     environment:
       - NODE_ENV=development
-      - MONGODB_URI=${MONGODB_URI}
-      - REDIS_URI=redis://redis:6379
     depends_on:
-      - mongo
-      - redis
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+    networks:
+      - app-network
 
   mongo:
     image: mongo:latest
@@ -21,6 +23,8 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+    networks:
+      - app-network
 
   redis:
     image: redis:alpine
@@ -28,7 +32,18 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-network
 
 volumes:
   mongodb_data:
   redis_data:
+
+networks:
+  app-network:
+    driver: bridge
