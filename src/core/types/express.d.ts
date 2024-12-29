@@ -1,4 +1,4 @@
-import { IUser } from "@features/auth/models/user.model";
+import { IUser } from "@features/user/models/user.model";
 
 declare global {
 	namespace Express {

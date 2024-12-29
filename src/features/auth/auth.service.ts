@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { User, IUser } from "@features/auth/models/user.model";
+import { User, IUser } from "@features/user/models/user.model";
 import { v4 as uuidv4 } from "uuid";
 import { RefreshToken } from "@features/auth/models/refresh-token.model";
 

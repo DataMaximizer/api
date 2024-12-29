@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { DormancyController } from "@features/domancy/dormancy.controller";
 import { authenticate, authorize } from "@core/middlewares/auth.middleware";
-import { UserType } from "@features/auth/models/user.model";
+import { UserType } from "@features/user/models/user.model";
 import { Request, Response, NextFunction } from "express";
 
 const router = Router();

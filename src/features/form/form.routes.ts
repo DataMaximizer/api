@@ -6,7 +6,7 @@ import {
   createFormSchema,
   updateFormSchema,
 } from "@core/utils/validators/validations/form.validation";
-import { IUser } from "@features/auth/models/user.model";
+import { IUser } from "@features/user/models/user.model";
 
 interface AuthRequest extends Request {
   user?: IUser;

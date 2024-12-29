@@ -4,7 +4,7 @@ import { connectDB } from "./config/database";
 import { logger } from "./config/logger";
 import { setupSwagger } from "./config/swagger";
 import { authenticate, authorize } from "@core/middlewares/auth.middleware";
-import { UserType } from "@features/auth/models/user.model";
+import { UserType } from "@features/user/models/user.model";
 import swaggerUi from "swagger-ui-express";
 import helmet from "helmet";
 
@@ -30,7 +30,8 @@ import {
 
 import { SchedulerService } from "@features/shared/services/scheduler.service";
 import swaggerJSDoc from "swagger-jsdoc";
-import { CacheService } from '@core/services/cache.service';
+import { CacheService } from "@core/services/cache.service";
+import { userRouter } from "./features/user/user.routes";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -114,6 +115,8 @@ app.get(
   },
 );
 
+app.use("/api/users", userRouter);
+
 // Error handling
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   logger.error("Error:", err);
@@ -140,14 +143,14 @@ const startServer = async (): Promise<void> => {
 };
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received. Shutting down gracefully...');
+process.on("SIGTERM", async () => {
+  logger.info("SIGTERM received. Shutting down gracefully...");
   await CacheService.disconnect();
   process.exit(0);
 });
 
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received. Shutting down gracefully...');
+process.on("SIGINT", async () => {
+  logger.info("SIGINT received. Shutting down gracefully...");
   await CacheService.disconnect();
   process.exit(0);
 });

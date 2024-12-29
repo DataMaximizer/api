@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { FormService } from "./form.service";
-import { IUser } from "@features/auth/models/user.model";
+import { IUser } from "@features/user/models/user.model";
 import { Form } from "./models/form.model";
 import { SubscriberService } from "@features/subscriber/subscriber.service";
 import { logger } from "@config/logger";

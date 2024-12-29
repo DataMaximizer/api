@@ -3,7 +3,7 @@ import { RetargetingService } from "./retargeting.service";
 import { Subscriber } from "@features/subscriber/models/subscriber.model";
 import { Campaign } from "@features/campaign/models/campaign.model";
 import { logger } from "@config/logger";
-import { IUser } from "@features/auth/models/user.model";
+import { IUser } from "@features/user/models/user.model";
 
 interface AuthRequest extends Request {
   user?: IUser;

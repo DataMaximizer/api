@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { AIConfigService } from "@features/ai/config/ai-config.service";
 import { logger } from "@config/logger";
-import { IUser } from "@features/auth/models/user.model";
+import { IUser } from "@features/user/models/user.model";
 
 interface AuthRequest extends Request {
   user?: IUser;

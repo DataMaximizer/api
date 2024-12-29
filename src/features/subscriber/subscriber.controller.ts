@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { SubscriberService } from "./subscriber.service";
 import { logger } from "@config/logger";
-import { IUser } from "@features/auth/models/user.model";
+import { IUser } from "@features/user/models/user.model";
 import { Form } from "@features/form/models/form.model";
 import {
   Subscriber,

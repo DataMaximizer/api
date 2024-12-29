@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { User, UserType } from "@features/auth/models/user.model";
+import { User, UserType } from "@features/user/models/user.model";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -35,15 +35,23 @@ export const authenticate = async (
   }
 };
 
-export const authorizeAdmin = (req: Request, res: Response, next: NextFunction): void => {
-  if (!req.user || ![UserType.OWNER, UserType.ADMIN].includes(req.user.type)) {
+export const authorizeAdmin = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
+  if (!req.user || ![UserType.ADMIN].includes(req.user.type)) {
     res.status(403).json({ error: "Forbidden - Admin access required" });
     return;
   }
   next();
 };
 
-export const authorizeOwner = (req: Request, res: Response, next: NextFunction): void => {
+export const authorizeOwner = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
   if (!req.user || req.user.type !== UserType.OWNER) {
     res.status(403).json({ error: "Forbidden - Owner access required" });
     return;

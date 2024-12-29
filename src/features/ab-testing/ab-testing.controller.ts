@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { AbTestingService } from "./ab-testing.service";
 import { AbTest, TestType } from "./models/ab-testing.model";
 import { logger } from "@config/logger";
-import { IUser } from "@features/auth/models/user.model";
+import { IUser } from "@features/user/models/user.model";
 
 interface AuthRequest extends Request {
   user?: IUser;

@@ -5,7 +5,7 @@ import {
   ICommissionRule,
 } from "./models/commission.model";
 import { AffiliateOffer } from "@features/affiliate/models/affiliate-offer.model";
-import { User } from "@features/auth/models/user.model";
+import { User } from "@features/user/models/user.model";
 import { logger } from "@config/logger";
 import Stripe from "stripe";
 

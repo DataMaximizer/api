@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
-import { User, UserType } from "@features/auth/models/user.model";
+import { User, UserType } from "@features/user/models/user.model";
 import { RefreshToken } from "@features/auth/models/refresh-token.model";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";

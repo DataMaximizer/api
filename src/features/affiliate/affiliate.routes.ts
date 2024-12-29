@@ -10,7 +10,7 @@ import {
 import { UrlAnalysisController } from "@features/url-analysis/url-analysis.controller";
 
 import { z } from "zod";
-import { UserType } from "@features/auth/models/user.model";
+import { UserType } from "@features/user/models/user.model";
 
 const router = Router();
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UserSex } from "@features/auth/models/user.model";
+import { UserSex } from "@features/user/models/user.model";
 
 export const updateProfileSchema = z.object({
 	name: z.string().min(2).optional(),

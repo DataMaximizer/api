@@ -158,4 +158,19 @@ export class CacheService {
       logger.info('Redis disconnected');
     }
   }
+
+  static async delByPattern(pattern: string): Promise<void> {
+    try {
+      if (!await this.ensureConnection()) return;
+      
+      const keys = await this.redis!.keys(pattern);
+      if (keys.length > 0) {
+        await this.redis!.del(...keys);
+      }
+      console.log('🗑️ Cache deleted for pattern:', pattern);
+    } catch (error) {
+      logger.error('Cache delete pattern error:', error);
+      console.error('❌ Cache delete pattern error:', error);
+    }
+  }
 } 
