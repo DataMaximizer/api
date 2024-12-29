@@ -35,7 +35,9 @@ export class AffiliateController {
         order = "desc",
       } = req.query;
 
-      const filters: any = {};
+      const filters: any = {
+        userId: req.user?._id,
+      };
 
       if (category) filters.categories = category;
       if (status) filters.status = status;
