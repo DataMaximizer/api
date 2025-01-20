@@ -38,6 +38,12 @@ export interface ICampaign extends Document {
 	framework?: string;
 	tone?: string;
 	smtpProviderId?: Schema.Types.ObjectId;
+	schedule?: {
+		startDate: Date;
+		endDate?: Date;
+		sendTime?: string;
+		timezone: string;
+	};
 	metrics?: {
 		totalSent: number;
 		totalOpens: number;
@@ -87,6 +93,12 @@ const campaignSchema = new Schema<ICampaign>(
 		framework: { type: String },
 		tone: { type: String },
 		smtpProviderId: { type: Schema.Types.ObjectId, ref: "SmtpProvider" },
+		schedule: {
+			startDate: { type: Date },
+			endDate: { type: Date },
+			sendTime: { type: String },
+			timezone: { type: String, default: "UTC" }
+		},
 		metrics: {
 			totalSent: { type: Number, default: 0 },
 			totalOpens: { type: Number, default: 0 },

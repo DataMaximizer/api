@@ -1,11 +1,22 @@
 import { Form, IForm } from "./models/form.model";
 import { logger } from "@config/logger";
+import { SubscriberService } from "../subscriber/subscriber.service";
+import { Types } from "mongoose";
 
 export class FormService {
   static async createForm(formData: Partial<IForm>) {
     try {
       const form = new Form(formData);
-      return await form.save();
+      const savedForm = await form.save();
+
+      await SubscriberService.createList({
+        name: form.title,
+        description: `List for form: ${form.title}`,
+        userId: new Types.ObjectId(form.userId.toString()),
+        tags: [],
+      });
+
+      return savedForm;
     } catch (error) {
       logger.error("Error creating form:", error);
       throw error;

@@ -4,13 +4,27 @@ import {
   ISubscriberList,
 } from "./models/subscriber-list.model";
 import { logger } from "@config/logger";
-import { FilterQuery } from "mongoose";
+import { FilterQuery, Types } from "mongoose";
+
+interface SubscriberInput extends Partial<ISubscriber> {
+  formId?: string;
+}
 
 export class SubscriberService {
   static async addSubscriber(
-    subscriberData: Partial<ISubscriber>,
+    subscriberData: SubscriberInput,
   ): Promise<ISubscriber> {
     try {
+      if (subscriberData.formId) {
+        const list = await SubscriberList.findOne({ formId: subscriberData.formId }).lean();
+        if (list && list._id) {
+          subscriberData.lists = subscriberData.lists || [];
+          if (!subscriberData.lists.includes(list._id as unknown as Types.ObjectId)) {
+            subscriberData.lists.push(list._id as unknown as Types.ObjectId);
+          }
+        }
+      }
+
       const subscriber = await Subscriber.create(subscriberData);
 
       if (subscriber.lists?.length) {
