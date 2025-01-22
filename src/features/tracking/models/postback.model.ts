@@ -10,7 +10,6 @@ export interface IPostback extends Document {
     userAgent?: string;
     referrer?: string;
   };
-  retryCount?: number;
   errorMessage?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -51,9 +50,6 @@ const postbackSchema = new Schema(
     timestamps: true,
   }
 );
-
-// Create compound index for duplicate checking
-postbackSchema.index({ subscriberId: 1, campaignId: 1 }, { unique: true });
 
 // Create indexes for common queries
 postbackSchema.index({ status: 1 });

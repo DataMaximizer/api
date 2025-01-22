@@ -8,6 +8,7 @@ import {
 import { CampaignService } from "../campaign/campaign.service";
 import { Postback } from "../tracking/models/postback.model";
 import { Click } from "../tracking/models/click.model";
+import { Request } from "express";
 
 type ProcessPostbackParams = {
   campaignId: string;
@@ -47,9 +48,22 @@ export class MetricsTrackingService {
   static async trackClick(
     subscriberId: string,
     linkId: string,
-    campaignId?: string
+    campaignId?: string,
+    req?: Request
   ) {
     try {
+      await Click.create({
+        subscriberId,
+        campaignId,
+        linkId,
+        timestamp: new Date(),
+        metadata: {
+          ip: req?.ip,
+          userAgent: req?.headers["user-agent"] || undefined,
+          referrer: req?.headers["referer"] || undefined,
+        },
+      });
+
       await Subscriber.findByIdAndUpdate(subscriberId, {
         $inc: { "metrics.clicks": 1 },
         $set: {

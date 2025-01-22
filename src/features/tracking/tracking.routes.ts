@@ -2,6 +2,7 @@ import { Router } from "express";
 import { MetricsTrackingService } from "@features/metrics/metrics-tracking.service";
 import { Postback } from "../tracking/models/postback.model";
 import { logger } from "@config/logger";
+import { isValidUrl } from "@/core/utils/url";
 
 const router = Router();
 
@@ -30,10 +31,17 @@ router.get("/redirect", async (req, res) => {
   try {
     const { url, subscriberId, linkId, campaignId } = req.query;
 
+    if (!url || !isValidUrl(url as string)) {
+      logger.warn("Invalid URL in redirect:", { url });
+      res.status(400).send("Invalid URL");
+      return;
+    }
+
     await MetricsTrackingService.trackClick(
       subscriberId as string,
       linkId as string,
-      campaignId as string
+      campaignId as string,
+      req
     );
 
     // res.redirect(
@@ -41,7 +49,7 @@ router.get("/redirect", async (req, res) => {
     // );
     res.redirect(url as string);
   } catch (error) {
-    console.error("Error tracking click:", error);
+    logger.error("Error tracking click:", error);
     res.redirect(req.query.url as string);
   }
 });
@@ -56,30 +64,16 @@ router.get("/postback", async (req, res) => {
     }
 
     // Create a pending postback record first to handle race conditions
-    try {
-      await Postback.create({
-        subscriberId,
-        campaignId,
-        status: "pending",
-        metadata: {
-          ip: req.ip,
-          userAgent: req.headers["user-agent"],
-          referrer: req.headers["referer"],
-        },
-      });
-    } catch (error: unknown) {
-      // If creation fails due to duplicate key, another request is already processing
-      if (error instanceof Error && "code" in error && error.code === 11000) {
-        logger.warn("Concurrent postback detected:", {
-          subscriberId,
-          campaignId,
-          query: req.query,
-        });
-        res.status(409).send("Duplicate postback");
-        return;
-      }
-      throw error;
-    }
+    await Postback.create({
+      subscriberId,
+      campaignId,
+      status: "pending",
+      metadata: {
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+        referrer: req.headers["referer"],
+      },
+    });
 
     const isValid = await MetricsTrackingService.validatePostback({
       subscriberId,
@@ -132,11 +126,7 @@ router.get("/postback", async (req, res) => {
       throw error;
     }
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      logger.error("Error handling postback:", error);
-    } else {
-      logger.error("Unknown error handling postback:", { error });
-    }
+    logger.error("Error handling postback:", error);
     res.status(500).send("Internal Server Error");
   }
 });
