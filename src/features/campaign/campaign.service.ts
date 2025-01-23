@@ -9,6 +9,7 @@ import { logger } from "@config/logger";
 import { OPENAI_API_KEY } from "@/local";
 import { EmailTemplateService } from "@features/email/templates/email-template.service";
 import { SmtpService } from "@features/email/smtp/smtp.service";
+import { Document } from "mongoose";
 
 const COPYWRITING_FRAMEWORKS = [
   "PAS (Problem-Agitate-Solution)",
@@ -61,6 +62,33 @@ export class CampaignService {
     campaignData: Partial<ICampaign>
   ): Promise<ICampaign> {
     try {
+      if (campaignData.status === CampaignStatus.SCHEDULED) {
+        if (!campaignData.schedule?.startDate || !campaignData.schedule?.sendTime) {
+          throw new Error("Scheduled campaigns must have a start date and send time");
+        }
+
+        const startDate = new Date(campaignData.schedule.startDate);
+        if (startDate < new Date()) {
+          throw new Error("Start date cannot be in the past");
+        }
+
+        if (campaignData.schedule.endDate) {
+          const endDate = new Date(campaignData.schedule.endDate);
+          if (endDate < startDate) {
+            throw new Error("End date must be after start date");
+          }
+        }
+
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        if (!timeRegex.test(campaignData.schedule.sendTime)) {
+          throw new Error("Invalid time format. Use HH:mm format");
+        }
+
+        if (campaignData.schedule.timezone !== "America/New_York") {
+          throw new Error("Only America/New_York timezone is supported");
+        }
+      }
+
       const campaign = new Campaign(campaignData);
       return await campaign.save();
     } catch (error) {
@@ -296,5 +324,43 @@ export class CampaignService {
     });
 
     return completion.choices[0].message?.content || "";
+  }
+
+  static async processCampaignSchedule(campaign: ICampaign): Promise<void> {
+    try {
+      if (!campaign.schedule || campaign.status !== CampaignStatus.SCHEDULED) {
+        return;
+      }
+
+      const now = new Date();
+      const startDate = new Date(campaign.schedule.startDate);
+      const endDate = campaign.schedule.endDate ? new Date(campaign.schedule.endDate) : null;
+
+      if (startDate <= now && (!endDate || endDate >= now)) {
+        await this.updateCampaignStatus((campaign as any)._id.toString(), CampaignStatus.RUNNING);
+      }
+
+      if (endDate && endDate < now) {
+        await this.updateCampaignStatus((campaign as any)._id.toString(), CampaignStatus.COMPLETED);
+      }
+    } catch (error) {
+      logger.error("Error processing campaign schedule:", error);
+      throw error;
+    }
+  }
+
+  static async processScheduledCampaigns(): Promise<void> {
+    try {
+      const scheduledCampaigns = await Campaign.find({
+        status: CampaignStatus.SCHEDULED,
+      }).lean();
+
+      for (const campaign of scheduledCampaigns) {
+        await this.processCampaignSchedule(campaign as ICampaign);
+      }
+    } catch (error) {
+      logger.error("Error processing scheduled campaigns:", error);
+      throw error;
+    }
   }
 }
