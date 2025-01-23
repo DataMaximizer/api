@@ -91,7 +91,8 @@ export class MetricsTrackingService {
   static async trackConversion(
     subscriberId: string,
     amount: number,
-    productId: string
+    productId: string,
+    campaignId?: string
   ) {
     try {
       await Subscriber.findByIdAndUpdate(subscriberId, {
@@ -105,6 +106,7 @@ export class MetricsTrackingService {
             type: "conversion",
             productId,
             amount,
+            campaignId,
             timestamp: new Date(),
           },
         },
@@ -259,15 +261,15 @@ export class MetricsTrackingService {
         throw new Error("Offer not found on Campaign.");
       }
 
-      const product = offer.productInfo;
-      const productId = "123";
-      const amount = 123;
-      const variantId = "456";
+      const productId = "";
+      const variantId = "";
+      const amount = 0;
 
       await MetricsTrackingService.trackConversion(
         subscriberId,
         amount,
-        productId
+        productId,
+        campaignId
       );
 
       await CampaignService.updateCampaignMetrics(campaignId, variantId, {

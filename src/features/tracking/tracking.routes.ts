@@ -64,7 +64,7 @@ router.get("/postback", async (req, res) => {
     }
 
     // Create a pending postback record first to handle race conditions
-    await Postback.create({
+    const pendingPostback = await Postback.create({
       subscriberId,
       campaignId,
       status: "pending",
@@ -81,13 +81,10 @@ router.get("/postback", async (req, res) => {
     });
 
     if (!isValid) {
-      await Postback.findOneAndUpdate(
-        { subscriberId, campaignId },
-        {
-          status: "failed",
-          errorMessage: "Invalid postback validation",
-        }
-      );
+      await Postback.findByIdAndUpdate(pendingPostback._id, {
+        status: "failed",
+        errorMessage: "Invalid postback validation",
+      });
 
       logger.warn("Invalid postback attempt:", {
         subscriberId,
@@ -104,25 +101,19 @@ router.get("/postback", async (req, res) => {
         campaignId,
       });
 
-      await Postback.findOneAndUpdate(
-        { subscriberId, campaignId },
-        {
-          status: "completed",
-          processedAt: new Date(),
-        }
-      );
+      await Postback.findByIdAndUpdate(pendingPostback._id, {
+        status: "completed",
+        processedAt: new Date(),
+      });
 
       res.status(200).send("OK");
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      await Postback.findOneAndUpdate(
-        { subscriberId, campaignId },
-        {
-          status: "failed",
-          errorMessage,
-        }
-      );
+      await Postback.findByIdAndUpdate(pendingPostback._id, {
+        status: "failed",
+        errorMessage,
+      });
       throw error;
     }
   } catch (error: unknown) {

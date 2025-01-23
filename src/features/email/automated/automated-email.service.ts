@@ -32,7 +32,7 @@ interface ProductInfo {
 
 export class AutomatedEmailService {
   private static determineContentStrategy(
-    targetAudience: string,
+    targetAudience: string
   ): ContentStrategy {
     const audienceLower = targetAudience.toLowerCase();
 
@@ -68,7 +68,7 @@ export class AutomatedEmailService {
     userId: string,
     subscriberListId: string,
     smtpProviderId: string,
-    res?: Response,
+    res?: Response
   ): Promise<void> {
     try {
       if (res) {
@@ -81,13 +81,14 @@ export class AutomatedEmailService {
       const offerData = await UrlAnalysisService.createOfferFromUrl(
         url,
         userId,
-        commissionRate,
+        commissionRate
       );
 
       // 2. Enhance tags generation
       const productInfo = offerData.productInfo as ProductInfo;
-      const additionalTags =
-        await AIContentService.generateAdditionalTags(productInfo);
+      const additionalTags = await AIContentService.generateAdditionalTags(
+        productInfo
+      );
 
       const tags = offerData.tags || [];
       offerData.tags = [...new Set([...tags, ...(additionalTags || [])])];
@@ -97,7 +98,7 @@ export class AutomatedEmailService {
 
       // 4. Determine content strategy based on target audience
       const contentStrategy = this.determineContentStrategy(
-        productInfo.targetAudience || "general",
+        productInfo.targetAudience || "general"
       );
 
       // 5. Generate email content
@@ -112,7 +113,7 @@ export class AutomatedEmailService {
         },
         contentStrategy.framework,
         contentStrategy.tone,
-        1,
+        1
       );
 
       if (!emailContent || emailContent.length === 0) {
@@ -140,11 +141,13 @@ export class AutomatedEmailService {
         status: "active",
       });
 
+      emailContent[0].content += `<a href="${offer.url}">Learn More</a>`;
+
       for (const subscriber of subscribers) {
         const emailWithTracking = EmailTemplateService.addTrackingToTemplate(
           emailContent[0].content,
           subscriber._id.toString(),
-          campaign._id.toString(),
+          campaign._id.toString()
         );
 
         await SmtpService.sendEmail({
@@ -156,7 +159,7 @@ export class AutomatedEmailService {
       }
 
       logger.info(
-        `Automated email campaign created and sent for offer: ${offer._id}`,
+        `Automated email campaign created and sent for offer: ${offer._id}`
       );
     } catch (error) {
       logger.error("Error in processUrlAndGenerateEmail:", error);

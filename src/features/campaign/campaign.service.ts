@@ -58,7 +58,7 @@ export class CampaignService {
   private static readonly BATCH_SIZE = 100;
 
   static async createCampaign(
-    campaignData: Partial<ICampaign>,
+    campaignData: Partial<ICampaign>
   ): Promise<ICampaign> {
     try {
       const campaign = new Campaign(campaignData);
@@ -72,7 +72,7 @@ export class CampaignService {
   static async generateEmailVariants(
     campaignId: string,
     productInfo: any,
-    numberOfVariants: number = 2,
+    numberOfVariants: number = 2
   ): Promise<ICampaignVariant[]> {
     try {
       const variants: ICampaignVariant[] = [];
@@ -94,7 +94,7 @@ export class CampaignService {
           framework,
           tone,
           personality,
-          writingStyle,
+          writingStyle
         );
         const subject = await this.generateEmailSubject(content);
 
@@ -129,7 +129,7 @@ export class CampaignService {
     framework: string,
     tone: string,
     personality: string,
-    writingStyle: string,
+    writingStyle: string
   ): Promise<string> {
     const prompt = `
       Write a marketing email using the ${framework} framework.
@@ -191,23 +191,19 @@ export class CampaignService {
   static async updateCampaignMetrics(
     campaignId: string,
     variantId: string,
-    metrics: Partial<ICampaignVariant["metrics"]>,
+    metrics: Partial<ICampaignVariant["metrics"]>
   ) {
     try {
       await Campaign.findOneAndUpdate(
-        { _id: campaignId, "variants._id": variantId },
+        { _id: campaignId },
         {
           $inc: {
-            "variants.$.metrics.opens": metrics.opens || 0,
-            "variants.$.metrics.clicks": metrics.clicks || 0,
-            "variants.$.metrics.conversions": metrics.conversions || 0,
-            "variants.$.metrics.revenue": metrics.revenue || 0,
             "metrics.totalOpens": metrics.opens || 0,
             "metrics.totalClicks": metrics.clicks || 0,
             "metrics.totalConversions": metrics.conversions || 0,
             "metrics.totalRevenue": metrics.revenue || 0,
           },
-        },
+        }
       );
     } catch (error) {
       logger.error("Error updating campaign metrics:", error);
@@ -219,7 +215,7 @@ export class CampaignService {
     campaign: any,
     subscriber: any,
     template: string,
-    data: Record<string, any>,
+    data: Record<string, any>
   ) {
     try {
       let emailContent = EmailTemplateService.createEmailTemplate(template, {
@@ -231,7 +227,7 @@ export class CampaignService {
       emailContent = EmailTemplateService.addTrackingToTemplate(
         emailContent,
         subscriber._id,
-        campaign._id,
+        campaign._id
       );
 
       await SmtpService.sendEmail({
@@ -248,13 +244,13 @@ export class CampaignService {
 
   static async updateCampaignStatus(
     campaignId: string,
-    status: CampaignStatus,
+    status: CampaignStatus
   ): Promise<ICampaign | null> {
     try {
       const campaign = await Campaign.findByIdAndUpdate(
         campaignId,
         { status },
-        { new: true },
+        { new: true }
       );
 
       if (!campaign) {
@@ -272,7 +268,7 @@ export class CampaignService {
   static async generateCustomEmailContent(
     customPrompt: string,
     tone: string,
-    style: string,
+    style: string
   ): Promise<string> {
     const prompt = `
     Write a marketing email with the following specifications:
