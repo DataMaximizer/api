@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { AffiliateService } from "./affiliate.service";
 import { logger } from "@config/logger";
 import { UrlAnalysisService } from "@features/url-analysis/url-analysis.service";
-import { CacheService } from '@core/services/cache.service';
+import { CacheService } from "@core/services/cache.service";
 
 export class AffiliateController {
   static async createOffer(req: Request, res: Response) {
@@ -14,10 +14,7 @@ export class AffiliateController {
       };
 
       const offer = await AffiliateService.createOffer(offerData);
-      
-      // Clear offers cache after creating new offer
-      await CacheService.delByPattern('offers:*');
-      
+
       res.status(201).json(offer);
     } catch (error) {
       logger.error("Error creating offer:", error);
