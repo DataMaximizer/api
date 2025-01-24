@@ -3,8 +3,10 @@ import mongoose, { Document, Schema, Types } from "mongoose";
 export interface IPostback extends Document {
   subscriberId: Types.ObjectId;
   campaignId: Types.ObjectId;
+  clickId: Types.ObjectId;
   status: "pending" | "completed" | "failed";
   processedAt?: Date;
+  payout?: number;
   metadata?: {
     ip?: string;
     userAgent?: string;
@@ -27,6 +29,11 @@ const postbackSchema = new Schema(
       ref: "Campaign",
       required: true,
     },
+    clickId: {
+      type: Schema.Types.ObjectId,
+      ref: "Click",
+      required: true,
+    },
     status: {
       type: String,
       enum: ["pending", "completed", "failed"],
@@ -35,6 +42,7 @@ const postbackSchema = new Schema(
     processedAt: {
       type: Date,
     },
+    payout: Number,
     metadata: {
       ip: String,
       userAgent: String,
@@ -55,5 +63,6 @@ const postbackSchema = new Schema(
 postbackSchema.index({ status: 1 });
 postbackSchema.index({ createdAt: 1 });
 postbackSchema.index({ processedAt: 1 });
+postbackSchema.index({ clickId: 1 });
 
 export const Postback = mongoose.model<IPostback>("Postback", postbackSchema);

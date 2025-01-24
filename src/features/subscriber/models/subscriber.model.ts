@@ -5,6 +5,8 @@ export interface IInteraction {
   timestamp: Date;
   campaignId?: Types.ObjectId;
   linkId?: string;
+  clickId?: Types.ObjectId;
+  postbackId?: Types.ObjectId;
   productId?: string;
   amount?: number;
   bounceType?: string;
@@ -59,6 +61,8 @@ const interactionSchema = new Schema<IInteraction>(
     timestamp: { type: Date, default: Date.now },
     campaignId: { type: Schema.Types.ObjectId, ref: "Campaign" },
     linkId: String,
+    clickId: { type: Schema.Types.ObjectId, ref: "Click" },
+    postbackId: { type: Schema.Types.ObjectId, ref: "Postback" },
     productId: String,
     amount: Number,
     bounceType: String,
