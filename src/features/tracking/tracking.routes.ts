@@ -37,17 +37,18 @@ router.get("/redirect", async (req, res) => {
       return;
     }
 
-    await MetricsTrackingService.trackClick(
+    const clickId = await MetricsTrackingService.trackClick(
       subscriberId as string,
       linkId as string,
       campaignId as string,
       req
     );
 
-    // res.redirect(
-    //   `${affiliateOfferUrl}?sub_id=${subscriberId}&campaign_id=${campaignId}`
-    // );
-    res.redirect(url as string);
+    const targetUrl = `${
+      url as string
+    }&clickId=${clickId}&sub_id=${subscriberId}&campaign_id=${campaignId}&link_id=${linkId}`;
+
+    res.redirect(targetUrl.toString());
   } catch (error) {
     logger.error("Error tracking click:", error);
     res.redirect(req.query.url as string);
@@ -56,9 +57,12 @@ router.get("/redirect", async (req, res) => {
 
 router.get("/postback", async (req, res) => {
   try {
-    const { subscriberId, campaignId } = req.query as Record<string, string>;
+    const { subscriberId, campaignId, payout, clickId } = req.query as Record<
+      string,
+      string
+    >;
 
-    if (!subscriberId || !campaignId) {
+    if (!subscriberId || !campaignId || !clickId) {
       res.status(400).send("Missing required parameters");
       return;
     }
@@ -67,7 +71,9 @@ router.get("/postback", async (req, res) => {
     const pendingPostback = await Postback.create({
       subscriberId,
       campaignId,
+      clickId,
       status: "pending",
+      payout: payout ? parseFloat(payout) : undefined,
       metadata: {
         ip: req.ip,
         userAgent: req.headers["user-agent"],
@@ -78,6 +84,7 @@ router.get("/postback", async (req, res) => {
     const isValid = await MetricsTrackingService.validatePostback({
       subscriberId,
       campaignId,
+      clickId,
     });
 
     if (!isValid) {
@@ -99,6 +106,8 @@ router.get("/postback", async (req, res) => {
       await MetricsTrackingService.processPostback({
         subscriberId,
         campaignId,
+        payout: payout ? parseFloat(payout) : undefined,
+        postbackId: pendingPostback._id as string,
       });
 
       await Postback.findByIdAndUpdate(pendingPostback._id, {
