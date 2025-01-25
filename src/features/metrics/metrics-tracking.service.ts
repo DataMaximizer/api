@@ -324,62 +324,32 @@ export class MetricsTrackingService {
   }
 
   static async validatePostback({
-    subscriberId,
-    campaignId,
     clickId,
   }: {
-    subscriberId: string;
-    campaignId: string;
     clickId: string;
   }): Promise<boolean> {
     try {
-      // 1. Check if subscriber exists and is active
-      const subscriber = await Subscriber.findOne({
-        _id: subscriberId,
-        status: "active",
-      });
-
-      if (!subscriber) {
-        logger.warn(
-          `Invalid postback: Subscriber ${subscriberId} not found or inactive`
-        );
-        return false;
-      }
-
-      // 2. Check if campaign exists
-      const campaign = await Campaign.findById(campaignId);
-      if (!campaign) {
-        logger.warn(`Invalid postback: Campaign ${campaignId} not found`);
-        return false;
-      }
-
-      // 3. Check for a recent click using the Click model
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-      const recentClick = await Click.findOne({
-        subscriberId,
-        campaignId,
+      const click = await Click.findOne({
+        _id: clickId,
         timestamp: { $gt: twentyFourHoursAgo },
-      }).sort({ timestamp: -1 });
+      }).populate("subscriberId");
 
-      if (!recentClick) {
-        logger.warn(
-          `Invalid postback: No recent click found for subscriber ${subscriberId} on campaign ${campaignId}`
-        );
+      if (!click) {
+        logger.warn(`Invalid postback: Click ${clickId} not found or too old`);
         return false;
       }
 
-      // Check if the specific click exists
-      const click = await Click.findOne({
-        _id: clickId,
-        subscriberId,
-        campaignId,
-      });
+      const subscriber = click.subscriberId as any;
+      if (!subscriber || subscriber.status !== "active") {
+        logger.warn(`Invalid postback: Subscriber not found or inactive`);
+        return false;
+      }
 
-      if (!click) {
-        logger.warn(
-          `Invalid postback: Click ${clickId} not found for subscriber ${subscriberId} on campaign ${campaignId}`
-        );
+      const campaign = await Campaign.findById(click.campaignId);
+      if (!campaign) {
+        logger.warn(`Invalid postback: Campaign not found`);
         return false;
       }
 

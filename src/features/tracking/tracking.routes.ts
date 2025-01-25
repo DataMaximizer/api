@@ -3,6 +3,7 @@ import { MetricsTrackingService } from "@features/metrics/metrics-tracking.servi
 import { Postback } from "../tracking/models/postback.model";
 import { logger } from "@config/logger";
 import { isValidUrl } from "@/core/utils/url";
+import { Click } from "../tracking/models/click.model";
 
 const router = Router();
 
@@ -57,20 +58,23 @@ router.get("/redirect", async (req, res) => {
 
 router.get("/postback", async (req, res) => {
   try {
-    const { subscriberId, campaignId, payout, clickId } = req.query as Record<
-      string,
-      string
-    >;
+    const { clickId, payout } = req.query as Record<string, string>;
 
-    if (!subscriberId || !campaignId || !clickId) {
+    if (!clickId) {
       res.status(400).send("Missing required parameters");
+      return;
+    }
+
+    const click = await Click.findById(clickId);
+    if (!click) {
+      res.status(404).send("Click not found");
       return;
     }
 
     // Create a pending postback record first to handle race conditions
     const pendingPostback = await Postback.create({
-      subscriberId,
-      campaignId,
+      subscriberId: click.subscriberId,
+      campaignId: click.campaignId,
       clickId,
       status: "pending",
       payout: payout ? parseFloat(payout) : undefined,
@@ -82,8 +86,6 @@ router.get("/postback", async (req, res) => {
     });
 
     const isValid = await MetricsTrackingService.validatePostback({
-      subscriberId,
-      campaignId,
       clickId,
     });
 
@@ -94,9 +96,7 @@ router.get("/postback", async (req, res) => {
       });
 
       logger.warn("Invalid postback attempt:", {
-        subscriberId,
-        campaignId,
-        query: req.query,
+        clickId,
       });
       res.status(400).send("Invalid request");
       return;
@@ -104,8 +104,8 @@ router.get("/postback", async (req, res) => {
 
     try {
       await MetricsTrackingService.processPostback({
-        subscriberId,
-        campaignId,
+        subscriberId: click.subscriberId.toString(),
+        campaignId: click.campaignId.toString(),
         payout: payout ? parseFloat(payout) : undefined,
         postbackId: pendingPostback._id as string,
       });
