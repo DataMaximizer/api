@@ -5,78 +5,18 @@ import {
 	ContentVariant,
 	ContentTemplate,
 	IContentVariant,
+	IContentTemplate,
 } from "../models/ai-content.model";
 import { logger } from "@config/logger";
 import { OPENAI_API_KEY } from "@/local";
 import { ContentTemplateService } from "@features/email/templates/content-template.service";
 import { getAllSpamKeywords, findSpamKeywords } from "./keywords";
+import { HTMLFormatterService } from "./html-formatter.service";
 
 export class AIContentService {
 	private static readonly openai = new OpenAI({
 		apiKey: OPENAI_API_KEY,
 	});
-
-	static async generateContentVariants(
-		productInfo: any,
-		framework: ContentFramework,
-		tone: WritingTone,
-		numberOfVariants: number = 2,
-	): Promise<IContentVariant[]> {
-		try {
-			const template = await this.getOptimalTemplate(framework, tone);
-			const variants: IContentVariant[] = [];
-
-			for (let i = 0; i < numberOfVariants; i++) {
-				let content = await this.generateContent(productInfo, template);
-				let subject = await this.generateSubject(content);
-
-				const maxAttempts = 3;
-				let attempts = 1;
-
-				while (attempts < maxAttempts) {
-					const contentSpamKeywords = findSpamKeywords(content);
-					const subjectSpamKeywords = findSpamKeywords(subject);
-
-					if (
-						contentSpamKeywords.length === 0 &&
-						subjectSpamKeywords.length === 0
-					) {
-						break;
-					}
-
-					logger.warn(`Attempt ${attempts}: Found spam keywords:`, {
-						content: contentSpamKeywords,
-						subject: subjectSpamKeywords,
-					});
-
-					content = await this.generateContent(productInfo, template);
-					subject = await this.generateSubject(content);
-					attempts++;
-				}
-
-				const variant = new ContentVariant({
-					content,
-					subject,
-					framework,
-					tone,
-					status: "draft",
-					aiMetadata: {
-						promptUsed: template.prompts.content,
-						modelVersion: "gpt-4",
-						generationParams: { temperature: 0.7 },
-						generatedAt: new Date(),
-					},
-				});
-
-				variants.push(variant);
-			}
-
-			return variants;
-		} catch (error) {
-			logger.error("Error generating content variants:", error);
-			throw error;
-		}
-	}
 
 	private static async getOptimalTemplate(
 		framework: ContentFramework,
@@ -89,40 +29,105 @@ export class AIContentService {
 		return template;
 	}
 
+	static async generateContentVariants(
+		productInfo: any,
+		framework: ContentFramework,
+		tone: WritingTone,
+		numberOfVariants: number = 1,
+		format: "html" | "text" = "html",
+	): Promise<IContentVariant[]> {
+		try {
+			const template = await this.getOptimalTemplate(framework, tone);
+			const variants: IContentVariant[] = [];
+
+			let content = await this.generateContent(productInfo, template);
+			let subject = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+			const maxAttempts = 3;
+			let attempts = 1;
+
+			while (attempts < maxAttempts) {
+				const contentSpamKeywords = findSpamKeywords(content);
+				const subjectSpamKeywords = findSpamKeywords(subject);
+
+				if (
+					contentSpamKeywords.length === 0 &&
+					subjectSpamKeywords.length === 0
+				) {
+					break;
+				}
+
+				logger.warn(`Attempt ${attempts}: Found spam keywords:`, {
+					content: contentSpamKeywords,
+					subject: subjectSpamKeywords,
+				});
+
+				content = await this.generateContent(productInfo, template);
+				subject = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+				attempts++;
+			}
+
+			const variant = new ContentVariant({
+				content,
+				subject: "KATCHAU",
+				framework,
+				tone,
+				status: "draft",
+				aiMetadata: {
+					promptUsed: template.prompts.content,
+					modelVersion: "gpt-4",
+					generationParams: { temperature: 0.7 },
+					generatedAt: new Date(),
+				},
+			});
+
+			variants.push(variant);
+
+			if (format === "html") {
+				variants.forEach((variant) => {
+					variant.content = HTMLFormatterService.formatContentToHTML(
+						variant.content,
+						framework,
+					);
+				});
+			}
+
+			return variants;
+		} catch (error) {
+			logger.error("Error generating content variants:", error);
+			throw error;
+		}
+	}
+
 	private static async generateContent(
 		productInfo: any,
-		template: any,
+		template: IContentTemplate,
 	): Promise<string> {
 		const spamKeywords = getAllSpamKeywords();
+		const framework = template.framework;
 
 		const prompt = `
-      Create meaningful communication following this structure:
-      ${template.structure}
-      
-      Product Details:
-      ${JSON.stringify(productInfo)}
-      
-      Communication Guidelines:
-      - Apply: ${template.framework}
-      - Style: ${template.tone}
-      
-      Essential Elements:
-      1. Adhere to provided structure
-      2. Maintain consistent voice
-      3. Present specific next steps
-      4. Highlight key advantages
-      5. Write with authenticity
-      
-      Important - Avoid these terms (full list):
-      ${spamKeywords.join(", ")}
-      
-      Additional Guidelines:
-      - Use natural, conversational language
-      - Focus on genuine value
-      - Avoid hyperbole or excessive claims
-      - Write in a professional, straightforward manner
-      - Describe features and benefits clearly
-      - Use specific, measurable outcomes when possible
+    Create an HTML marketing email for this product using the ${framework} framework:
+    ${JSON.stringify(productInfo)}
+    
+    REQUIRED HTML STRUCTURE (must follow exactly):
+    <div class="email-content">
+        <div class="email-section">
+            ${this.getFrameworkStructure(framework)}
+        </div>
+        <div class="email-cta">
+            [Call to Action Section]
+        </div>
+    </div>
+
+    Requirements:
+    - Use ONLY HTML tags: <div>, <p>, <strong>, <em>, <ul>, <li>, <a>
+    - Every paragraph must be wrapped in <p> tags
+    - Use <strong> for important points
+    - Add proper class names as shown above
+    - Keep content natural and conversational
+    
+    Avoid these terms: ${spamKeywords.join(", ")}
     `;
 
 		const completion = await this.openai.chat.completions.create({
@@ -130,41 +135,69 @@ export class AIContentService {
 			messages: [
 				{
 					role: "system",
-					content:
-						"You are a skilled communications specialist focusing on authentic messaging. Avoid using any spam trigger words or phrases that could affect email deliverability.",
+					content: `You are an HTML email specialist. 
+          ALWAYS return valid HTML structure.
+          ALWAYS wrap content in the specified HTML tags.
+          NEVER include raw text without proper HTML tags.
+          NEVER include section headers or numbering.
+          NEVER include DOCTYPE or full HTML document tags.`,
 				},
 				{ role: "user", content: prompt },
 			],
 		});
 
-		return completion.choices[0].message?.content || "";
+		let content = completion.choices[0].message?.content || "";
+
+		content = this.validateAndFixHTML(content);
+
+		return content;
+	}
+
+	private static validateAndFixHTML(content: string): string {
+		content = content.trim();
+
+		if (!content.includes('class="email-content"')) {
+			content = `<div class="email-content">${content}</div>`;
+		}
+
+		content = content.replace(/(?<!<p>)([\w\s.,!?]+)(?!<\/p>)/g, "<p>$1</p>");
+
+		return content;
+	}
+
+	private static getFrameworkStructure(framework: ContentFramework): string {
+		const structures: Record<string, string> = {
+			[ContentFramework.PAS]: `
+        <div class="problem-section">[Problem Section]</div>
+        <div class="agitate-section">[Agitation Section]</div>
+        <div class="solution-section">[Solution Section]</div>`,
+			[ContentFramework.AIDA]: `
+        <div class="attention-section">[Attention Section]</div>
+        <div class="interest-section">[Interest Section]</div>
+        <div class="desire-section">[Desire Section]</div>
+        <div class="action-section">[Action Section]</div>`,
+		};
+
+		return structures[framework] || structures[ContentFramework.PAS];
 	}
 
 	private static async generateSubject(content: string): Promise<string> {
 		const spamKeywords = getAllSpamKeywords();
 
 		const prompt = `
-      Review this message content and suggest 3 engaging opening lines.
-      Select the most appropriate one that encourages readership.
-      
-      Message Content: ${content}
-      
-      Requirements:
-      1. Maximum 40 characters
-      2. Focus on relevance and value
-      3. Use natural, conversational language
-      4. Maintain professionalism
-      
-      Specifically avoid these terms (full list):
-      ${spamKeywords.join(", ")}
-      
-      Additional Guidelines:
-      - Write naturally and professionally
-      - Focus on specific, relevant details
-      - Avoid marketing language
-      - Use clear, direct statements
-      - Keep it informative and genuine
-    `;
+    Create a single engaging subject line for this email content:
+    ${content}
+    
+    Requirements:
+    - Maximum 10 characters
+    - Return ONLY the subject line text
+    - No numbering, quotes, or multiple options
+    - Focus on relevance and value
+    - Use natural, conversational language
+
+    Avoid these terms:
+    ${spamKeywords.join(", ")}
+  `;
 
 		const completion = await this.openai.chat.completions.create({
 			model: "gpt-4",
@@ -172,13 +205,17 @@ export class AIContentService {
 				{
 					role: "system",
 					content:
-						"You are a communications specialist focused on creating relevant, professional message openings. Avoid any terms that could trigger spam filters.",
+						"You are a specialist in email subject lines. Return only a single subject line with no formatting, quotes, or numbering.",
 				},
 				{ role: "user", content: prompt },
 			],
 		});
 
-		return completion.choices[0].message?.content || "";
+		return (
+			completion.choices[0].message?.content
+				?.replace(/^[0-9."\s]+|["]+$/g, "")
+				.trim() || ""
+		);
 	}
 
 	static async updateContentPerformance(

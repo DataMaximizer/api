@@ -5,6 +5,7 @@ export enum ContentFramework {
 	AIDA = "Attention-Interest-Desire-Action",
 	BAB = "Before-After-Bridge",
 	FOUR_PS = "4Ps",
+	FEATURES_BENEFITS = "FEATURES_BENEFITS"
 }
 
 export enum WritingTone {

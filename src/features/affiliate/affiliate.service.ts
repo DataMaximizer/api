@@ -2,9 +2,9 @@ import axios from "axios";
 import OpenAI from "openai";
 import { FilterQuery, QueryOptions } from "mongoose";
 import {
-  AffiliateOffer,
-  OfferStatus,
-  IAffiliateOffer,
+	AffiliateOffer,
+	OfferStatus,
+	IAffiliateOffer,
 } from "./models/affiliate-offer.model";
 import { logger } from "@config/logger";
 import { load } from "cheerio";
@@ -14,103 +14,103 @@ import { CacheService } from "@core/services/cache.service";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY,
+	apiKey: OPENAI_API_KEY,
 });
 
 export class AffiliateService {
-  private static CACHE_TTL = 3600; // 1 hour
-  private static CACHE_PREFIX = "affiliate:offers";
+	private static CACHE_TTL = 3600; // 1 hour
+	private static CACHE_PREFIX = "affiliate:offers";
 
-  static async createOffer(offerData: Partial<IAffiliateOffer>) {
-    const enhancedOfferData =
-      await OfferEnhancementService.enhanceOfferDescription(offerData);
+	static async createOffer(offerData: Partial<IAffiliateOffer>) {
+		const enhancedOfferData =
+			await OfferEnhancementService.enhanceOfferDescription(offerData);
 
-    const offer = new AffiliateOffer(enhancedOfferData);
+		const offer = new AffiliateOffer(enhancedOfferData);
 
-    offer.categories = OfferEnhancementService.validateCategories(
-      offer.categories
-    );
+		offer.categories = OfferEnhancementService.validateCategories(
+			offer.categories,
+		);
 
-    if (offer.tags && offer.tags.length > 3) {
-      offer.tags = offer.tags.slice(0, 3);
-    }
+		if (offer.tags && offer.tags.length > 3) {
+			offer.tags = offer.tags.slice(0, 3);
+		}
 
-    await this.scanAndEnrichOffer(offer);
-    await offer.save();
-    // Clear all offer-related caches
-    await CacheService.del(`${this.CACHE_PREFIX}:*`);
-    return offer;
-  }
+		await this.scanAndEnrichOffer(offer);
+		await offer.save();
+		// Clear all offer-related caches
+		await CacheService.del(`${this.CACHE_PREFIX}:*`);
+		return offer;
+	}
 
-  static async scanAndEnrichOffer(offer: IAffiliateOffer) {
-    try {
-      const isAlive = await this.checkUrlStatus(offer.url);
-      if (!isAlive) {
-        offer.status = OfferStatus.PAUSED;
-        return;
-      }
+	static async scanAndEnrichOffer(offer: IAffiliateOffer) {
+		try {
+			const isAlive = await this.checkUrlStatus(offer.url);
+			if (!isAlive) {
+				offer.status = OfferStatus.PAUSED;
+				return;
+			}
 
-      const pageContent = await this.scrapeWebpage(offer.url);
+			const pageContent = await this.scrapeWebpage(offer.url);
 
-      const productInfo = await this.gatherProductInfo(
-        pageContent,
-        offer.description
-      );
-      offer.productInfo = productInfo;
+			const productInfo = await this.gatherProductInfo(
+				pageContent,
+				offer.description,
+			);
+			offer.productInfo = productInfo;
 
-      const aiTags = await this.generateTags(productInfo);
-      const uniqueTags = new Set([...offer.tags, ...aiTags]);
-      offer.tags = Array.from(uniqueTags).slice(0, 5);
+			const aiTags = await this.generateTags(productInfo);
+			const uniqueTags = new Set([...offer.tags, ...aiTags]);
+			offer.tags = Array.from(uniqueTags).slice(0, 5);
 
-      offer.lastChecked = new Date();
-      offer.lastActive = new Date();
-    } catch (error) {
-      logger.error("Error enriching offer:", error);
-      throw error;
-    }
-  }
+			offer.lastChecked = new Date();
+			offer.lastActive = new Date();
+		} catch (error) {
+			logger.error("Error enriching offer:", error);
+			throw error;
+		}
+	}
 
-  private static async scrapeWebpage(url: string): Promise<string> {
-    try {
-      const response = await axios.get(url);
-      const $ = load(response.data);
+	private static async scrapeWebpage(url: string): Promise<string> {
+		try {
+			const response = await axios.get(url);
+			const $ = load(response.data);
 
-      $("script").remove();
-      $("style").remove();
+			$("script").remove();
+			$("style").remove();
 
-      const title = $("title").text();
-      const description = $('meta[name="description"]').attr("content") || "";
-      const mainContent = $(
-        "main, article, .product-description, #product-description"
-      ).text();
-      const price = $('.price, .product-price, [class*="price"]')
-        .first()
-        .text();
+			const title = $("title").text();
+			const description = $('meta[name="description"]').attr("content") || "";
+			const mainContent = $(
+				"main, article, .product-description, #product-description",
+			).text();
+			const price = $('.price, .product-price, [class*="price"]')
+				.first()
+				.text();
 
-      return `
+			return `
         Title: ${title.trim()}
         Description: ${description.trim()}
         Price: ${price.trim()}
         Content: ${mainContent.trim()}
       `.substring(0, 3000);
-    } catch (error) {
-      logger.error("Error scraping webpage:", error);
-      return "";
-    }
-  }
+		} catch (error) {
+			logger.error("Error scraping webpage:", error);
+			return "";
+		}
+	}
 
-  static async checkUrlStatus(url: string): Promise<boolean> {
-    try {
-      const response = await axios.head(url, { timeout: 5000 });
-      return response.status >= 200 && response.status < 400;
-    } catch (error) {
-      return false;
-    }
-  }
+	static async checkUrlStatus(url: string): Promise<boolean> {
+		try {
+			const response = await axios.head(url, { timeout: 5000 });
+			return response.status >= 200 && response.status < 400;
+		} catch (error) {
+			return false;
+		}
+	}
 
-  static async gatherProductInfo(pageContent: string, userDescription: string) {
-    try {
-      const prompt = `
+	static async gatherProductInfo(pageContent: string, userDescription: string) {
+		try {
+			const prompt = `
         Analyze this product page content and extract the following information in a clear, structured format:
 
         Current user description: "${userDescription}"
@@ -136,64 +136,63 @@ export class AffiliateService {
         Categories: [category1, category2, category3]
       `;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a product analysis expert. Provide concise, accurate information focused on key selling points and target audience.",
-          },
-          { role: "user", content: prompt },
-        ],
-      });
+			const completion = await openai.chat.completions.create({
+				model: "gpt-3.5-turbo",
+				messages: [
+					{
+						role: "system",
+						content:
+							"You are a product analysis expert. Provide concise, accurate information focused on key selling points and target audience.",
+					},
+					{ role: "user", content: prompt },
+				],
+			});
+			const result = completion.choices[0].message?.content;
+			if (!result) throw new Error("No response from OpenAI");
 
-      const result = completion.choices[0].message?.content;
-      if (!result) throw new Error("No response from OpenAI");
+			const sections = result.split("\n\n");
+			const benefitsSection =
+				sections.find((s) => s.startsWith("Benefits:")) || "";
+			const benefits = benefitsSection
+				.split("\n")
+				.filter((line) => line.startsWith("-"))
+				.map((line) => line.replace("-", "").trim());
 
-      const sections = result.split("\n\n");
-      const benefitsSection =
-        sections.find((s) => s.startsWith("Benefits:")) || "";
-      const benefits = benefitsSection
-        .split("\n")
-        .filter((line) => line.startsWith("-"))
-        .map((line) => line.replace("-", "").trim());
+			return {
+				description: sections[0].replace("Description:", "").trim(),
+				benefits,
+				pricing: sections
+					.find((s) => s.startsWith("Pricing:"))
+					?.replace("Pricing:", "")
+					.trim(),
+				targetAudience: sections
+					.find((s) => s.startsWith("Target Audience:"))
+					?.replace("Target Audience:", "")
+					.trim(),
+				suggestedCategories: sections
+					.find((s) => s.startsWith("Categories:"))
+					?.replace("Categories:", "")
+					.trim()
+					.split(",")
+					.map((c) => c.trim()),
+			};
+		} catch (error) {
+			logger.error("Error gathering product info:", error);
+			return {
+				description: userDescription,
+				benefits: [],
+				pricing: "",
+				targetAudience: "",
+				suggestedCategories: [],
+			};
+		}
+	}
 
-      return {
-        description: sections[0].replace("Description:", "").trim(),
-        benefits,
-        pricing: sections
-          .find((s) => s.startsWith("Pricing:"))
-          ?.replace("Pricing:", "")
-          .trim(),
-        targetAudience: sections
-          .find((s) => s.startsWith("Target Audience:"))
-          ?.replace("Target Audience:", "")
-          .trim(),
-        suggestedCategories: sections
-          .find((s) => s.startsWith("Categories:"))
-          ?.replace("Categories:", "")
-          .trim()
-          .split(",")
-          .map((c) => c.trim()),
-      };
-    } catch (error) {
-      logger.error("Error gathering product info:", error);
-      return {
-        description: userDescription,
-        benefits: [],
-        pricing: "",
-        targetAudience: "",
-        suggestedCategories: [],
-      };
-    }
-  }
-
-  static async generateTags(
-    productInfo: Record<string, any>
-  ): Promise<string[]> {
-    try {
-      const prompt = `
+	static async generateTags(
+		productInfo: Record<string, any>,
+	): Promise<string[]> {
+		try {
+			const prompt = `
         Based on this product information, generate up to 5 relevant tags.
         Product info: ${JSON.stringify(productInfo)}
         
@@ -205,151 +204,151 @@ export class AffiliateService {
         5. Keep it concise and relevant
       `;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a product tagging expert. Return only the requested tags, nothing else.",
-          },
-          { role: "user", content: prompt },
-        ],
-      });
+			const completion = await openai.chat.completions.create({
+				model: "gpt-3.5-turbo",
+				messages: [
+					{
+						role: "system",
+						content:
+							"You are a product tagging expert. Return only the requested tags, nothing else.",
+					},
+					{ role: "user", content: prompt },
+				],
+			});
 
-      const tags = completion.choices[0].message?.content?.split(",") || [];
-      return tags
-        .map((tag: string) => tag.trim().toLowerCase())
-        .filter((tag: string) => tag.length > 0)
-        .slice(0, 5);
-    } catch (error) {
-      logger.error("Error generating tags:", error);
-      return [];
-    }
-  }
+			const tags = completion.choices[0].message?.content?.split(",") || [];
+			return tags
+				.map((tag: string) => tag.trim().toLowerCase())
+				.filter((tag: string) => tag.length > 0)
+				.slice(0, 5);
+		} catch (error) {
+			logger.error("Error generating tags:", error);
+			return [];
+		}
+	}
 
-  static async updateOffer(id: string, updateData: Partial<IAffiliateOffer>) {
-    const offer = await AffiliateOffer.findById(id);
-    if (!offer) throw new Error("Offer not found");
+	static async updateOffer(id: string, updateData: Partial<IAffiliateOffer>) {
+		const offer = await AffiliateOffer.findById(id);
+		if (!offer) throw new Error("Offer not found");
 
-    if (updateData.description || updateData.categories) {
-      const enhancedData =
-        await OfferEnhancementService.enhanceOfferDescription({
-          ...offer.toObject(),
-          ...updateData,
-        });
-      updateData = { ...updateData, ...enhancedData };
-    }
+		if (updateData.description || updateData.categories) {
+			const enhancedData =
+				await OfferEnhancementService.enhanceOfferDescription({
+					...offer.toObject(),
+					...updateData,
+				});
+			updateData = { ...updateData, ...enhancedData };
+		}
 
-    if (updateData.url && updateData.url !== offer.url) {
-      offer.url = updateData.url;
-      await this.scanAndEnrichOffer(offer);
-    }
+		if (updateData.url && updateData.url !== offer.url) {
+			offer.url = updateData.url;
+			await this.scanAndEnrichOffer(offer);
+		}
 
-    Object.assign(offer, updateData);
-    await Promise.all([
-      CacheService.del(`${this.CACHE_PREFIX}:*`),
-      CacheService.del(`${this.CACHE_PREFIX}:single:${JSON.stringify({ id })}`),
-    ]);
-    return offer.save();
-  }
+		Object.assign(offer, updateData);
+		await Promise.all([
+			CacheService.del(`${this.CACHE_PREFIX}:*`),
+			CacheService.del(`${this.CACHE_PREFIX}:single:${JSON.stringify({ id })}`),
+		]);
+		return offer.save();
+	}
 
-  static async getOffers(
-    filters: FilterQuery<IAffiliateOffer> = {},
-    options: QueryOptions = {}
-  ) {
-    try {
-      console.log("📥 Getting offers with filters:", JSON.stringify(filters));
-      console.log("⚙️ Query options:", JSON.stringify(options));
+	static async getOffers(
+		filters: FilterQuery<IAffiliateOffer> = {},
+		options: QueryOptions = {},
+	) {
+		try {
+			console.log("📥 Getting offers with filters:", JSON.stringify(filters));
+			console.log("⚙ Query options:", JSON.stringify(options));
 
-      const cacheKey = CacheService.generateKey(this.CACHE_PREFIX, {
-        filters,
-        options,
-      });
-      const cachedData = await CacheService.get<IAffiliateOffer[]>(cacheKey);
+			const cacheKey = CacheService.generateKey(this.CACHE_PREFIX, {
+				filters,
+				options,
+			});
+			const cachedData = await CacheService.get<IAffiliateOffer[]>(cacheKey);
 
-      if (cachedData) {
-        console.log(`✅ Retrieved ${cachedData.length} offers from cache`);
-        logger.debug("Returning cached offers");
-        return cachedData;
-      }
+			if (cachedData) {
+				console.log(`✅ Retrieved ${cachedData.length} offers from cache`);
+				logger.debug("Returning cached offers");
+				return cachedData;
+			}
 
-      console.log("🔄 Cache miss - fetching from database");
-      const offers = await AffiliateOffer.find(filters, null, options);
-      console.log(`📝 Found ${offers.length} offers in database`);
+			console.log("🔄 Cache miss - fetching from database");
+			const offers = await AffiliateOffer.find(filters, null, options);
+			console.log(`📝 Found ${offers.length} offers in database`);
 
-      await CacheService.set(cacheKey, offers, this.CACHE_TTL);
-      return offers;
-    } catch (error) {
-      logger.error("Error in getOffers:", error);
-      console.error("❌ Error getting offers:", error);
-      throw error;
-    }
-  }
+			await CacheService.set(cacheKey, offers, this.CACHE_TTL);
+			return offers;
+		} catch (error) {
+			logger.error("Error in getOffers:", error);
+			console.error("❌ Error getting offers:", error);
+			throw error;
+		}
+	}
 
-  static async getOfferById(id: string) {
-    try {
-      console.log("🔍 Getting offer by ID:", id);
+	static async getOfferById(id: string) {
+		try {
+			console.log("🔍 Getting offer by ID:", id);
 
-      const cacheKey = CacheService.generateKey(`${this.CACHE_PREFIX}:single`, {
-        id,
-      });
-      const cachedOffer = await CacheService.get<IAffiliateOffer>(cacheKey);
+			const cacheKey = CacheService.generateKey(`${this.CACHE_PREFIX}:single`, {
+				id,
+			});
+			const cachedOffer = await CacheService.get<IAffiliateOffer>(cacheKey);
 
-      if (cachedOffer) {
-        console.log("✅ Retrieved offer from cache:", cachedOffer._id);
-        logger.debug("Returning cached offer");
-        return cachedOffer;
-      }
+			if (cachedOffer) {
+				console.log("✅ Retrieved offer from cache:", cachedOffer._id);
+				logger.debug("Returning cached offer");
+				return cachedOffer;
+			}
 
-      console.log("🔄 Cache miss - fetching from database");
-      const offer = await AffiliateOffer.findById(id);
+			console.log("🔄 Cache miss - fetching from database");
+			const offer = await AffiliateOffer.findById(id);
 
-      if (offer) {
-        console.log("📝 Found offer in database:", offer._id);
-        await CacheService.set(cacheKey, offer, this.CACHE_TTL);
-      } else {
-        console.log("⚠️ No offer found with ID:", id);
-      }
+			if (offer) {
+				console.log("📝 Found offer in database:", offer._id);
+				await CacheService.set(cacheKey, offer, this.CACHE_TTL);
+			} else {
+				console.log("! No offer found with ID:", id);
+			}
 
-      return offer;
-    } catch (error) {
-      logger.error("Error in getOfferById:", error);
-      console.error("❌ Error getting offer by ID:", error);
-      throw error;
-    }
-  }
+			return offer;
+		} catch (error) {
+			logger.error("Error in getOfferById:", error);
+			console.error("❌ Error getting offer by ID:", error);
+			throw error;
+		}
+	}
 
-  static async deleteOffer(id: string) {
-    try {
-      const result = await AffiliateOffer.findByIdAndUpdate(
-        id,
-        { status: "deleted" },
-        { new: true }
-      );
-      await Promise.all([
-        CacheService.del(`${this.CACHE_PREFIX}:*`),
-        CacheService.del(
-          `${this.CACHE_PREFIX}:single:${JSON.stringify({ id })}`
-        ),
-      ]);
-      return result;
-    } catch (error) {
-      logger.error("Error in deleteOffer:", error);
-      throw error;
-    }
-  }
+	static async deleteOffer(id: string) {
+		try {
+			const result = await AffiliateOffer.findByIdAndUpdate(
+				id,
+				{ status: "deleted" },
+				{ new: true },
+			);
+			await Promise.all([
+				CacheService.del(`${this.CACHE_PREFIX}:*`),
+				CacheService.del(
+					`${this.CACHE_PREFIX}:single:${JSON.stringify({ id })}`,
+				),
+			]);
+			return result;
+		} catch (error) {
+			logger.error("Error in deleteOffer:", error);
+			throw error;
+		}
+	}
 
-  static async validateOffers() {
-    const offers = await AffiliateOffer.find({ status: OfferStatus.ACTIVE });
+	static async validateOffers() {
+		const offers = await AffiliateOffer.find({ status: OfferStatus.ACTIVE });
 
-    for (const offer of offers) {
-      const isAlive = await this.checkUrlStatus(offer.url);
-      if (!isAlive) {
-        offer.status = OfferStatus.PAUSED;
-        await offer.save();
-        logger.warn(`Offer ${offer._id} paused due to invalid URL`);
-      }
-    }
-  }
+		for (const offer of offers) {
+			const isAlive = await this.checkUrlStatus(offer.url);
+			if (!isAlive) {
+				offer.status = OfferStatus.PAUSED;
+				await offer.save();
+				logger.warn(`Offer ${offer._id} paused due to invalid URL`);
+			}
+		}
+	}
 }
