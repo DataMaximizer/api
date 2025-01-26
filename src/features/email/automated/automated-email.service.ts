@@ -146,7 +146,7 @@ export class AutomatedEmailService {
       for (const subscriber of subscribers) {
         const emailWithTracking = EmailTemplateService.addTrackingToTemplate(
           emailContent[0].content,
-          subscriber._id.toString(),
+          subscriber._id as string,
           campaign._id.toString()
         );
 

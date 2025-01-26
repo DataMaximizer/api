@@ -10,34 +10,38 @@ router.post(
   "/providers",
   authenticate,
   validateRequest(smtpProviderSchema),
-  (req, res) => smtpController.createProvider(req, res),
+  (req, res) => smtpController.createProvider(req, res)
 );
 
 router.get("/providers", authenticate, (req, res) =>
-  smtpController.getProviders(req, res),
+  smtpController.getProviders(req, res)
 );
 
 router.get("/providers/:id", authenticate, (req, res) =>
-  smtpController.getProvider(req, res),
+  smtpController.getProvider(req, res)
 );
 
 router.delete("/providers/:id", authenticate, (req, res) =>
-  smtpController.deleteProvider(req, res),
+  smtpController.deleteProvider(req, res)
 );
 
 router.put(
   "/providers/:id",
   authenticate,
   validateRequest(smtpProviderSchema),
-  (req, res) => smtpController.updateProvider(req, res),
+  (req, res) => smtpController.updateProvider(req, res)
 );
 
 router.post("/providers/:id/test", authenticate, (req, res) =>
-  smtpController.testConnection(req, res),
+  smtpController.testConnection(req, res)
 );
 
-router.post("/providers/:id/test-email", authenticate, (req, res) =>
-  smtpController.sendTestEmail(req, res),
+router.post("/providers/:id/test-email", (req, res) =>
+  smtpController.sendTestEmail(req, res)
+);
+
+router.post("/webhook/bounce", (req, res) =>
+  smtpController.handleBounce(req, res)
 );
 
 export default router;

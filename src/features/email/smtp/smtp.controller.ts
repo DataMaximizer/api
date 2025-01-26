@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { SmtpProvider } from "./models/smtp.model";
 import { logger } from "@config/logger";
 import { SmtpService } from "./smtp.service";
+import { MetricsTrackingService } from "@features/metrics/metrics-tracking.service";
+import { Subscriber } from "@features/subscriber/models/subscriber.model";
 
 class SmtpController {
   async createProvider(req: Request, res: Response): Promise<void> {
@@ -115,7 +117,7 @@ class SmtpController {
       const provider = await SmtpProvider.findOneAndUpdate(
         { _id: req.params.id, userId: req.user?.id },
         req.body,
-        { new: true },
+        { new: true }
       );
 
       if (!provider) {
@@ -197,6 +199,33 @@ class SmtpController {
         success: false,
         message: "Failed to send test email",
         error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  async handleBounce(req: Request, res: Response): Promise<void> {
+    try {
+      const { email, bounceType, reason } = req.body;
+
+      const subscriber = await Subscriber.findOne({ email });
+      if (!subscriber) {
+        res.status(404).json({ success: false, error: "Subscriber not found" });
+        return;
+      }
+
+      await MetricsTrackingService.trackBounce(
+        subscriber._id as string,
+        bounceType === "Permanent" ? "hard" : "soft",
+        reason
+      );
+
+      res.status(200).json({ success: true });
+    } catch (error) {
+      logger.error("Error handling bounce:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to process bounce",
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }

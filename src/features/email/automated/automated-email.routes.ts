@@ -19,7 +19,8 @@ router.post(
   validateRequest(automatedEmailSchema),
   async (req, res, next) => {
     try {
-      const { url, commissionRate, subscriberListId, smtpProviderId } = req.body;
+      const { url, commissionRate, subscriberListId, smtpProviderId } =
+        req.body;
 
       // Set headers for SSE
       res.setHeader("Content-Type", "text/event-stream");
@@ -34,24 +35,34 @@ router.post(
       await AutomatedEmailService.processUrlAndGenerateEmail(
         url,
         commissionRate,
-        req.user!._id.toString(),
+        req.user!._id as string,
         subscriberListId,
         smtpProviderId,
         res
       );
 
       // End the stream
-      res.write(`data: ${JSON.stringify({ step: "complete", message: "Process completed successfully" })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          step: "complete",
+          message: "Process completed successfully",
+        })}\n\n`
+      );
       res.end();
     } catch (error) {
       // Send error through SSE if connection is still open
       if (!res.writableEnded) {
-        res.write(`data: ${JSON.stringify({ step: "error", message: error.message })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({
+            step: "error",
+            message: error.message,
+          })}\n\n`
+        );
         res.end();
       }
       next(error);
     }
-  },
+  }
 );
 
 export default router;
