@@ -9,10 +9,14 @@ import { CampaignService } from "../campaign/campaign.service";
 import { Postback } from "../tracking/models/postback.model";
 import { Click } from "../tracking/models/click.model";
 import { Request } from "express";
+import { HydratedDocument } from "mongoose";
+import { IClick } from "../tracking/models/click.model";
 
 type ProcessPostbackParams = {
   campaignId: string;
   subscriberId: string;
+  payout?: number;
+  postbackId: string;
 };
 
 export class MetricsTrackingService {
@@ -48,11 +52,11 @@ export class MetricsTrackingService {
   static async trackClick(
     subscriberId: string,
     linkId: string,
-    campaignId?: string,
+    campaignId: string,
     req?: Request
-  ) {
+  ): Promise<string> {
     try {
-      await Click.create({
+      const click = (await Click.create({
         subscriberId,
         campaignId,
         linkId,
@@ -62,7 +66,7 @@ export class MetricsTrackingService {
           userAgent: req?.headers["user-agent"] || undefined,
           referrer: req?.headers["referer"] || undefined,
         },
-      });
+      })) as HydratedDocument<IClick>;
 
       await Subscriber.findByIdAndUpdate(subscriberId, {
         $inc: { "metrics.clicks": 1 },
@@ -74,11 +78,18 @@ export class MetricsTrackingService {
           "metrics.interactions": {
             type: "click",
             linkId,
+            clickId: click._id,
             campaignId,
             timestamp: new Date(),
           },
         },
       });
+
+      await CampaignService.updateCampaignMetrics(campaignId, "", {
+        clicks: 1,
+      });
+
+      return click._id as string;
     } catch (error) {
       logger.error(
         `Error tracking click for subscriber ${subscriberId}:`,
@@ -92,7 +103,8 @@ export class MetricsTrackingService {
     subscriberId: string,
     amount: number,
     productId: string,
-    campaignId?: string
+    campaignId?: string,
+    postbackId?: string
   ) {
     try {
       await Subscriber.findByIdAndUpdate(subscriberId, {
@@ -107,6 +119,7 @@ export class MetricsTrackingService {
             productId,
             amount,
             campaignId,
+            postbackId,
             timestamp: new Date(),
           },
         },
@@ -240,6 +253,8 @@ export class MetricsTrackingService {
   static async processPostback({
     campaignId,
     subscriberId,
+    payout = 0,
+    postbackId,
   }: ProcessPostbackParams) {
     if (!campaignId || !subscriberId) {
       throw new Error(
@@ -263,17 +278,19 @@ export class MetricsTrackingService {
 
       const productId = "";
       const variantId = "";
-      const amount = 0;
+      const amount = payout;
 
       await MetricsTrackingService.trackConversion(
         subscriberId,
         amount,
         productId,
-        campaignId
+        campaignId,
+        postbackId
       );
 
       await CampaignService.updateCampaignMetrics(campaignId, variantId, {
         conversions: 1,
+        revenue: amount,
       });
     } catch (err) {
       logger.error(
@@ -307,57 +324,39 @@ export class MetricsTrackingService {
   }
 
   static async validatePostback({
-    subscriberId,
-    campaignId,
+    clickId,
   }: {
-    subscriberId: string;
-    campaignId: string;
+    clickId: string;
   }): Promise<boolean> {
     try {
-      // 1. Check if subscriber exists and is active
-      const subscriber = await Subscriber.findOne({
-        _id: subscriberId,
-        status: "active",
-      });
-
-      if (!subscriber) {
-        logger.warn(
-          `Invalid postback: Subscriber ${subscriberId} not found or inactive`
-        );
-        return false;
-      }
-
-      // 2. Check if campaign exists
-      const campaign = await Campaign.findById(campaignId);
-      if (!campaign) {
-        logger.warn(`Invalid postback: Campaign ${campaignId} not found`);
-        return false;
-      }
-
-      // 3. Check for a recent click using the Click model
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-      const recentClick = await Click.findOne({
-        subscriberId,
-        campaignId,
+      const click = await Click.findOne({
+        _id: clickId,
         timestamp: { $gt: twentyFourHoursAgo },
-      }).sort({ timestamp: -1 });
+      }).populate("subscriberId");
 
-      if (!recentClick) {
-        logger.warn(
-          `Invalid postback: No recent click found for subscriber ${subscriberId} on campaign ${campaignId}`
-        );
+      if (!click) {
+        logger.warn(`Invalid postback: Click ${clickId} not found or too old`);
+        return false;
+      }
+
+      const subscriber = click.subscriberId as any;
+      if (!subscriber || subscriber.status !== "active") {
+        logger.warn(`Invalid postback: Subscriber not found or inactive`);
+        return false;
+      }
+
+      const campaign = await Campaign.findById(click.campaignId);
+      if (!campaign) {
+        logger.warn(`Invalid postback: Campaign not found`);
         return false;
       }
 
       return true;
     } catch (error) {
-      logger.error("Error validating postback:", {
-        error,
-        subscriberId,
-        campaignId,
-      });
-      return false;
+      logger.error("Error validating postback:", error);
+      throw error;
     }
   }
 }

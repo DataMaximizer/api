@@ -3,6 +3,7 @@ import { MetricsTrackingService } from "@features/metrics/metrics-tracking.servi
 import { Postback } from "../tracking/models/postback.model";
 import { logger } from "@config/logger";
 import { isValidUrl } from "@/core/utils/url";
+import { Click } from "../tracking/models/click.model";
 
 const router = Router();
 
@@ -37,17 +38,18 @@ router.get("/redirect", async (req, res) => {
       return;
     }
 
-    await MetricsTrackingService.trackClick(
+    const clickId = await MetricsTrackingService.trackClick(
       subscriberId as string,
       linkId as string,
       campaignId as string,
       req
     );
 
-    // res.redirect(
-    //   `${affiliateOfferUrl}?sub_id=${subscriberId}&campaign_id=${campaignId}`
-    // );
-    res.redirect(url as string);
+    const targetUrl = `${
+      url as string
+    }&clickId=${clickId}&sub_id=${subscriberId}&campaign_id=${campaignId}&link_id=${linkId}`;
+
+    res.redirect(targetUrl.toString());
   } catch (error) {
     logger.error("Error tracking click:", error);
     res.redirect(req.query.url as string);
@@ -56,18 +58,26 @@ router.get("/redirect", async (req, res) => {
 
 router.get("/postback", async (req, res) => {
   try {
-    const { subscriberId, campaignId } = req.query as Record<string, string>;
+    const { clickId, payout } = req.query as Record<string, string>;
 
-    if (!subscriberId || !campaignId) {
+    if (!clickId) {
       res.status(400).send("Missing required parameters");
+      return;
+    }
+
+    const click = await Click.findById(clickId);
+    if (!click) {
+      res.status(404).send("Click not found");
       return;
     }
 
     // Create a pending postback record first to handle race conditions
     const pendingPostback = await Postback.create({
-      subscriberId,
-      campaignId,
+      subscriberId: click.subscriberId,
+      campaignId: click.campaignId,
+      clickId,
       status: "pending",
+      payout: payout ? parseFloat(payout) : undefined,
       metadata: {
         ip: req.ip,
         userAgent: req.headers["user-agent"],
@@ -76,8 +86,7 @@ router.get("/postback", async (req, res) => {
     });
 
     const isValid = await MetricsTrackingService.validatePostback({
-      subscriberId,
-      campaignId,
+      clickId,
     });
 
     if (!isValid) {
@@ -87,9 +96,7 @@ router.get("/postback", async (req, res) => {
       });
 
       logger.warn("Invalid postback attempt:", {
-        subscriberId,
-        campaignId,
-        query: req.query,
+        clickId,
       });
       res.status(400).send("Invalid request");
       return;
@@ -97,8 +104,10 @@ router.get("/postback", async (req, res) => {
 
     try {
       await MetricsTrackingService.processPostback({
-        subscriberId,
-        campaignId,
+        subscriberId: click.subscriberId.toString(),
+        campaignId: click.campaignId.toString(),
+        payout: payout ? parseFloat(payout) : undefined,
+        postbackId: pendingPostback._id as string,
       });
 
       await Postback.findByIdAndUpdate(pendingPostback._id, {
