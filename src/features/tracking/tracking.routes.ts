@@ -14,8 +14,17 @@ router.get("/pixel/:subscriberId", async (req, res) => {
 
     await MetricsTrackingService.trackOpen(subscriberId, campaignId as string);
 
+    // Add headers to prevent caching by Gmail proxy
     res.setHeader("Content-Type", "image/gif");
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader(
+      "Cache-Control",
+      "no-cache, no-store, must-revalidate, private"
+    );
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    // Add a random query parameter to bypass caching
+    res.setHeader("ETag", Math.random().toString());
+
     res.end(
       Buffer.from(
         "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
@@ -108,6 +117,7 @@ router.get("/postback", async (req, res) => {
         campaignId: click.campaignId.toString(),
         payout: payout ? parseFloat(payout) : undefined,
         postbackId: pendingPostback._id as string,
+        clickId: click._id as string,
       });
 
       await Postback.findByIdAndUpdate(pendingPostback._id, {

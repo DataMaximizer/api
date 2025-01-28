@@ -1,6 +1,8 @@
+import { MetricsTrackingService } from "@/features/metrics/metrics-tracking.service";
 import { SmtpProvider, ISmtpProvider } from "./models/smtp.model";
 import { logger } from "@config/logger";
 import nodemailer, { Transporter } from "nodemailer";
+import { Subscriber } from "@/features/subscriber/models/subscriber.model";
 
 export class SmtpService {
   private static transporters: Map<
@@ -40,7 +42,7 @@ export class SmtpService {
         } catch (error) {
           logger.error(
             `Error closing SMTP transporter for provider ${id}:`,
-            error,
+            error
           );
         }
       }
@@ -48,7 +50,7 @@ export class SmtpService {
   }
 
   static async initializeTransporter(
-    provider: ISmtpProvider,
+    provider: ISmtpProvider
   ): Promise<Transporter> {
     try {
       let config: any;
@@ -103,7 +105,7 @@ export class SmtpService {
     } catch (error: any) {
       logger.error(
         `Failed to initialize SMTP transporter for provider ${provider.name}:`,
-        error,
+        error
       );
       throw new Error(`SMTP Configuration Error: ${error.message}`);
     }
@@ -127,7 +129,7 @@ export class SmtpService {
     } catch (error: any) {
       logger.error(
         `Failed to get transporter for provider ${providerId}:`,
-        error,
+        error
       );
       throw error;
     }
@@ -157,6 +159,23 @@ export class SmtpService {
 
       transporter = await this.getTransporter(providerId);
 
+      // Add bounce handling
+      transporter.on("error", async (error) => {
+        if (this.isBounceError(error)) {
+          const subscriber = await Subscriber.findOne({
+            email: Array.isArray(to) ? to[0] : to,
+          });
+
+          if (subscriber) {
+            await MetricsTrackingService.trackBounce(
+              subscriber._id as string,
+              this.getBounceType(error),
+              error.message
+            );
+          }
+        }
+      });
+
       const mailOptions = {
         from: `${provider.fromName} <${provider.fromEmail}>`,
         to: Array.isArray(to) ? to.join(",") : to,
@@ -175,6 +194,20 @@ export class SmtpService {
       logger.info("Email sent successfully", { messageId: result.messageId });
       return result;
     } catch (error: any) {
+      // Handle immediate bounces
+      if (this.isBounceError(error)) {
+        const subscriber = await Subscriber.findOne({
+          email: Array.isArray(to) ? to[0] : to,
+        });
+
+        if (subscriber) {
+          await MetricsTrackingService.trackBounce(
+            subscriber._id as string,
+            this.getBounceType(error),
+            error.message
+          );
+        }
+      }
       logger.error("Failed to send email:", error);
       throw error;
     }
@@ -201,7 +234,7 @@ export class SmtpService {
   }
 
   static async rotateSmtpProvider(
-    userId: string,
+    userId: string
   ): Promise<ISmtpProvider | null> {
     try {
       const providers = await SmtpProvider.find({
@@ -219,6 +252,33 @@ export class SmtpService {
       logger.error("Failed to rotate SMTP provider:", error);
       return null;
     }
+  }
+
+  private static isBounceError(error: any): boolean {
+    return (
+      error.code === "EENVELOPE" ||
+      error.code === "EMESSAGE" ||
+      (error.responseCode && error.responseCode >= 500)
+    );
+  }
+
+  private static getBounceType(error: any): "hard" | "soft" {
+    // Common hard bounce indicators
+    const hardBounceIndicators = [
+      "no such user",
+      "invalid recipient",
+      "account disabled",
+      "mailbox not found",
+      "recipient rejected",
+      "bad destination",
+    ];
+
+    const message = (error.message || "").toLowerCase();
+    return hardBounceIndicators.some((indicator) =>
+      message.includes(indicator.toLowerCase())
+    )
+      ? "hard"
+      : "soft";
   }
 }
 

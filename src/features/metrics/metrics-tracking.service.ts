@@ -104,7 +104,8 @@ export class MetricsTrackingService {
     amount: number,
     productId: string,
     campaignId?: string,
-    postbackId?: string
+    postbackId?: string,
+    clickId?: string
   ) {
     try {
       await Subscriber.findByIdAndUpdate(subscriberId, {
@@ -120,6 +121,7 @@ export class MetricsTrackingService {
             amount,
             campaignId,
             postbackId,
+            clickId,
             timestamp: new Date(),
           },
         },
@@ -255,7 +257,8 @@ export class MetricsTrackingService {
     subscriberId,
     payout = 0,
     postbackId,
-  }: ProcessPostbackParams) {
+    clickId,
+  }: ProcessPostbackParams & { clickId: string }) {
     if (!campaignId || !subscriberId) {
       throw new Error(
         "Missing required identifier (campaignId or subscriberId)."
@@ -285,7 +288,8 @@ export class MetricsTrackingService {
         amount,
         productId,
         campaignId,
-        postbackId
+        postbackId,
+        clickId
       );
 
       await CampaignService.updateCampaignMetrics(campaignId, variantId, {

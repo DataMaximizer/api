@@ -44,7 +44,7 @@ export class UrlAnalysisService {
   static async createOfferFromUrl(
     url: string,
     userId: string,
-    commissionRate: number,
+    commissionRate: number
   ): Promise<Partial<IAffiliateOffer>> {
     try {
       const scrapedData = await this.scrapeWebpage(url);
@@ -66,6 +66,7 @@ export class UrlAnalysisService {
           targetAudience: offerContent.targetAudience,
           features: offerContent.features,
         },
+        parameters: [],
         userId: userId as any,
         isAdminOffer: false,
         lastChecked: new Date(),
@@ -109,14 +110,14 @@ export class UrlAnalysisService {
       const metaDescription = $('meta[name="description"]').attr("content");
 
       const priceSelector = $(
-        '.price, [class*="price"], [id*="price"]',
+        '.price, [class*="price"], [id*="price"]'
       ).first();
       const price = priceSelector.length
         ? priceSelector.text().trim()
         : "Price not found";
 
       const contentSelector = $(
-        'main, article, [class*="product-description"], [id*="product-description"]',
+        'main, article, [class*="product-description"], [id*="product-description"]'
       );
       const content = contentSelector.length
         ? contentSelector.text().trim()
@@ -136,7 +137,7 @@ export class UrlAnalysisService {
   }
 
   private static async generateOfferContent(
-    scrapedData: ScrapedData,
+    scrapedData: ScrapedData
   ): Promise<GeneratedContent> {
     const prompt = `
       Analyze this product information and create a complete offer listing:
@@ -154,7 +155,9 @@ export class UrlAnalysisService {
       4. 3-5 Key Benefits (bullet points)
       5. 3-5 Main Features (bullet points)
       6. Target Audience Description
-      7. 3-5 Most Relevant Categories from this list ONLY: ${PREDEFINED_CATEGORIES.join(", ")}
+      7. 3-5 Most Relevant Categories from this list ONLY: ${PREDEFINED_CATEGORIES.join(
+        ", "
+      )}
       8. 5-8 Relevant Tags (short, 1-2 words each, highly relevant for search and categorization)
 
       Format response as JSON with these exact keys:
@@ -185,7 +188,7 @@ export class UrlAnalysisService {
       });
 
       const content = JSON.parse(
-        completion.choices[0].message?.content || "{}",
+        completion.choices[0].message?.content || "{}"
       ) as GeneratedContent;
 
       const requiredFields: (keyof GeneratedContent)[] = [
@@ -200,7 +203,7 @@ export class UrlAnalysisService {
       ];
 
       content.categories = content.categories.filter((category) =>
-        predefinedCategories.includes(category),
+        predefinedCategories.includes(category)
       );
 
       content.tags = Array.from(new Set(content.tags)).slice(0, 8);
