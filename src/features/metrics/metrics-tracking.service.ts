@@ -138,7 +138,8 @@ export class MetricsTrackingService {
   static async trackBounce(
     subscriberId: string,
     bounceType: "hard" | "soft",
-    reason: string
+    reason: string,
+    bounceDate: Date
   ) {
     try {
       const subscriber = await Subscriber.findById(subscriberId);
@@ -157,7 +158,7 @@ export class MetricsTrackingService {
           lastInteraction: new Date(),
           ...(status === "bounced" && {
             "metadata.bounceReason": reason,
-            "metadata.bounceDate": new Date(),
+            "metadata.bounceDate": bounceDate,
           }),
         },
         $push: {
@@ -165,7 +166,7 @@ export class MetricsTrackingService {
             type: "bounce",
             bounceType,
             reason,
-            timestamp: new Date(),
+            timestamp: bounceDate,
           },
         },
       });

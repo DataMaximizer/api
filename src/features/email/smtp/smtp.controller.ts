@@ -205,7 +205,13 @@ class SmtpController {
 
   async handleBounce(req: Request, res: Response): Promise<void> {
     try {
-      const { email, bounceType, reason } = req.body;
+      const allowedEvents = ["hard-bounce", "soft-bounce"];
+      const { email, event, date, date_event, reason } = req.body;
+
+      if (!allowedEvents.includes(event)) {
+        res.status(400).json({ success: false, error: "Invalid event" });
+        return;
+      }
 
       const subscriber = await Subscriber.findOne({ email });
       if (!subscriber) {
@@ -215,8 +221,9 @@ class SmtpController {
 
       await MetricsTrackingService.trackBounce(
         subscriber._id as string,
-        bounceType === "Permanent" ? "hard" : "soft",
-        reason
+        event === "hard-bounce" ? "hard" : "soft",
+        reason,
+        new Date(date_event || date)
       );
 
       res.status(200).json({ success: true });
