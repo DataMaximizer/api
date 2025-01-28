@@ -208,16 +208,28 @@ class SmtpController {
       const allowedEvents = ["hard-bounce", "soft-bounce"];
       const { email, event, date, date_event, reason } = req.body;
 
+      logger.info("Bounce event received", {
+        email,
+        event,
+        date,
+        date_event,
+        reason,
+      });
+
       if (!allowedEvents.includes(event)) {
         res.status(400).json({ success: false, error: "Invalid event" });
         return;
       }
+
+      logger.info("Bounce event found");
 
       const subscriber = await Subscriber.findOne({ email });
       if (!subscriber) {
         res.status(404).json({ success: false, error: "Subscriber not found" });
         return;
       }
+
+      logger.info("Subscriber found", { subscriberId: subscriber._id });
 
       await MetricsTrackingService.trackBounce(
         subscriber._id as string,
