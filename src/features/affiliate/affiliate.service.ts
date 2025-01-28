@@ -35,6 +35,16 @@ export class AffiliateService {
       offer.tags = offer.tags.slice(0, 3);
     }
 
+    if (offerData.parameters) {
+      offer.parameters = offerData.parameters.map((param) => ({
+        type: param.type,
+        name: param.name,
+        placeholder: param.placeholder,
+      }));
+    } else {
+      offer.parameters = [];
+    }
+
     await this.scanAndEnrichOffer(offer);
     await offer.save();
     // Clear all offer-related caches
@@ -239,6 +249,14 @@ export class AffiliateService {
           ...updateData,
         });
       updateData = { ...updateData, ...enhancedData };
+    }
+
+    if (updateData.parameters) {
+      updateData.parameters = updateData.parameters.map((param) => ({
+        type: param.type,
+        name: param.name,
+        placeholder: param.placeholder,
+      }));
     }
 
     if (updateData.url && updateData.url !== offer.url) {
