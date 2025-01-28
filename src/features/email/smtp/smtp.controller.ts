@@ -205,7 +205,7 @@ class SmtpController {
 
   async handleBounce(req: Request, res: Response): Promise<void> {
     try {
-      const allowedEvents = ["hard-bounce", "soft-bounce"];
+      const allowedEvents = ["hard_bounce", "soft_bounce"];
       const { email, event, date, date_event, reason } = req.body;
 
       logger.info("Bounce event received", {
