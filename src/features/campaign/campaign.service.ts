@@ -63,8 +63,13 @@ export class CampaignService {
   ): Promise<ICampaign> {
     try {
       if (campaignData.status === CampaignStatus.SCHEDULED) {
-        if (!campaignData.schedule?.startDate || !campaignData.schedule?.sendTime) {
-          throw new Error("Scheduled campaigns must have a start date and send time");
+        if (
+          !campaignData.schedule?.startDate ||
+          !campaignData.schedule?.sendTime
+        ) {
+          throw new Error(
+            "Scheduled campaigns must have a start date and send time"
+          );
         }
 
         const startDate = new Date(campaignData.schedule.startDate);
@@ -226,6 +231,7 @@ export class CampaignService {
         { _id: campaignId },
         {
           $inc: {
+            "metrics.totalSent": metrics.sent || 0,
             "metrics.totalOpens": metrics.opens || 0,
             "metrics.totalClicks": metrics.clicks || 0,
             "metrics.totalConversions": metrics.conversions || 0,
@@ -334,14 +340,22 @@ export class CampaignService {
 
       const now = new Date();
       const startDate = new Date(campaign.schedule.startDate);
-      const endDate = campaign.schedule.endDate ? new Date(campaign.schedule.endDate) : null;
+      const endDate = campaign.schedule.endDate
+        ? new Date(campaign.schedule.endDate)
+        : null;
 
       if (startDate <= now && (!endDate || endDate >= now)) {
-        await this.updateCampaignStatus((campaign as any)._id.toString(), CampaignStatus.RUNNING);
+        await this.updateCampaignStatus(
+          (campaign as any)._id.toString(),
+          CampaignStatus.RUNNING
+        );
       }
 
       if (endDate && endDate < now) {
-        await this.updateCampaignStatus((campaign as any)._id.toString(), CampaignStatus.COMPLETED);
+        await this.updateCampaignStatus(
+          (campaign as any)._id.toString(),
+          CampaignStatus.COMPLETED
+        );
       }
     } catch (error) {
       logger.error("Error processing campaign schedule:", error);

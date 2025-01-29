@@ -11,6 +11,15 @@ const automatedEmailSchema = z.object({
   commissionRate: z.number().min(0).max(100),
   subscriberListId: z.string().min(1, "Subscriber list ID is required"),
   smtpProviderId: z.string().min(1, "SMTP provider ID is required"),
+  parameters: z
+    .array(
+      z.object({
+        type: z.string(),
+        name: z.string(),
+        placeholder: z.string(),
+      })
+    )
+    .optional(),
 });
 
 router.post(
@@ -19,8 +28,13 @@ router.post(
   validateRequest(automatedEmailSchema),
   async (req, res, next) => {
     try {
-      const { url, commissionRate, subscriberListId, smtpProviderId } =
-        req.body;
+      const {
+        url,
+        commissionRate,
+        subscriberListId,
+        smtpProviderId,
+        parameters,
+      } = req.body;
 
       // Set headers for SSE
       res.setHeader("Content-Type", "text/event-stream");
@@ -38,7 +52,8 @@ router.post(
         req.user!._id as string,
         subscriberListId,
         smtpProviderId,
-        res
+        res,
+        parameters
       );
 
       // End the stream
@@ -55,7 +70,7 @@ router.post(
         res.write(
           `data: ${JSON.stringify({
             step: "error",
-            message: error.message,
+            message: (error as Error)?.message || "Unknown error occurred",
           })}\n\n`
         );
         res.end();

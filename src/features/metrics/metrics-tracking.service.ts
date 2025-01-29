@@ -9,8 +9,6 @@ import { CampaignService } from "../campaign/campaign.service";
 import { Postback } from "../tracking/models/postback.model";
 import { Click } from "../tracking/models/click.model";
 import { Request } from "express";
-import { HydratedDocument } from "mongoose";
-import { IClick } from "../tracking/models/click.model";
 
 type ProcessPostbackParams = {
   campaignId: string;
@@ -22,24 +20,36 @@ type ProcessPostbackParams = {
 export class MetricsTrackingService {
   static async trackOpen(subscriberId: string, campaignId?: string) {
     try {
-      await Subscriber.findByIdAndUpdate(
-        subscriberId,
-        {
-          $inc: { "metrics.opens": 1 },
-          $set: {
-            lastInteraction: new Date(),
-            "metrics.lastOpen": new Date(),
-          },
-          $push: {
-            "metrics.interactions": {
-              type: "open",
-              campaignId,
-              timestamp: new Date(),
+      await Promise.all([
+        // Update subscriber metrics
+        Subscriber.findByIdAndUpdate(
+          subscriberId,
+          {
+            $inc: { "metrics.opens": 1 },
+            $set: {
+              lastInteraction: new Date(),
+              "metrics.lastOpen": new Date(),
+            },
+            $push: {
+              "metrics.interactions": {
+                type: "open",
+                campaignId,
+                timestamp: new Date(),
+              },
             },
           },
-        },
-        { upsert: false }
-      );
+          { upsert: false }
+        ),
+        // Update campaign metrics if campaignId exists
+        campaignId &&
+          Campaign.findByIdAndUpdate(
+            campaignId,
+            {
+              $inc: { "metrics.totalOpens": 1 },
+            },
+            { upsert: false }
+          ),
+      ]);
     } catch (error) {
       logger.error(
         `Error tracking open for subscriber ${subscriberId}:`,
@@ -53,20 +63,29 @@ export class MetricsTrackingService {
     subscriberId: string,
     linkId: string,
     campaignId: string,
-    req?: Request
+    req?: Request,
+    clickId?: string
   ): Promise<string> {
     try {
-      const click = (await Click.create({
-        subscriberId,
-        campaignId,
-        linkId,
-        timestamp: new Date(),
-        metadata: {
-          ip: req?.ip,
-          userAgent: req?.headers["user-agent"] || undefined,
-          referrer: req?.headers["referer"] || undefined,
-        },
-      })) as HydratedDocument<IClick>;
+      let click;
+      if (clickId) {
+        click = await Click.findById(clickId);
+        if (!click) {
+          throw new Error("Click not found");
+        }
+      } else {
+        click = await Click.create({
+          subscriberId,
+          campaignId,
+          linkId,
+          timestamp: new Date(),
+          metadata: {
+            ip: req?.ip,
+            userAgent: req?.headers["user-agent"] || undefined,
+            referrer: req?.headers["referer"] || undefined,
+          },
+        });
+      }
 
       await Subscriber.findByIdAndUpdate(subscriberId, {
         $inc: { "metrics.clicks": 1 },

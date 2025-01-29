@@ -20,6 +20,7 @@ export interface ICampaignVariant extends Document {
   personality: string;
   writingStyle: string;
   metrics: {
+    sent: number;
     opens: number;
     clicks: number;
     conversions: number;

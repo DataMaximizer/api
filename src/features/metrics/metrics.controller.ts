@@ -50,7 +50,7 @@ export class MetricsController {
       await MetricsTrackingService.trackConversion(
         subscriberId,
         amount,
-        productId,
+        productId
       );
       await MetricsTrackingService.updateEngagementScore(subscriberId);
 
@@ -72,6 +72,7 @@ export class MetricsController {
         subscriberId,
         bounceType,
         reason,
+        new Date()
       );
       await MetricsTrackingService.updateEngagementScore(subscriberId);
 
@@ -98,15 +99,15 @@ export class MetricsController {
       const engagement = {
         opens: subscribers.reduce(
           (sum, sub) => sum + (sub.metrics?.opens || 0),
-          0,
+          0
         ),
         clicks: subscribers.reduce(
           (sum, sub) => sum + (sub.metrics?.clicks || 0),
-          0,
+          0
         ),
         bounces: subscribers.reduce(
           (sum, sub) => sum + (sub.metrics?.bounces || 0),
-          0,
+          0
         ),
         total: subscribers.length,
       };
@@ -121,7 +122,7 @@ export class MetricsController {
         ([date, revenue]) => ({
           date,
           revenue,
-        }),
+        })
       );
 
       const sources: SourceCounts = subscribers.reduce((acc, sub) => {
