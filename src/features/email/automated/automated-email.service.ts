@@ -12,6 +12,8 @@ import {
 import { Document, Types } from "mongoose";
 import { logger } from "@config/logger";
 import { Response } from "express";
+import { Click } from "@features/tracking/models/click.model";
+import { CampaignService } from "@features/campaign/campaign.service";
 
 interface ContentStrategy {
   framework: ContentFramework;
@@ -68,7 +70,8 @@ export class AutomatedEmailService {
     userId: string,
     subscriberListId: string,
     smtpProviderId: string,
-    res?: Response
+    res?: Response,
+    parameters?: { type: string; name: string; placeholder: string }[]
   ): Promise<void> {
     try {
       if (res) {
@@ -94,7 +97,11 @@ export class AutomatedEmailService {
       offerData.tags = [...new Set([...tags, ...(additionalTags || [])])];
 
       // 3. Save the offer
-      const offer = await AffiliateOffer.create(offerData);
+      const offerDataWithParameters = {
+        ...offerData,
+        parameters: parameters || [],
+      };
+      const offer = await AffiliateOffer.create(offerDataWithParameters);
 
       // 4. Determine content strategy based on target audience
       const contentStrategy = this.determineContentStrategy(
@@ -141,9 +148,24 @@ export class AutomatedEmailService {
         status: "active",
       });
 
-      emailContent[0].content += `<a href="${offer.url}">Learn More</a>`;
-
       for (const subscriber of subscribers) {
+        let trackingUrl = offer.url;
+        if (!trackingUrl.includes("{clickId}")) {
+          const urlObj = new URL(trackingUrl);
+          urlObj.searchParams.append("clickId", "{clickId}");
+          trackingUrl = urlObj.toString();
+        }
+
+        const click = await Click.create({
+          subscriberId: subscriber._id,
+          campaignId: campaign._id,
+          linkId: offer._id as string,
+          timestamp: new Date(),
+        });
+        trackingUrl = trackingUrl.replace("{clickId}", click._id as string);
+
+        emailContent[0].content += `<a href="${trackingUrl}">Learn More</a>`;
+
         const emailWithTracking = EmailTemplateService.addTrackingToTemplate(
           emailContent[0].content,
           subscriber._id as string,
@@ -156,6 +178,12 @@ export class AutomatedEmailService {
           subject: emailContent[0].subject || "New Offer",
           html: emailWithTracking,
         });
+
+        await CampaignService.updateCampaignMetrics(
+          campaign._id.toString(),
+          "",
+          { sent: 1 }
+        );
       }
 
       logger.info(

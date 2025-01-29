@@ -36,7 +36,7 @@ router.post("/providers/:id/test", authenticate, (req, res) =>
   smtpController.testConnection(req, res)
 );
 
-router.post("/providers/:id/test-email", (req, res) =>
+router.post("/providers/:id/test-email", authenticate, (req, res) =>
   smtpController.sendTestEmail(req, res)
 );
 

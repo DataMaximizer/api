@@ -4,6 +4,8 @@ import { Postback } from "../tracking/models/postback.model";
 import { logger } from "@config/logger";
 import { isValidUrl } from "@/core/utils/url";
 import { Click } from "../tracking/models/click.model";
+import { Campaign } from "../campaign/models/campaign.model";
+import { AffiliateOffer } from "../affiliate/models/affiliate-offer.model";
 
 const router = Router();
 
@@ -47,18 +49,44 @@ router.get("/redirect", async (req, res) => {
       return;
     }
 
-    const clickId = await MetricsTrackingService.trackClick(
+    // Get campaign and offer details
+    const campaign = await Campaign.findById(campaignId);
+    if (!campaign) {
+      logger.warn("Campaign not found:", { campaignId });
+      res.status(404).send("Campaign not found");
+      return;
+    }
+
+    const offer = await AffiliateOffer.findById(campaign.offerId);
+    if (!offer) {
+      logger.warn("Offer not found:", { offerId: campaign.offerId });
+      res.status(404).send("Offer not found");
+      return;
+    }
+
+    // Find the Click ID parameter configuration
+    const clickIdParam = offer.parameters?.find(
+      (param) => param.type === "Click ID"
+    );
+    if (!clickIdParam) {
+      logger.warn("Click ID parameter not found in offer config");
+      res.status(400).send("Invalid offer configuration");
+      return;
+    }
+
+    // Get the click ID from the URL's query parameters using the configured name
+    const urlObj = new URL(url as string);
+    const clickId = urlObj.searchParams.get(clickIdParam.name);
+
+    await MetricsTrackingService.trackClick(
       subscriberId as string,
       linkId as string,
       campaignId as string,
-      req
+      req,
+      clickId as string
     );
 
-    const targetUrl = `${
-      url as string
-    }&clickId=${clickId}&sub_id=${subscriberId}&campaign_id=${campaignId}&link_id=${linkId}`;
-
-    res.redirect(targetUrl.toString());
+    res.redirect(url as string);
   } catch (error) {
     logger.error("Error tracking click:", error);
     res.redirect(req.query.url as string);

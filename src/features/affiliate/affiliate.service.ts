@@ -10,6 +10,7 @@ import { logger } from "@config/logger";
 import { load } from "cheerio";
 import { OfferEnhancementService } from "@features/shared/services/offer-enhancement.service";
 import { CacheService } from "@core/services/cache.service";
+import { Click } from "../tracking/models/click.model";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -43,6 +44,23 @@ export class AffiliateService {
       }));
     } else {
       offer.parameters = [];
+    }
+
+    if (offer.url) {
+      const click = await Click.create({
+        subscriberId: offer.userId,
+        campaignId: offer._id,
+        linkId: offer._id as string,
+        timestamp: new Date(),
+      });
+
+      if (!offer.url.includes("{clickId}")) {
+        const urlObj = new URL(offer.url);
+        urlObj.searchParams.append("clickId", click._id as string);
+        offer.url = urlObj.toString();
+      } else {
+        offer.url = offer.url.replace("{clickId}", click._id as string);
+      }
     }
 
     await this.scanAndEnrichOffer(offer);

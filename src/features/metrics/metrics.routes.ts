@@ -7,30 +7,30 @@ const router = Router();
 router.post(
   "/track/open/:subscriberId",
   authenticate,
-  MetricsController.trackOpen,
+  MetricsController.trackOpen
 );
 router.post(
   "/track/click/:subscriberId",
   authenticate,
-  MetricsController.trackClick,
+  MetricsController.trackClick
 );
 
 router.post(
   "/track/conversion/:subscriberId",
   authenticate,
-  MetricsController.trackConversion,
+  MetricsController.trackConversion
 );
 
 router.post(
   "/track/bounce/:subscriberId",
   authenticate,
-  MetricsController.trackBounce,
+  MetricsController.trackBounce
 );
 
 router.get(
   "/subscribers",
   authenticate,
-  MetricsController.getSubscriberMetrics,
+  MetricsController.getSubscriberMetrics
 );
 
 export default router;

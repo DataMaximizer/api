@@ -170,7 +170,8 @@ export class SmtpService {
             await MetricsTrackingService.trackBounce(
               subscriber._id as string,
               this.getBounceType(error),
-              error.message
+              error.message,
+              new Date()
             );
           }
         }
@@ -204,7 +205,8 @@ export class SmtpService {
           await MetricsTrackingService.trackBounce(
             subscriber._id as string,
             this.getBounceType(error),
-            error.message
+            error.message,
+            new Date()
           );
         }
       }
