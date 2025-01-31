@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { MetricsTrackingService } from "./metrics-tracking.service";
 import { logger } from "@config/logger";
 import { Subscriber } from "@features/subscriber/models/subscriber.model";
+import { SubscriberCleanupService } from "../subscriber/subscriber-cleanup.service";
 
 interface RevenueByDate {
   [key: string]: number;
@@ -18,7 +19,7 @@ export class MetricsController {
       const { campaignId } = req.body;
 
       await MetricsTrackingService.trackOpen(subscriberId, campaignId);
-      await MetricsTrackingService.updateEngagementScore(subscriberId);
+      await SubscriberCleanupService.updateEngagementScores(subscriberId);
 
       res.json({ success: true });
     } catch (error) {
@@ -33,7 +34,7 @@ export class MetricsController {
       const { linkId, campaignId } = req.body;
 
       await MetricsTrackingService.trackClick(subscriberId, linkId, campaignId);
-      await MetricsTrackingService.updateEngagementScore(subscriberId);
+      await SubscriberCleanupService.updateEngagementScores(subscriberId);
 
       res.json({ success: true });
     } catch (error) {
@@ -52,7 +53,7 @@ export class MetricsController {
         amount,
         productId
       );
-      await MetricsTrackingService.updateEngagementScore(subscriberId);
+      await SubscriberCleanupService.updateEngagementScores(subscriberId);
 
       res.json({ success: true });
     } catch (error) {
@@ -74,7 +75,7 @@ export class MetricsController {
         reason,
         new Date()
       );
-      await MetricsTrackingService.updateEngagementScore(subscriberId);
+      await SubscriberCleanupService.updateEngagementScores(subscriberId);
 
       res.json({ success: true });
     } catch (error) {
