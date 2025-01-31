@@ -4,6 +4,7 @@ import { logger } from "@config/logger";
 import { SmtpService } from "./smtp.service";
 import { MetricsTrackingService } from "@features/metrics/metrics-tracking.service";
 import { Subscriber } from "@features/subscriber/models/subscriber.model";
+import { SubscriberCleanupService } from "@/features/subscriber/subscriber-cleanup.service";
 
 class SmtpController {
   async createProvider(req: Request, res: Response): Promise<void> {
@@ -224,6 +225,10 @@ class SmtpController {
         event === "hard_bounce" ? "hard" : "soft",
         reason,
         new Date(date_event || date)
+      );
+
+      await SubscriberCleanupService.updateEngagementScores(
+        subscriber._id as string
       );
 
       res.status(200).json({ success: true });

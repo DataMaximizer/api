@@ -6,6 +6,7 @@ import { isValidUrl } from "@/core/utils/url";
 import { Click } from "../tracking/models/click.model";
 import { Campaign } from "../campaign/models/campaign.model";
 import { AffiliateOffer } from "../affiliate/models/affiliate-offer.model";
+import { SubscriberCleanupService } from "../subscriber/subscriber-cleanup.service";
 
 const router = Router();
 
@@ -15,6 +16,7 @@ router.get("/pixel/:subscriberId", async (req, res) => {
     const { campaignId } = req.query;
 
     await MetricsTrackingService.trackOpen(subscriberId, campaignId as string);
+    await SubscriberCleanupService.updateEngagementScores(subscriberId);
 
     // Add headers to prevent caching by Gmail proxy
     res.setHeader("Content-Type", "image/gif");
@@ -85,6 +87,9 @@ router.get("/redirect", async (req, res) => {
       req,
       clickId as string
     );
+    await SubscriberCleanupService.updateEngagementScores(
+      subscriberId as string
+    );
 
     res.redirect(url as string);
   } catch (error) {
@@ -152,6 +157,10 @@ router.get("/postback", async (req, res) => {
         status: "completed",
         processedAt: new Date(),
       });
+
+      await SubscriberCleanupService.updateEngagementScores(
+        click.subscriberId.toString()
+      );
 
       res.status(200).send("OK");
     } catch (error: unknown) {

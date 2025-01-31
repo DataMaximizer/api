@@ -1,4 +1,4 @@
-import { Subscriber } from "./models/subscriber.model";
+import { ISubscriber, Subscriber } from "./models/subscriber.model";
 import { logger } from "@config/logger";
 
 export class SubscriberCleanupService {
@@ -42,11 +42,11 @@ export class SubscriberCleanupService {
               ],
             },
           },
-        },
+        }
       );
 
       logger.info(
-        `Marked ${result.modifiedCount} dormant subscribers as inactive`,
+        `Marked ${result.modifiedCount} dormant subscribers as inactive`
       );
     } catch (error) {
       logger.error("Error cleaning up dormant subscribers:", error);
@@ -74,7 +74,7 @@ export class SubscriberCleanupService {
               ],
             },
           },
-        },
+        }
       );
 
       logger.info(`Marked ${result.modifiedCount} subscribers as bounced`);
@@ -84,11 +84,9 @@ export class SubscriberCleanupService {
     }
   }
 
-  static async updateEngagementScores() {
+  static async updateEngagementScores(targetSubscriberId?: string) {
     try {
-      const subscribers = await Subscriber.find({ status: "active" });
-
-      for (const subscriber of subscribers) {
+      const doUpdate = async (subscriber: ISubscriber) => {
         const engagementScore = this.calculateEngagementScore(subscriber);
 
         await Subscriber.updateOne(
@@ -98,13 +96,26 @@ export class SubscriberCleanupService {
               engagementScore,
               lastEngagementUpdate: new Date(),
             },
-          },
+          }
+        );
+      };
+
+      if (targetSubscriberId) {
+        const subscriber = await Subscriber.findById(targetSubscriberId);
+        if (subscriber) {
+          await doUpdate(subscriber);
+        }
+      } else {
+        const subscribers = await Subscriber.find({ status: "active" });
+
+        for (const subscriber of subscribers) {
+          await doUpdate(subscriber);
+        }
+
+        logger.info(
+          `Updated engagement scores for ${subscribers.length} subscribers`
         );
       }
-
-      logger.info(
-        `Updated engagement scores for ${subscribers.length} subscribers`,
-      );
     } catch (error) {
       logger.error("Error updating engagement scores:", error);
       throw error;
@@ -113,7 +124,7 @@ export class SubscriberCleanupService {
 
   private static calculateEngagementScore(subscriber: any): number {
     const {
-      metrics: { opens = 0, clicks = 0, conversions = 0 },
+      metrics: { opens = 0, clicks = 0, conversions = 0, bounces = 0 },
       lastInteraction,
     } = subscriber;
 
@@ -121,27 +132,34 @@ export class SubscriberCleanupService {
       opens: 1,
       clicks: 2,
       conversions: 3,
-      recency: 0.5,
+      bounces: 2, // Negative factor (subtracted in formula)
     };
 
-    let score =
-      (opens * weights.opens +
-        clicks * weights.clicks +
-        conversions * weights.conversions) /
-      (opens + clicks + conversions || 1);
-
-    // Apply recency factor
+    // 1. Calculate days since last interaction
     const daysSinceLastInteraction =
-      (new Date().getTime() - new Date(lastInteraction).getTime()) /
+      (Date.now() - new Date(lastInteraction).getTime()) /
       (1000 * 60 * 60 * 24);
 
+    // 2. Compute recency factor (linear decay to 0 at 90 days)
     const recencyFactor = Math.max(
       0,
-      1 - daysSinceLastInteraction / this.DORMANCY_THRESHOLD_DAYS,
+      1 - daysSinceLastInteraction / this.DORMANCY_THRESHOLD_DAYS
     );
 
-    score *= 1 + recencyFactor * weights.recency;
+    // 3. Compute the base score
+    //    Subtract (bounces * weight) so bounces reduce the score
+    let baseScore =
+      opens * weights.opens +
+      clicks * weights.clicks +
+      conversions * weights.conversions -
+      bounces * weights.bounces;
 
-    return Math.min(100, Math.max(0, score));
+    // 4. Multiply by recency factor
+    let finalScore = baseScore * recencyFactor;
+
+    // 5. Clamp score to [0, 100]
+    finalScore = Math.min(100, Math.max(0, finalScore));
+
+    return finalScore;
   }
 }
