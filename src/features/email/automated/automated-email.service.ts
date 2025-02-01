@@ -179,12 +179,20 @@ export class AutomatedEmailService {
           html: emailWithTracking,
         });
 
+        await Subscriber.findByIdAndUpdate(subscriber._id, {
+          $inc: { "metrics.sent": 1 },
+        });
+
         await CampaignService.updateCampaignMetrics(
           campaign._id.toString(),
           "",
           { sent: 1 }
         );
       }
+
+      await Campaign.findByIdAndUpdate(campaign._id, {
+        lastEmailSentAt: new Date(),
+      });
 
       logger.info(
         `Automated email campaign created and sent for offer: ${offer._id}`

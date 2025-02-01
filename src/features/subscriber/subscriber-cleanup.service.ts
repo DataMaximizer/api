@@ -122,17 +122,25 @@ export class SubscriberCleanupService {
     }
   }
 
-  private static calculateEngagementScore(subscriber: any): number {
+  private static calculateEngagementScore(subscriber: ISubscriber): number {
     const {
-      metrics: { opens = 0, clicks = 0, conversions = 0, bounces = 0 },
+      metrics: {
+        sent = 0,
+        speedOpens = 0,
+        regularOpens = 0,
+        clicks = 0,
+        conversions = 0,
+        bounces = 0,
+      },
       lastInteraction,
     } = subscriber;
 
     const weights = {
-      opens: 1,
+      speedOpens: 3,
+      regularOpens: 1,
       clicks: 2,
       conversions: 3,
-      bounces: 2, // Negative factor (subtracted in formula)
+      bounces: 2, // Negative factor (subtracted in the formula)
     };
 
     // 1. Calculate days since last interaction
@@ -141,23 +149,33 @@ export class SubscriberCleanupService {
       (1000 * 60 * 60 * 24);
 
     // 2. Compute recency factor (linear decay to 0 at 90 days)
+    const DORMANCY_THRESHOLD_DAYS = 90;
     const recencyFactor = Math.max(
       0,
-      1 - daysSinceLastInteraction / this.DORMANCY_THRESHOLD_DAYS
+      1 - daysSinceLastInteraction / DORMANCY_THRESHOLD_DAYS
     );
 
-    // 3. Compute the base score
-    //    Subtract (bounces * weight) so bounces reduce the score
+    // 3. Compute the base score using the weighted counts.
+    //    Bounces subtract from the score.
     let baseScore =
-      opens * weights.opens +
+      speedOpens * weights.speedOpens +
+      regularOpens * weights.regularOpens +
       clicks * weights.clicks +
       conversions * weights.conversions -
       bounces * weights.bounces;
 
-    // 4. Multiply by recency factor
-    let finalScore = baseScore * recencyFactor;
+    // 4. Normalize by the total number of sent emails.
+    //    This calculates the average weighted engagement per email.
+    const normalizedScore = sent > 0 ? baseScore / sent : 0;
 
-    // 5. Clamp score to [0, 100]
+    // 5. Apply the recency factor.
+    let finalScore = normalizedScore * recencyFactor;
+
+    // 6. Scale the final score to a 0-100 range.
+    const scalingFactor = 100 / 9; // 9 is the maximum possible score
+    finalScore = finalScore * scalingFactor;
+
+    // 7. Clamp the final score to the range [0, 100]
     finalScore = Math.min(100, Math.max(0, finalScore));
 
     return finalScore;

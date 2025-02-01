@@ -99,7 +99,10 @@ export class MetricsController {
 
       const engagement = {
         opens: subscribers.reduce(
-          (sum, sub) => sum + (sub.metrics?.opens || 0),
+          (sum, sub) =>
+            sum +
+            (sub.metrics?.regularOpens || 0) +
+            (sub.metrics?.speedOpens || 0),
           0
         ),
         clicks: subscribers.reduce(

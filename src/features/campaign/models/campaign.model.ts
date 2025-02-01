@@ -52,6 +52,7 @@ export interface ICampaign extends Document {
     totalConversions: number;
     totalRevenue: number;
   };
+  lastEmailSentAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -107,6 +108,7 @@ const campaignSchema = new Schema<ICampaign>(
       totalConversions: { type: Number, default: 0 },
       totalRevenue: { type: Number, default: 0 },
     },
+    lastEmailSentAt: { type: Date },
   },
   { timestamps: true }
 );

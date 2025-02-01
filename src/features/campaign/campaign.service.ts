@@ -9,7 +9,7 @@ import { logger } from "@config/logger";
 import { OPENAI_API_KEY } from "@/local";
 import { EmailTemplateService } from "@features/email/templates/email-template.service";
 import { SmtpService } from "@features/email/smtp/smtp.service";
-import { Document } from "mongoose";
+import { ISubscriber, Subscriber } from "../subscriber/models/subscriber.model";
 
 const COPYWRITING_FRAMEWORKS = [
   "PAS (Problem-Agitate-Solution)",
@@ -246,8 +246,8 @@ export class CampaignService {
   }
 
   static async sendCampaignEmail(
-    campaign: any,
-    subscriber: any,
+    campaign: ICampaign,
+    subscriber: ISubscriber,
     template: string,
     data: Record<string, any>
   ) {
@@ -260,15 +260,23 @@ export class CampaignService {
 
       emailContent = EmailTemplateService.addTrackingToTemplate(
         emailContent,
-        subscriber._id,
-        campaign._id
+        subscriber._id as string,
+        campaign._id as string
       );
 
       await SmtpService.sendEmail({
-        providerId: campaign.smtpProviderId,
+        providerId: campaign.smtpProviderId as unknown as string,
         to: subscriber.email,
         subject: campaign.subject,
         html: emailContent,
+      });
+
+      await Subscriber.findByIdAndUpdate(subscriber._id, {
+        $inc: { "metrics.sent": 1 },
+      });
+
+      await Campaign.findByIdAndUpdate(campaign._id, {
+        lastEmailSentAt: new Date(),
       });
     } catch (error) {
       logger.error("Error sending campaign email:", error);

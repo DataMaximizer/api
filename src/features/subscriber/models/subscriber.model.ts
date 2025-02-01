@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
 export interface IInteraction {
-  type: "open" | "click" | "conversion" | "bounce";
+  type: "speedOpen" | "regularOpen" | "click" | "conversion" | "bounce";
   timestamp: Date;
   campaignId?: Types.ObjectId;
   linkId?: string;
@@ -15,7 +15,9 @@ export interface IInteraction {
 }
 
 export interface IMetrics {
-  opens: number;
+  sent: number;
+  speedOpens: number;
+  regularOpens: number;
   clicks: number;
   conversions: number;
   bounces: number;
@@ -40,7 +42,9 @@ export interface ISubscriber extends Document {
     source?: string;
   };
   metrics: {
-    opens: number;
+    sent: number;
+    speedOpens: number;
+    regularOpens: number;
     clicks: number;
     conversions: number;
     bounces: number;
@@ -55,7 +59,7 @@ const interactionSchema = new Schema<IInteraction>(
   {
     type: {
       type: String,
-      enum: ["open", "click", "conversion", "bounce"],
+      enum: ["speedOpen", "regularOpen", "click", "conversion", "bounce"],
       required: true,
     },
     timestamp: { type: Date, default: Date.now },
@@ -74,7 +78,9 @@ const interactionSchema = new Schema<IInteraction>(
 
 const metricsSchema = new Schema<IMetrics>(
   {
-    opens: { type: Number, default: 0 },
+    sent: { type: Number, default: 0 },
+    speedOpens: { type: Number, default: 0 },
+    regularOpens: { type: Number, default: 0 },
     clicks: { type: Number, default: 0 },
     conversions: { type: Number, default: 0 },
     bounces: { type: Number, default: 0 },
@@ -118,7 +124,8 @@ const subscriberSchema = new Schema<ISubscriber>(
     metrics: {
       type: metricsSchema,
       default: () => ({
-        opens: 0,
+        speedOpens: 0,
+        regularOpens: 0,
         clicks: 0,
         conversions: 0,
         bounces: 0,

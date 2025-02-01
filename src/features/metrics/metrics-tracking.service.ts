@@ -1,14 +1,13 @@
 import { Subscriber } from "@features/subscriber/models/subscriber.model";
 import { logger } from "@config/logger";
 import { Campaign } from "../campaign/models/campaign.model";
-import {
-  AffiliateOffer,
-  IAffiliateOffer,
-} from "../affiliate/models/affiliate-offer.model";
+import { IAffiliateOffer } from "../affiliate/models/affiliate-offer.model";
 import { CampaignService } from "../campaign/campaign.service";
 import { Postback } from "../tracking/models/postback.model";
 import { Click } from "../tracking/models/click.model";
 import { Request } from "express";
+
+const SPEED_OPEN_HOURS_THRESHOLD = 1;
 
 type ProcessPostbackParams = {
   campaignId: string;
@@ -18,21 +17,36 @@ type ProcessPostbackParams = {
 };
 
 export class MetricsTrackingService {
-  static async trackOpen(subscriberId: string, campaignId?: string) {
+  static async trackOpen(subscriberId: string, campaignId: string) {
     try {
+      const campaign = await Campaign.findById(campaignId);
+      if (!campaign) {
+        throw new Error("Campaign not found");
+      }
+
+      const emailSentAt = campaign.lastEmailSentAt || new Date();
+      const now = new Date();
+      const timeSinceEmailSent = now.getTime() - emailSentAt.getTime();
+      const hourDiff = timeSinceEmailSent / (1000 * 60 * 60);
+      let updateType = "regularOpens";
+
+      if (hourDiff <= SPEED_OPEN_HOURS_THRESHOLD) {
+        updateType = "speedOpens";
+      }
+
       await Promise.all([
         // Update subscriber metrics
         Subscriber.findByIdAndUpdate(
           subscriberId,
           {
-            $inc: { "metrics.opens": 1 },
+            $inc: { [`metrics.${updateType}`]: 1 },
             $set: {
               lastInteraction: new Date(),
               "metrics.lastOpen": new Date(),
             },
             $push: {
               "metrics.interactions": {
-                type: "open",
+                type: updateType.slice(0, -1),
                 campaignId,
                 timestamp: new Date(),
               },
@@ -40,15 +54,14 @@ export class MetricsTrackingService {
           },
           { upsert: false }
         ),
-        // Update campaign metrics if campaignId exists
-        campaignId &&
-          Campaign.findByIdAndUpdate(
-            campaignId,
-            {
-              $inc: { "metrics.totalOpens": 1 },
-            },
-            { upsert: false }
-          ),
+
+        Campaign.findByIdAndUpdate(
+          campaignId,
+          {
+            $inc: { "metrics.totalOpens": 1 },
+          },
+          { upsert: false }
+        ),
       ]);
     } catch (error) {
       logger.error(
