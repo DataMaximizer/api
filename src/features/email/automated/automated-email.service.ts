@@ -194,4 +194,87 @@ export class AutomatedEmailService {
       throw error;
     }
   }
+
+  static async getHistory(userId: string) {
+    try {
+      const campaigns = await Campaign.aggregate([
+        {
+          $match: {
+            userId: new Types.ObjectId(userId),
+            type: "email",
+          },
+        },
+        {
+          $lookup: {
+            from: "affiliateoffers",
+            localField: "offerId",
+            foreignField: "_id",
+            as: "offer",
+          },
+        },
+        {
+          $unwind: "$offer",
+        },
+        {
+          $lookup: {
+            from: "metrics",
+            let: { campaignId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: ["$campaignId", "$$campaignId"],
+                  },
+                },
+              },
+              {
+                $group: {
+                  _id: null,
+                  opens: {
+                    $sum: { $cond: [{ $eq: ["$type", "open"] }, 1, 0] },
+                  },
+                  clicks: {
+                    $sum: { $cond: [{ $eq: ["$type", "click"] }, 1, 0] },
+                  },
+                  conversions: {
+                    $sum: { $cond: [{ $eq: ["$type", "conversion"] }, 1, 0] },
+                  },
+                },
+              },
+            ],
+            as: "metrics",
+          },
+        },
+        {
+          $project: {
+            taskId: "$_id",
+            url: "$offer.url",
+            offerId: "$offerId",
+            campaignId: "$_id",
+            sentAt: "$createdAt",
+            sentTo: "$sent",
+            metrics: {
+              $cond: [
+                { $gt: [{ $size: "$metrics" }, 0] },
+                { $arrayElemAt: ["$metrics", 0] },
+                {
+                  opens: 0,
+                  clicks: 0,
+                  conversions: 0,
+                },
+              ],
+            },
+          },
+        },
+        {
+          $sort: { sentAt: -1 },
+        },
+      ]);
+
+      return campaigns;
+    } catch (error) {
+      logger.error("Error fetching automated email history:", error);
+      throw error;
+    }
+  }
 }
