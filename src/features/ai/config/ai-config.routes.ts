@@ -3,6 +3,7 @@ import { AIConfigController } from "./ai-config.controller";
 import { authenticate } from "@core/middlewares/auth.middleware";
 import { validateRequest } from "@core/middlewares/validation.middleware";
 import { aiConfigSchema } from "@core/utils/validators/validations/ai-config.validation";
+import { AIController } from "../ai.controller";
 
 const router = Router();
 
@@ -12,19 +13,23 @@ router.post(
   "/settings/ai-config",
   authenticate,
   validateRequest(aiConfigSchema),
-  AIConfigController.updateConfig,
+  AIConfigController.updateConfig
 );
 
 router.delete(
   "/settings/ai-config",
   authenticate,
-  AIConfigController.deleteConfig,
+  AIConfigController.deleteConfig
 );
 
 router.post(
   "/settings/ai-config/validate",
   authenticate,
-  AIConfigController.validateApiKey,
+  AIConfigController.validateApiKey
+);
+
+router.post("/agents/offer-selection", authenticate, (req, res) =>
+  AIController.runOfferSelection(req, res)
 );
 
 export default router;

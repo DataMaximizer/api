@@ -45,6 +45,7 @@ export interface ISubscriber extends Document {
     conversions: number;
     bounces: number;
     revenue: number;
+    interactions: IInteraction[];
   };
   data: Record<string, any>;
   createdAt: Date;

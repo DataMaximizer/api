@@ -51,7 +51,7 @@ app.use(
         frameSrc: ["'none'"],
       },
     },
-  }),
+  })
 );
 
 const swaggerOptions = {
@@ -99,12 +99,10 @@ app.use("/api/forms", formRoutes);
 app.use("/api/subscribers", subscriberRoutes);
 app.use("/api/metrics/track", trackingRoutes);
 app.use("/api/automated-email", automatedEmailRoutes);
-
 app.use("/api/metrics", metricsRoutes);
-
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
 app.use("/api/profile", profileRoutes);
+app.use("/api/ai", aiConfigRoutes);
 
 app.get(
   "/api/admin/dashboard",
@@ -112,7 +110,7 @@ app.get(
   authorize([UserType.OWNER]),
   (req: Request, res: Response) => {
     res.json({ message: "Admin access granted" });
-  },
+  }
 );
 
 app.use("/api/users", userRouter);
@@ -133,7 +131,7 @@ const startServer = async (): Promise<void> => {
     app.listen(port, () => {
       logger.info(`Server running on port ${port}`);
       logger.info(
-        `Swagger documentation available at http://localhost:${port}/api-docs`,
+        `Swagger documentation available at http://localhost:${port}/api-docs`
       );
     });
   } catch (error) {
