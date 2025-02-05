@@ -12,19 +12,23 @@ router.post(
   "/settings/ai-config",
   authenticate,
   validateRequest(aiConfigSchema),
-  AIConfigController.updateConfig,
+  AIConfigController.updateConfig
 );
 
 router.delete(
   "/settings/ai-config",
   authenticate,
-  AIConfigController.deleteConfig,
+  AIConfigController.deleteConfig
 );
 
 router.post(
   "/settings/ai-config/validate",
   authenticate,
-  AIConfigController.validateApiKey,
+  AIConfigController.validateApiKey
+);
+
+router.post("/agents/offer-selection", (req, res) =>
+  AIConfigController.runOfferSelection(req, res)
 );
 
 export default router;
