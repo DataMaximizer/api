@@ -11,21 +11,24 @@ import {
   DEFAULT_EPSILON,
   IInterestProfile,
 } from "./offerSelectionUtils";
+import { Campaign } from "@features/campaign/models/campaign.model";
+import { Types } from "mongoose";
 
 /**
  * Defines the result of the offer selection process.
- * Note: The property `selectedOffer` has been updated to `selectedOffers` to hold one or more offers.
+ * Note: The property selectedOffer has been updated to selectedOffers to hold one or more offers.
+ * Also, each offer includes its own adjustments.
  */
-type ISelectedOffer = IAffiliateOffer & {
+export type ISelectedOffer = IAffiliateOffer & {
   method: "randomized" | "highest-scoring";
+  adjustments?: {
+    writingStyleSuggestion?: string;
+    offerAngleSuggestion?: string;
+  };
 };
 
 export interface OfferSelectionResult {
   selectedOffers: ISelectedOffer[];
-  adjustments: {
-    writingStyleSuggestion?: string;
-    offerAngleSuggestion?: string;
-  };
 }
 
 /**
@@ -45,9 +48,7 @@ export class OfferSelectionAgent {
    * @param subscriberId - The ID of the subscriber.
    * @param numOffers - Number of offers to be selected (default is 1).
    * @returns A Promise resolving to an OfferSelectionResult which contains:
-   *          - An array of the selected offer(s).
-   *          - Recommendations for any adjustments.
-   *          - A method indicator ("randomized" or "highest-scoring") based on the majority decision.
+   *          - An array of the selected offer(s), each with its own adjustment recommendations.
    *
    * @throws An error if the subscriber is not found or no active offers exist.
    */
@@ -128,23 +129,76 @@ export class OfferSelectionAgent {
       }
     }
 
-    // Generate recommendations based on subscriber behavior.
-    const adjustments: {
-      writingStyleSuggestion?: string;
-      offerAngleSuggestion?: string;
-    } = {};
-    if (subscriber.metrics.clicks > 0 && subscriber.metrics.conversions === 0) {
-      adjustments.writingStyleSuggestion =
-        "Emphasize urgency or social proof (e.g., testimonials) in the email.";
-    }
-    if (subscriber.engagementScore < LOW_ENGAGEMENT_THRESHOLD) {
-      adjustments.offerAngleSuggestion =
-        "Experiment with alternative offer angles, such as adding bonuses or limited-time offers.";
+    // Compute adjustments for each selected offer based on subscriber interactions.
+    // First, get the subscriber interactions that reference a campaign.
+    const interactions = subscriber.metrics.interactions || [];
+    // Get unique campaign IDs from the interactions.
+    const campaignIds = interactions
+      .filter(
+        (inter) =>
+          inter.campaignId &&
+          inter.type !== "conversion" &&
+          inter.type !== "bounce"
+      )
+      .map((inter) => inter.campaignId!.toString());
+    const uniqueCampaignIds = Array.from(new Set(campaignIds));
+
+    // Load all campaigns that the subscriber interacted with.
+    const campaigns = await Campaign.find({ _id: { $in: uniqueCampaignIds } });
+    // Create a lookup map for campaigns by their id.
+    const campaignById = new Map<string, (typeof campaigns)[0]>();
+    campaigns.forEach((campaign) => {
+      campaignById.set(campaign.id, campaign);
+    });
+
+    // For each selected offer, filter interactions that belong to campaigns using that offer.
+    for (const offer of selectedOffers) {
+      // Find interactions that have a campaignId and where the campaign's offerId matches the current offer.
+      const relatedInteractions = interactions.filter((inter) => {
+        if (!inter.campaignId) return false;
+        const campaign = campaignById.get(inter.campaignId.toString());
+        if (!campaign) return false;
+        // Compare the campaign's offerId to the current offer's _id.
+        return (
+          campaign.offerId.toString() ===
+          (offer._id as Types.ObjectId).toString()
+        );
+      });
+
+      // Initialize an adjustments object.
+      const adjustments: {
+        writingStyleSuggestion?: string;
+        offerAngleSuggestion?: string;
+      } = {};
+
+      // Example logic: if there are clicks but no conversions for this offer, suggest a change in writing style.
+      const clicksCount = relatedInteractions.filter(
+        (inter) => inter.type === "click"
+      ).length;
+      const conversionsCount = relatedInteractions.filter(
+        (inter) => inter.type === "conversion"
+      ).length;
+      if (clicksCount > 0 && conversionsCount === 0) {
+        adjustments.writingStyleSuggestion =
+          "Emphasize urgency or social proof (e.g., testimonials) in the email.";
+      }
+      // Also, if the subscriber’s overall engagement is low, suggest a different offer angle.
+      if (subscriber.engagementScore < LOW_ENGAGEMENT_THRESHOLD) {
+        adjustments.offerAngleSuggestion =
+          "Experiment with alternative offer angles, such as adding bonuses or limited-time offers.";
+      }
+
+      // Attach adjustments if any were computed.
+      if (
+        adjustments.writingStyleSuggestion ||
+        adjustments.offerAngleSuggestion
+      ) {
+        offer.adjustments = adjustments;
+      }
     }
 
     return {
       selectedOffers,
-      adjustments,
     };
   }
 }

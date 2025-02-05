@@ -3,7 +3,6 @@ import { AIConfigController } from "./ai-config.controller";
 import { authenticate } from "@core/middlewares/auth.middleware";
 import { validateRequest } from "@core/middlewares/validation.middleware";
 import { aiConfigSchema } from "@core/utils/validators/validations/ai-config.validation";
-import { AIController } from "../ai.controller";
 
 const router = Router();
 
@@ -28,8 +27,8 @@ router.post(
   AIConfigController.validateApiKey
 );
 
-router.post("/agents/offer-selection", authenticate, (req, res) =>
-  AIController.runOfferSelection(req, res)
+router.post("/agents/offer-selection", (req, res) =>
+  AIConfigController.runOfferSelection(req, res)
 );
 
 export default router;

@@ -36,7 +36,13 @@ export class RetargetingService {
     subscriberId: string
   ): Promise<InterestProfile> {
     try {
-      const subscriber = await Subscriber.findById(subscriberId);
+      const subscriber = await Subscriber.findById(subscriberId).populate({
+        path: "metrics.interactions.campaignId",
+        populate: {
+          path: "offerId",
+          model: "AffiliateOffer",
+        },
+      });
       if (!subscriber) throw new Error("Subscriber not found");
 
       const recentDate = new Date();
@@ -49,10 +55,16 @@ export class RetargetingService {
         )
         .map(
           (
-            interaction: IInteraction & { offerId?: { categories: string[] } }
+            interaction: IInteraction & {
+              campaignId?: { offerId?: { categories: string[] } };
+            }
           ) => ({
             ...interaction,
-            offerCategories: interaction.offerId?.categories || [],
+            type: interaction.type,
+            timestamp: interaction.timestamp,
+            offerCategories: [
+              ...new Set(interaction.campaignId?.offerId?.categories || []),
+            ],
           })
         );
 
@@ -60,7 +72,10 @@ export class RetargetingService {
 
       recentInteractions.forEach((interaction) => {
         interaction.offerCategories.forEach((category: string) => {
-          const weight = this.calculateInteractionWeight(interaction.type);
+          const weight = this.calculateInteractionWeight(
+            interaction.type,
+            interaction.timestamp
+          );
           const currentWeight = categoryWeights.get(category) || 0;
           categoryWeights.set(category, currentWeight + weight);
         });
@@ -83,12 +98,15 @@ export class RetargetingService {
     }
   }
 
-  private static calculateInteractionWeight(type: InteractionType): number {
+  private static calculateInteractionWeight(
+    type: InteractionType,
+    timestamp: Date
+  ): number {
     const weight = this.INTERACTION_WEIGHTS[type];
     if (weight === undefined) return 0;
 
     const daysSinceInteraction = Math.floor(
-      (Date.now() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+      (Date.now() - timestamp.getTime()) / (1000 * 60 * 60 * 24)
     );
     const recencyMultiplier = Math.max(
       0.1,
