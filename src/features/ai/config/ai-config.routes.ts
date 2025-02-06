@@ -31,4 +31,8 @@ router.post("/agents/offer-selection", (req, res) =>
   AIConfigController.runOfferSelection(req, res)
 );
 
+router.post("/agents/conversion-analysis", (req, res) =>
+  AIConfigController.runConversionAnalysis(req, res)
+);
+
 export default router;
