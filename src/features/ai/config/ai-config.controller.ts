@@ -5,7 +5,7 @@ import { IUser } from "@features/user/models/user.model";
 import { SubscriberList } from "@/features/subscriber/models/subscriber-list.model";
 import { Subscriber } from "@/features/subscriber/models/subscriber.model";
 import { OfferSelectionAgent } from "../agents/offer-selection/OfferSelectionAgent";
-
+import { ConversionAnalysisAgent } from "../agents/conversion-analysis/ConversionAnalysisAgent";
 interface AuthRequest extends Request {
   user?: IUser;
 }
@@ -177,6 +177,44 @@ export class AIConfigController {
       });
     } catch (error) {
       console.error("Error in runOfferSelection:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  static async runConversionAnalysis(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    try {
+      const { subscriberListId, numOffers = 1 } = req.body;
+      if (!subscriberListId) {
+        res.status(400).json({
+          success: false,
+          message: "subscriberListId is required.",
+        });
+
+        return;
+      }
+
+      const agent = new ConversionAnalysisAgent();
+      const topOffers = await agent.getTopOffersByEPC(numOffers);
+      const ret = topOffers.map((offer) => ({
+        offerId: offer.offer._id,
+        offerName: offer.offer.name,
+        offerDescription: offer.offer.description,
+        offerUrl: offer.offer.url,
+        offerEPC: offer.earningsPerClick,
+      }));
+
+      res.status(200).json({
+        success: true,
+        topOffers,
+      });
+    } catch (error) {
+      console.error("Error in runConversionAnalysis:", error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
