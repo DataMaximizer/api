@@ -186,6 +186,7 @@ export class RetargetingService {
         userId: new Types.ObjectId(userId),
         segments: [new Types.ObjectId(subscriberId)],
         status: "draft",
+        writingStyle: "Neutral",
         settings: {
           isRetargeting: true,
           targetOffers: offers.map((offer) => offer._id),

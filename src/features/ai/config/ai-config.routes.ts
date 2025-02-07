@@ -27,12 +27,16 @@ router.post(
   AIConfigController.validateApiKey
 );
 
-router.post("/agents/offer-selection", (req, res) =>
+router.post("/agents/offer-selection", authenticate, (req, res) =>
   AIConfigController.runOfferSelection(req, res)
 );
 
-router.post("/agents/conversion-analysis", (req, res) =>
+router.post("/agents/conversion-analysis", authenticate, (req, res) =>
   AIConfigController.runConversionAnalysis(req, res)
+);
+
+router.post("/agents/writing-style-optimization", authenticate, (req, res) =>
+  AIConfigController.runWritingStyleOptimization(req, res)
 );
 
 export default router;
