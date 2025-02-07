@@ -45,6 +45,16 @@ export interface ITopOfferConversionRate {
   conversionRate: number;
 }
 
+/**
+ * Represents performance metrics grouped by writing style.
+ */
+export interface IWritingStylePerformance {
+  writingStyle: string;
+  totalClicks: number;
+  totalConversions: number;
+  conversionRate: number;
+}
+
 export class ConversionAnalysisAgent {
   /**
    * Aggregates metrics from all campaigns associated with a given offer.
@@ -241,5 +251,73 @@ export class ConversionAnalysisAgent {
       (a, b) => b.conversionRate - a.conversionRate
     );
     return offersWithConversionRate.slice(0, numOffers);
+  }
+
+  /**
+   * Aggregates performance metrics for campaigns by writing style based on the subscriber's historical interaction data.
+   *
+   * @param subscriberId - Subscriber ID to perform personalized analysis.
+   * @returns An array of writing style performance data.
+   */
+  public async getWritingStylePerformance(
+    subscriberId: string
+  ): Promise<IWritingStylePerformance[]> {
+    // Retrieve the subscriber.
+    const subscriber = await Subscriber.findById(subscriberId);
+    if (!subscriber) {
+      throw new Error("Subscriber not found");
+    }
+    // Extract interactions that include a campaignId.
+    const interactions = subscriber.metrics.interactions;
+    const campaignInteractions = interactions.filter(
+      (inter) => inter.campaignId
+    );
+    // Determine unique campaign IDs.
+    const campaignIds = [
+      ...new Set(
+        campaignInteractions.map((inter) => inter.campaignId?.toString())
+      ),
+    ];
+    // Retrieve campaigns corresponding to these interactions.
+    const campaigns = await Campaign.find({ _id: { $in: campaignIds } });
+    // Build a map from campaign ID to its writing style.
+    const campaignStyleMap = new Map<string, string>();
+    campaigns.forEach((campaign) => {
+      const style = campaign.writingStyle;
+      if (style) {
+        campaignStyleMap.set(
+          (campaign._id as Types.ObjectId).toString(),
+          style
+        );
+      }
+    });
+    // Aggregate interaction metrics per writing style.
+    const performanceMap: {
+      [style: string]: { clicks: number; opens: number; conversions: number };
+    } = {};
+    campaignInteractions.forEach((inter) => {
+      const campaignId = inter.campaignId?.toString();
+      const style = campaignId ? campaignStyleMap.get(campaignId) : undefined;
+      if (style) {
+        if (!performanceMap[style]) {
+          performanceMap[style] = { clicks: 0, opens: 0, conversions: 0 };
+        }
+        if (inter.type === "click") performanceMap[style].clicks++;
+        if (inter.type === "open") performanceMap[style].opens++;
+        if (inter.type === "conversion") performanceMap[style].conversions++;
+      }
+    });
+    const results: IWritingStylePerformance[] = [];
+    Object.keys(performanceMap).forEach((style) => {
+      const { clicks, conversions } = performanceMap[style];
+      const conversionRate = clicks > 0 ? conversions / clicks : 0;
+      results.push({
+        writingStyle: style,
+        totalClicks: clicks,
+        totalConversions: conversions,
+        conversionRate,
+      });
+    });
+    return results.sort((a, b) => b.conversionRate - a.conversionRate);
   }
 }

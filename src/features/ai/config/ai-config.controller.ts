@@ -6,6 +6,7 @@ import { SubscriberList } from "@/features/subscriber/models/subscriber-list.mod
 import { Subscriber } from "@/features/subscriber/models/subscriber.model";
 import { OfferSelectionAgent } from "../agents/offer-selection/OfferSelectionAgent";
 import { ConversionAnalysisAgent } from "../agents/conversion-analysis/ConversionAnalysisAgent";
+import { WritingStyleOptimizationAgent } from "../agents/writing-style/WritingStyleOptimizationAgent";
 interface AuthRequest extends Request {
   user?: IUser;
 }
@@ -215,6 +216,38 @@ export class AIConfigController {
       });
     } catch (error) {
       console.error("Error in runConversionAnalysis:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  static async runWritingStyleOptimization(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    try {
+      const { subscriberId, productDescription } = req.body;
+      if (!subscriberId || !productDescription) {
+        res.status(400).json({
+          success: false,
+          message: "subscriberId and productDescription are required.",
+        });
+      }
+
+      const agent = new WritingStyleOptimizationAgent();
+      const result = await agent.getOptimizedWritingStyles(
+        subscriberId,
+        productDescription
+      );
+
+      res.status(200).json({
+        success: true,
+        result,
+      });
+    } catch (error) {
+      console.error("Error in runWritingStyleOptimization:", error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",

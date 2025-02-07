@@ -62,6 +62,10 @@ export class CampaignService {
     campaignData: Partial<ICampaign>
   ): Promise<ICampaign> {
     try {
+      if (!campaignData.writingStyle) {
+        campaignData.writingStyle = "Neutral";
+      }
+
       if (campaignData.status === CampaignStatus.SCHEDULED) {
         if (
           !campaignData.schedule?.startDate ||
