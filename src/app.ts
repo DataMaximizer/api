@@ -32,6 +32,7 @@ import { SchedulerService } from "@features/shared/services/scheduler.service";
 import swaggerJSDoc from "swagger-jsdoc";
 import { CacheService } from "@core/services/cache.service";
 import { userRouter } from "./features/user/user.routes";
+import contentTemplateRoutes from "@features/email/templates/content-template.routes";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -99,6 +100,7 @@ app.use("/api/forms", formRoutes);
 app.use("/api/subscribers", subscriberRoutes);
 app.use("/api/metrics/track", trackingRoutes);
 app.use("/api/automated-email", automatedEmailRoutes);
+app.use("/api/email/templates", contentTemplateRoutes);
 
 app.use("/api/metrics", metricsRoutes);
 
