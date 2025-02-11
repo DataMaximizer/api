@@ -5,6 +5,8 @@ import {
 } from "../conversion-analysis/ConversionAnalysisAgent";
 import { Subscriber } from "@features/subscriber/models/subscriber.model";
 import OpenAI from "openai";
+import { AffiliateOffer } from "@/features/affiliate/models/affiliate-offer.model";
+import { CampaignService } from "@/features/campaign/campaign.service";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -185,5 +187,48 @@ export class WritingStyleOptimizationAgent {
       (style) => style.toLowerCase() === selectedStyle.toLowerCase()
     );
     return matchingStyle || "Short & Direct";
+  }
+
+  /**
+   * Uses GPT to write a marketing email.
+   * @param offerId - The ID of the affiliate offer.
+   * @param subscriberId - The subscriber's ID.
+   * @returns The generated email content.
+   */
+  public async generateEmailMarketing(
+    offerId: string,
+    subscriberId: string
+  ): Promise<string> {
+    // Fetch the offer from the AffiliateOffer model.
+    const offer = await AffiliateOffer.findById(offerId);
+    if (!offer) throw new Error("Offer not found");
+
+    // Use the offer's productInfo description in the GPT optimization.
+    const optimizationResult = await this.getOptimizedWritingStyles(
+      subscriberId,
+      offer.productInfo ? JSON.stringify(offer.productInfo) : ""
+    );
+
+    const recommendedStyle =
+      optimizationResult.recommendedStyle || "Short & Direct";
+    // Set defaults for framework, tone, and personality.
+    const framework = "PAS (Problem-Agitate-Solution)";
+    const tone = "Friendly";
+    const personality = "Expert";
+
+    // Pass along the personalization message as extra instructions.
+    const extraInstructions = optimizationResult.personalizationMessage;
+
+    // Call the updated CampaignService.generateEmailContent.
+    const emailContent = await CampaignService.generateEmailContent(
+      offer.productInfo,
+      framework,
+      tone,
+      personality,
+      recommendedStyle,
+      extraInstructions
+    );
+
+    return emailContent;
   }
 }

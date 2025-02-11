@@ -119,7 +119,7 @@ export class SubscriberController {
 
   static async exportSubscribers(
     req: AuthRequest,
-    res: Response,
+    res: Response
   ): Promise<void> {
     try {
       if (!req.user?._id) {
@@ -130,7 +130,7 @@ export class SubscriberController {
       const { listId } = req.query;
       const subscribers = await SubscriberService.exportSubscribers(
         req.user._id.toString(),
-        listId as string,
+        listId as string
       );
 
       res.json({ success: true, data: subscribers });
@@ -213,7 +213,7 @@ export class SubscriberController {
 
   static async importSubscribers(
     req: AuthRequest,
-    res: Response,
+    res: Response
   ): Promise<void> {
     try {
       if (!req.user?._id || !req.file) {
@@ -289,8 +289,7 @@ export class SubscriberController {
               case "tags":
                 subscriberData.tags = value
                   .split(";")
-                  .map((tag) => tag.trim())
-                  .filter(Boolean);
+                  .map((tag) => tag.trim()) as string[];
                 break;
               default:
                 subscriberData.data[mapping.mappedField] = value;
@@ -306,7 +305,9 @@ export class SubscriberController {
         } catch (error) {
           errorCount++;
           errorDetails.push(
-            `Row ${i + 1}: ${error instanceof Error ? error.message : "Unknown error"}`,
+            `Row ${i + 1}: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`
           );
         }
       }
@@ -337,6 +338,36 @@ export class SubscriberController {
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  static async getSubscribersByList(
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, error: "Unauthorized" });
+        return;
+      }
+
+      const { listId } = req.params;
+      const subscribers = await Subscriber.find({
+        lists: { $in: [new Types.ObjectId(listId)] },
+      })
+        .populate("lists", "name subscriberCount")
+        .sort({ createdAt: -1 });
+
+      res.json({
+        success: true,
+        data: subscribers,
+      });
+    } catch (error) {
+      logger.error("Error in getSubscribersByList:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch subscribers for the list",
       });
     }
   }

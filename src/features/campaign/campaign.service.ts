@@ -161,12 +161,13 @@ export class CampaignService {
     }
   }
 
-  private static async generateEmailContent(
+  public static async generateEmailContent(
     productInfo: any,
     framework: string,
     tone: string,
     personality: string,
-    writingStyle: string
+    writingStyle: string,
+    extraInstructions?: string
   ): Promise<string> {
     const prompt = `
       Write a marketing email using the ${framework} framework.
@@ -174,6 +175,9 @@ export class CampaignService {
       Tone: ${tone}
       Personality: ${personality}
       Writing Style: ${writingStyle}
+      ${
+        extraInstructions ? `Additional Instructions: ${extraInstructions}` : ""
+      }
       
       Requirements:
       1. Follow the ${framework} structure strictly
@@ -184,7 +188,7 @@ export class CampaignService {
     `;
 
     const completion = await this.openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",

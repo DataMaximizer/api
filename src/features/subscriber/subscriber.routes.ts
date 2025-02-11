@@ -16,7 +16,7 @@ const router = Router();
 router.post(
   "/",
   validateRequest(createSubscriberSchema),
-  SubscriberController.addPublicSubscriber,
+  SubscriberController.addPublicSubscriber
 );
 
 router.get("/", authenticate, SubscriberController.getSubscribers);
@@ -26,10 +26,16 @@ router.post(
   "/lists",
   authenticate,
   validateRequest(createListSchema),
-  SubscriberController.createList,
+  SubscriberController.createList
 );
 
 router.get("/lists", authenticate, SubscriberController.getLists);
+
+router.get(
+  "/lists/:listId",
+  authenticate,
+  SubscriberController.getSubscribersByList
+);
 
 // Export
 router.get("/export", authenticate, SubscriberController.exportSubscribers);
@@ -40,7 +46,7 @@ router.post(
   "/import",
   authenticate,
   upload.single("file"),
-  SubscriberController.importSubscribers,
+  SubscriberController.importSubscribers
 );
 
 export default router;
