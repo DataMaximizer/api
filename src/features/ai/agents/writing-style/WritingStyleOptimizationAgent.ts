@@ -7,6 +7,13 @@ import { Subscriber } from "@features/subscriber/models/subscriber.model";
 import OpenAI from "openai";
 import { AffiliateOffer } from "@/features/affiliate/models/affiliate-offer.model";
 import { CampaignService } from "@/features/campaign/campaign.service";
+import {
+  Campaign,
+  CampaignType,
+  CampaignStatus,
+  ICampaign,
+} from "@/features/campaign/models/campaign.model";
+import { Types } from "mongoose";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -198,7 +205,13 @@ export class WritingStyleOptimizationAgent {
   public async generateEmailMarketing(
     offerId: string,
     subscriberId: string
-  ): Promise<string> {
+  ): Promise<{
+    emailContent: string;
+    framework: string;
+    tone: string;
+    personality: string;
+    recommendedStyle: string;
+  }> {
     // Fetch the offer from the AffiliateOffer model.
     const offer = await AffiliateOffer.findById(offerId);
     if (!offer) throw new Error("Offer not found");
@@ -218,17 +231,74 @@ export class WritingStyleOptimizationAgent {
 
     // Pass along the personalization message as extra instructions.
     const extraInstructions = optimizationResult.personalizationMessage;
+    const extraRules = `
+    - Don't use placeholders like [Name] or anything similar to refer to the subscriber.
+    - Be sure to sound like a human and not like a robot.
+    - Wherever you put the offer url, make sure to put it in the {offer_url} placeholder, this is very important.
+    - Your response should be in a valid JSON format with the following keys:
+      - subject: The subject of the email.
+      - body: The body of the email in HTML format compliant with email clients, escape if needed.
+    `;
 
-    // Call the updated CampaignService.generateEmailContent.
     const emailContent = await CampaignService.generateEmailContent(
       offer.productInfo,
       framework,
       tone,
       personality,
       recommendedStyle,
-      extraInstructions
+      `${extraInstructions}\n${extraRules}`,
+      true
     );
 
-    return emailContent;
+    return { emailContent, framework, tone, personality, recommendedStyle };
+  }
+
+  public async startCampaign(
+    offerId: string,
+    smtpProviderId: string,
+    userId: string,
+    campaignData: Partial<ICampaign>,
+    emailData: {
+      subscriberId: string;
+      subject: string;
+      content: string;
+    }[]
+  ): Promise<void> {
+    try {
+      const campaign = await Campaign.create({
+        name: campaignData.name,
+        type: CampaignType.EMAIL,
+        status: CampaignStatus.RUNNING,
+        userId: new Types.ObjectId(userId),
+        offerId: new Types.ObjectId(offerId),
+        subject: "-",
+        content: "-",
+        framework: campaignData.framework,
+        tone: campaignData.tone,
+        writingStyle: campaignData.writingStyle,
+        smtpProviderId: new Types.ObjectId(smtpProviderId),
+        metrics: {
+          totalSent: 0,
+          totalOpens: 0,
+          totalClicks: 0,
+          totalConversions: 0,
+          totalRevenue: 0,
+        },
+      });
+
+      for (const data of emailData) {
+        await CampaignService.sendCampaignEmail(
+          offerId,
+          data.subscriberId,
+          (campaign._id as Types.ObjectId).toString(),
+          smtpProviderId,
+          data.content,
+          data.subject
+        );
+      }
+    } catch (error) {
+      console.error("Error starting campaign:", error);
+      throw error;
+    }
   }
 }

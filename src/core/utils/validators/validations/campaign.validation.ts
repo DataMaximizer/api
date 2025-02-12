@@ -59,3 +59,12 @@ export const updateMetricsSchema = z.object({
   conversions: z.number().optional(),
   revenue: z.number().optional(),
 });
+
+export const sendEmailSchema = z.object({
+  offerId: z.string().min(1, "Offer ID is required"),
+  subscriberId: z.string().min(1, "Subscriber ID is required"),
+  campaignId: z.string().min(1, "Campaign ID is required"),
+  smtpProviderId: z.string().min(1, "SMTP Provider ID is required"),
+  emailContent: z.string().min(1, "Email content is required"),
+  subject: z.string().min(1, "Subject is required"),
+});
