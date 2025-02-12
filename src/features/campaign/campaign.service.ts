@@ -10,6 +10,10 @@ import { OPENAI_API_KEY } from "@/local";
 import { EmailTemplateService } from "@features/email/templates/email-template.service";
 import { SmtpService } from "@features/email/smtp/smtp.service";
 import { Document } from "mongoose";
+import { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
+import { Click } from "../tracking/models/click.model";
+import { AffiliateOffer } from "../affiliate/models/affiliate-offer.model";
+import { Subscriber } from "../subscriber/models/subscriber.model";
 
 const COPYWRITING_FRAMEWORKS = [
   "PAS (Problem-Agitate-Solution)",
@@ -62,6 +66,10 @@ export class CampaignService {
     campaignData: Partial<ICampaign>
   ): Promise<ICampaign> {
     try {
+      if (!campaignData.writingStyle) {
+        campaignData.writingStyle = "Neutral";
+      }
+
       if (campaignData.status === CampaignStatus.SCHEDULED) {
         if (
           !campaignData.schedule?.startDate ||
@@ -157,12 +165,14 @@ export class CampaignService {
     }
   }
 
-  private static async generateEmailContent(
+  public static async generateEmailContent(
     productInfo: any,
     framework: string,
     tone: string,
     personality: string,
-    writingStyle: string
+    writingStyle: string,
+    extraInstructions?: string,
+    jsonResponse?: boolean
   ): Promise<string> {
     const prompt = `
       Write a marketing email using the ${framework} framework.
@@ -170,6 +180,9 @@ export class CampaignService {
       Tone: ${tone}
       Personality: ${personality}
       Writing Style: ${writingStyle}
+      ${
+        extraInstructions ? `Additional Instructions: ${extraInstructions}` : ""
+      }
       
       Requirements:
       1. Follow the ${framework} structure strictly
@@ -179,8 +192,8 @@ export class CampaignService {
       5. Focus on benefits and value proposition
     `;
 
-    const completion = await this.openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+    const gptParams: ChatCompletionCreateParamsNonStreaming = {
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -189,7 +202,13 @@ export class CampaignService {
         },
         { role: "user", content: prompt },
       ],
-    });
+    };
+
+    if (jsonResponse) {
+      gptParams.response_format = { type: "json_object" };
+    }
+
+    const completion = await this.openai.chat.completions.create(gptParams);
 
     return completion.choices[0].message?.content || "";
   }
@@ -246,29 +265,55 @@ export class CampaignService {
   }
 
   static async sendCampaignEmail(
-    campaign: any,
-    subscriber: any,
-    template: string,
-    data: Record<string, any>
+    offerId: string,
+    subscriberId: string,
+    campaignId: string,
+    smtpProviderId: string,
+    emailContent: string,
+    subject: string
   ) {
     try {
-      let emailContent = EmailTemplateService.createEmailTemplate(template, {
-        ...data,
-        subscriberEmail: subscriber.email,
-        unsubscribeLink: `${process.env.NEXT_PUBLIC_API_URL}/unsubscribe/${subscriber._id}`,
-      });
+      const offer = await AffiliateOffer.findById(offerId);
+      if (!offer) {
+        throw new Error("Offer not found");
+      }
 
-      emailContent = EmailTemplateService.addTrackingToTemplate(
-        emailContent,
-        subscriber._id,
-        campaign._id
+      const subscriber = await Subscriber.findById(subscriberId);
+      if (!subscriber) {
+        throw new Error("Subscriber not found");
+      }
+
+      let offerUrl = offer.url;
+      if (!offerUrl.includes("{clickId}")) {
+        const urlObj = new URL(offerUrl);
+        urlObj.searchParams.append("clickId", "{clickId}");
+        offerUrl = urlObj.toString();
+      }
+
+      const click = await Click.create({
+        subscriberId: subscriberId,
+        campaignId: campaignId,
+        linkId: offer._id as string,
+        timestamp: new Date(),
+      });
+      offerUrl = offerUrl.replace("{clickId}", click._id as string);
+      const replacedContent = emailContent.replace("{offer_url}", offerUrl);
+
+      const emailWithTracking = EmailTemplateService.addTrackingToTemplate(
+        replacedContent,
+        subscriberId,
+        campaignId
       );
 
       await SmtpService.sendEmail({
-        providerId: campaign.smtpProviderId,
+        providerId: smtpProviderId,
         to: subscriber.email,
-        subject: campaign.subject,
-        html: emailContent,
+        subject: subject,
+        html: emailWithTracking,
+      });
+
+      await CampaignService.updateCampaignMetrics(campaignId, "", {
+        sent: 1,
       });
     } catch (error) {
       logger.error("Error sending campaign email:", error);

@@ -13,11 +13,12 @@ export class CampaignController {
   static async createCampaign(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> {
     try {
       const campaignData = {
         ...req.body,
+        writingStyle: req.body.tone,
         userId: req.user?._id,
       };
 
@@ -67,7 +68,7 @@ export class CampaignController {
   static async getCampaignById(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> {
     try {
       const campaign = await Campaign.findOne({
@@ -95,13 +96,13 @@ export class CampaignController {
   static async updateCampaign(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> {
     try {
       const campaign = await Campaign.findOneAndUpdate(
         { _id: req.params.id, userId: req.user?._id },
         req.body,
-        { new: true },
+        { new: true }
       );
 
       if (!campaign) {
@@ -124,7 +125,7 @@ export class CampaignController {
   static async deleteCampaign(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> {
     try {
       const campaign = await Campaign.findOneAndDelete({
@@ -152,14 +153,14 @@ export class CampaignController {
   static async generateVariants(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> {
     try {
       const { productInfo, numberOfVariants } = req.body;
       const variants = await CampaignService.generateEmailVariants(
         req.params.id,
         productInfo,
-        numberOfVariants,
+        numberOfVariants
       );
 
       res.json({
@@ -174,13 +175,13 @@ export class CampaignController {
   static async updateMetrics(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> {
     try {
       await CampaignService.updateCampaignMetrics(
         req.params.id,
         req.params.variantId,
-        req.body,
+        req.body
       );
 
       res.json({
@@ -195,13 +196,13 @@ export class CampaignController {
   static async generateContent(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ) {
     try {
       const { offerId, framework, tone, numberOfVariants = 3 } = req.body;
 
       logger.info(
-        `Generating content for offer ${offerId} with framework ${framework} and tone ${tone}`,
+        `Generating content for offer ${offerId} with framework ${framework} and tone ${tone}`
       );
 
       const offer = await AffiliateService.getOfferById(offerId);
@@ -216,7 +217,9 @@ export class CampaignController {
       if (!Object.values(ContentFramework).includes(framework)) {
         res.status(400).json({
           success: false,
-          error: `Invalid framework. Must be one of: ${Object.values(ContentFramework).join(", ")}`,
+          error: `Invalid framework. Must be one of: ${Object.values(
+            ContentFramework
+          ).join(", ")}`,
         });
         return;
       }
@@ -224,7 +227,9 @@ export class CampaignController {
       if (!Object.values(WritingTone).includes(tone)) {
         res.status(400).json({
           success: false,
-          error: `Invalid tone. Must be one of: ${Object.values(WritingTone).join(", ")}`,
+          error: `Invalid tone. Must be one of: ${Object.values(
+            WritingTone
+          ).join(", ")}`,
         });
         return;
       }
@@ -242,7 +247,7 @@ export class CampaignController {
         },
         framework as ContentFramework,
         tone as WritingTone,
-        numberOfVariants,
+        numberOfVariants
       );
 
       res.json({
@@ -258,7 +263,7 @@ export class CampaignController {
   static async generateCustomContent(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> {
     try {
       const { offerId, prompt, tone, style } = req.body;
@@ -266,7 +271,7 @@ export class CampaignController {
       const variant = await CampaignService.generateCustomEmailContent(
         offerId,
         prompt,
-        tone,
+        tone
       );
 
       res.json({
@@ -281,7 +286,7 @@ export class CampaignController {
   static async regenerateVariant(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ) {
     try {
       const { offerId, framework, tone } = req.body;
@@ -308,7 +313,7 @@ export class CampaignController {
         },
         framework,
         tone,
-        1,
+        1
       );
 
       res.json({
@@ -326,7 +331,7 @@ export class CampaignController {
       const { status } = req.body;
       const campaign = await CampaignService.updateCampaignStatus(
         req.params.id,
-        status,
+        status
       );
 
       if (!campaign) {
@@ -340,6 +345,34 @@ export class CampaignController {
       res.json({
         success: true,
         data: campaign,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async sendEmail(req: Request, res: Response, next: NextFunction) {
+    try {
+      const {
+        offerId,
+        subscriberId,
+        campaignId,
+        smtpProviderId,
+        emailContent,
+        subject,
+      } = req.body;
+
+      await CampaignService.sendCampaignEmail(
+        offerId,
+        subscriberId,
+        campaignId,
+        smtpProviderId,
+        emailContent,
+        subject
+      );
+
+      res.json({
+        success: true,
       });
     } catch (error) {
       next(error);

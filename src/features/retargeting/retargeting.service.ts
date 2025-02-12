@@ -29,18 +29,20 @@ export class RetargetingService {
     open: 1,
     click: 2,
     conversion: 5,
+    bounce: 0,
   };
 
   static async analyzeSubscriberInterests(
-    subscriberId: string,
+    subscriberId: string
   ): Promise<InterestProfile> {
     try {
       const subscriber = await Subscriber.findById(subscriberId).populate({
-        path: "metrics.interactions.offerId",
-        model: "AffiliateOffer",
-        select: "categories",
+        path: "metrics.interactions.campaignId",
+        populate: {
+          path: "offerId",
+          model: "AffiliateOffer",
+        },
       });
-
       if (!subscriber) throw new Error("Subscriber not found");
 
       const recentDate = new Date();
@@ -48,22 +50,32 @@ export class RetargetingService {
 
       const recentInteractions = (subscriber.metrics?.interactions || [])
         .filter(
-          (interaction: IInteraction) => interaction.timestamp > recentDate,
+          (interaction: IInteraction) =>
+            interaction.type !== "bounce" && interaction.timestamp > recentDate
         )
         .map(
           (
-            interaction: IInteraction & { offerId?: { categories: string[] } },
+            interaction: IInteraction & {
+              campaignId?: { offerId?: { categories: string[] } };
+            }
           ) => ({
             ...interaction,
-            offerCategories: interaction.offerId?.categories || [],
-          }),
+            type: interaction.type,
+            timestamp: interaction.timestamp,
+            offerCategories: [
+              ...new Set(interaction.campaignId?.offerId?.categories || []),
+            ],
+          })
         );
 
       const categoryWeights = new Map<string, number>();
 
       recentInteractions.forEach((interaction) => {
         interaction.offerCategories.forEach((category: string) => {
-          const weight = this.calculateInteractionWeight(interaction.type);
+          const weight = this.calculateInteractionWeight(
+            interaction.type,
+            interaction.timestamp
+          );
           const currentWeight = categoryWeights.get(category) || 0;
           categoryWeights.set(category, currentWeight + weight);
         });
@@ -86,16 +98,19 @@ export class RetargetingService {
     }
   }
 
-  private static calculateInteractionWeight(type: InteractionType): number {
+  private static calculateInteractionWeight(
+    type: InteractionType,
+    timestamp: Date
+  ): number {
     const weight = this.INTERACTION_WEIGHTS[type];
     if (weight === undefined) return 0;
 
     const daysSinceInteraction = Math.floor(
-      (Date.now() - new Date().getTime()) / (1000 * 60 * 60 * 24),
+      (Date.now() - timestamp.getTime()) / (1000 * 60 * 60 * 24)
     );
     const recencyMultiplier = Math.max(
       0.1,
-      1 - daysSinceInteraction / this.MAX_HISTORY_DAYS,
+      1 - daysSinceInteraction / this.MAX_HISTORY_DAYS
     );
 
     return weight * recencyMultiplier;
@@ -109,7 +124,7 @@ export class RetargetingService {
     try {
       const interests = await this.analyzeSubscriberInterests(subscriberId);
       const currentCategories = new Set(
-        interests.categories.map((c) => c.category),
+        interests.categories.map((c) => c.category)
       );
 
       const unexploredOffers = await AffiliateOffer.find({
@@ -122,7 +137,7 @@ export class RetargetingService {
         .limit(5);
 
       return Array.from(
-        new Set(unexploredOffers.flatMap((offer) => offer.categories)),
+        new Set(unexploredOffers.flatMap((offer) => offer.categories))
       );
     } catch (error) {
       logger.error("Error finding new interests:", error);
@@ -132,7 +147,7 @@ export class RetargetingService {
 
   static async generateRetargetingCampaign(
     subscriberId: string,
-    userId: string,
+    userId: string
   ): Promise<ICampaign | null> {
     try {
       const subscriber = await Subscriber.findById(subscriberId);
@@ -140,7 +155,7 @@ export class RetargetingService {
 
       if ((subscriber.engagementScore || 0) < this.MIN_ENGAGEMENT_SCORE) {
         logger.info(
-          `Subscriber ${subscriberId} has low engagement score, skipping retargeting`,
+          `Subscriber ${subscriberId} has low engagement score, skipping retargeting`
         );
         return null;
       }
@@ -171,6 +186,7 @@ export class RetargetingService {
         userId: new Types.ObjectId(userId),
         segments: [new Types.ObjectId(subscriberId)],
         status: "draft",
+        writingStyle: "Neutral",
         settings: {
           isRetargeting: true,
           targetOffers: offers.map((offer) => offer._id),
@@ -198,7 +214,7 @@ export class RetargetingService {
 
       const recentInteractions =
         subscriber.metrics?.interactions?.filter(
-          (interaction: IInteraction) => interaction.timestamp > recentDate,
+          (interaction: IInteraction) => interaction.timestamp > recentDate
         ) || [];
 
       if (recentInteractions.length === 0) {
@@ -206,10 +222,10 @@ export class RetargetingService {
       }
 
       const clicks = recentInteractions.filter(
-        (i) => i.type === "click",
+        (i) => i.type === "click"
       ).length;
       const conversions = recentInteractions.filter(
-        (i) => i.type === "conversion",
+        (i) => i.type === "conversion"
       ).length;
       const conversionRate = clicks > 0 ? conversions / clicks : 0;
 

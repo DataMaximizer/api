@@ -12,19 +12,35 @@ router.post(
   "/settings/ai-config",
   authenticate,
   validateRequest(aiConfigSchema),
-  AIConfigController.updateConfig,
+  AIConfigController.updateConfig
 );
 
 router.delete(
   "/settings/ai-config",
   authenticate,
-  AIConfigController.deleteConfig,
+  AIConfigController.deleteConfig
 );
 
 router.post(
   "/settings/ai-config/validate",
   authenticate,
-  AIConfigController.validateApiKey,
+  AIConfigController.validateApiKey
+);
+
+router.post("/agents/offer-selection", authenticate, (req, res) =>
+  AIConfigController.runOfferSelection(req, res)
+);
+
+router.post("/agents/conversion-analysis", authenticate, (req, res) =>
+  AIConfigController.runConversionAnalysis(req, res)
+);
+
+router.post("/agents/writing-style-optimization", authenticate, (req, res) =>
+  AIConfigController.runWritingStyleOptimization(req, res)
+);
+
+router.post("/agents/start-campaign", authenticate, (req, res) =>
+  AIConfigController.startCampaign(req, res)
 );
 
 export default router;

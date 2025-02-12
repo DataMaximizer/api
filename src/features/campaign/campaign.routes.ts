@@ -9,6 +9,7 @@ import {
   generateContentSchema,
   // regenerateVariantSchema,
   updateMetricsSchema,
+  sendEmailSchema,
 } from "@core/utils/validators/validations/campaign.validation";
 
 const router = Router();
@@ -20,7 +21,7 @@ router.post(
   "/",
   authenticate,
   validateRequest(createCampaignSchema),
-  CampaignController.createCampaign,
+  CampaignController.createCampaign
 );
 
 // Get all campaigns with filters
@@ -34,7 +35,7 @@ router.put(
   "/:id",
   authenticate,
   validateRequest(updateCampaignSchema),
-  CampaignController.updateCampaign,
+  CampaignController.updateCampaign
 );
 
 // Delete campaign
@@ -45,7 +46,7 @@ router.post(
   "/:id/variants",
   authenticate,
   validateRequest(generateVariantsSchema),
-  CampaignController.generateVariants,
+  CampaignController.generateVariants
 );
 
 // Update variant metrics
@@ -53,7 +54,7 @@ router.put(
   "/:id/variants/:variantId/metrics",
   authenticate,
   validateRequest(updateMetricsSchema),
-  CampaignController.updateMetrics,
+  CampaignController.updateMetrics
 );
 
 // Update campaign status
@@ -63,7 +64,14 @@ router.post(
   "/generate",
   authenticate,
   validateRequest(generateContentSchema),
-  CampaignController.generateContent,
+  CampaignController.generateContent
+);
+
+router.post(
+  "/sendEmail",
+  authenticate,
+  validateRequest(sendEmailSchema),
+  CampaignController.sendEmail
 );
 
 // router.post(

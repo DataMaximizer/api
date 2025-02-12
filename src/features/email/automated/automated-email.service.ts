@@ -14,6 +14,7 @@ import { logger } from "@config/logger";
 import { Response } from "express";
 import { Click } from "@features/tracking/models/click.model";
 import { CampaignService } from "@features/campaign/campaign.service";
+import { availableRecommendedStyles } from "@features/ai/agents/writing-style/WritingStyleOptimizationAgent";
 
 interface ContentStrategy {
   framework: ContentFramework;
@@ -57,10 +58,22 @@ export class AutomatedEmailService {
       };
     }
 
+    // In the default scenario, choose a random tone from WritingTone.
+    const tones = Object.values(WritingTone).filter(
+      (value) => typeof value === "string"
+    ) as string[];
+    const randomTone = tones[Math.floor(Math.random() * tones.length)];
+
+    // Also select a random style from availableRecommendedStyles.
+    const randomStyleIndex = Math.floor(
+      Math.random() * availableRecommendedStyles.length
+    );
+    const randomStyle = availableRecommendedStyles[randomStyleIndex];
+
     return {
       framework: ContentFramework.AIDA,
-      tone: WritingTone.FRIENDLY,
-      style: "Conversational and engaging",
+      tone: randomTone as WritingTone,
+      style: randomStyle,
     };
   }
 
@@ -138,6 +151,7 @@ export class AutomatedEmailService {
         content: emailContent[0].content,
         framework: contentStrategy.framework,
         tone: contentStrategy.tone,
+        writingStyle: contentStrategy.style,
         smtpProviderId: new Types.ObjectId(smtpProviderId),
         segments: [new Types.ObjectId(subscriberListId)],
       })) as ICampaignWithId;

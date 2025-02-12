@@ -38,6 +38,7 @@ export interface ICampaign extends Document {
   content: string;
   framework?: string;
   tone?: string;
+  writingStyle: string;
   smtpProviderId?: Schema.Types.ObjectId;
   schedule?: {
     startDate: Date;
@@ -93,6 +94,7 @@ const campaignSchema = new Schema<ICampaign>(
     content: { type: String, required: true },
     framework: { type: String },
     tone: { type: String },
+    writingStyle: { type: String },
     smtpProviderId: { type: Schema.Types.ObjectId, ref: "SmtpProvider" },
     schedule: {
       startDate: { type: Date },
