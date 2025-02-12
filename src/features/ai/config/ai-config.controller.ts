@@ -228,26 +228,53 @@ export class AIConfigController {
     res: Response
   ): Promise<void> {
     try {
-      const { subscriberId, productDescription } = req.body;
-      if (!subscriberId || !productDescription) {
+      const { offerId, subscriberId } = req.body;
+      if (!subscriberId || !subscriberId) {
         res.status(400).json({
           success: false,
-          message: "subscriberId and productDescription are required.",
+          message: "subscriberId and offerId are required.",
         });
       }
 
       const agent = new WritingStyleOptimizationAgent();
-      const result = await agent.getOptimizedWritingStyles(
-        subscriberId,
-        productDescription
+      const result = await agent.generateEmailMarketing(offerId, subscriberId);
+
+      res.status(200).json({
+        success: true,
+        emailContent: JSON.parse(result.emailContent),
+        framework: result.framework,
+        tone: result.tone,
+        personality: result.personality,
+        recommendedStyle: result.recommendedStyle,
+      });
+    } catch (error) {
+      console.error("Error in runWritingStyleOptimization:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  static async startCampaign(req: Request, res: Response): Promise<void> {
+    try {
+      const { offerId, smtpProviderId, campaignData, emailData } = req.body;
+
+      const agent = new WritingStyleOptimizationAgent();
+      await agent.startCampaign(
+        offerId,
+        smtpProviderId,
+        req.user?._id?.toString() || "",
+        campaignData,
+        emailData
       );
 
       res.status(200).json({
         success: true,
-        result,
+        message: "Campaign started successfully",
       });
     } catch (error) {
-      console.error("Error in runWritingStyleOptimization:", error);
+      console.error("Error in startCampaign:", error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",

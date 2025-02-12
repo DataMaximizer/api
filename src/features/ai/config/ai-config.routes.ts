@@ -39,4 +39,8 @@ router.post("/agents/writing-style-optimization", authenticate, (req, res) =>
   AIConfigController.runWritingStyleOptimization(req, res)
 );
 
+router.post("/agents/start-campaign", authenticate, (req, res) =>
+  AIConfigController.startCampaign(req, res)
+);
+
 export default router;

@@ -350,4 +350,32 @@ export class CampaignController {
       next(error);
     }
   }
+
+  static async sendEmail(req: Request, res: Response, next: NextFunction) {
+    try {
+      const {
+        offerId,
+        subscriberId,
+        campaignId,
+        smtpProviderId,
+        emailContent,
+        subject,
+      } = req.body;
+
+      await CampaignService.sendCampaignEmail(
+        offerId,
+        subscriberId,
+        campaignId,
+        smtpProviderId,
+        emailContent,
+        subject
+      );
+
+      res.json({
+        success: true,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
