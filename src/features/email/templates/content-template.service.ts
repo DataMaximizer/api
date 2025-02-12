@@ -99,56 +99,28 @@ export class ContentTemplateService {
   private static getFrameworkStructure(framework: ContentFramework): string {
     const structures = {
       [ContentFramework.PAS]: `
-1. Problem:
-[Identify target audience's pain point]
-
-2. Agitate:
-[Expand on the problem and its consequences]
-
-3. Solution:
-[Present product as the ideal solution]
-
-4. Call to Action:
-[Clear directive with urgency]`,
+1. Identify target audience's pain point
+2. Expand on the problem and its consequences
+3. Present product as the ideal solution
+4. Clear directive with urgency`,
 
       [ContentFramework.AIDA]: `
-1. Attention:
-[Grab attention with powerful opening]
-
-2. Interest:
-[Build interest with benefits and features]
-
-3. Desire:
-[Create emotional connection and urgency]
-
-4. Action:
-[Strong call to action]`,
+1. Grab attention with powerful opening
+2. Build interest with benefits and features
+3. Create emotional connection and urgency
+4. Strong call to action`,
 
       [ContentFramework.BAB]: `
-1. Before:
-[Current situation/problem]
-
-2. After:
-[Desired outcome/benefit]
-
-3. Bridge:
-[How product bridges the gap]
-
-4. Call to Action:
-[Clear next steps]`,
+1. Describe current situation/problem
+2. Paint desired outcome/benefit
+3. Explain how product bridges the gap
+4. Clear next steps`,
 
       [ContentFramework.FOUR_PS]: `
-1. Problem:
-[Identify the problem]
-
-2. Promise:
-[Make a bold promise]
-
-3. Proof:
-[Provide evidence/credibility]
-
-4. Proposal:
-[Present offer and call to action]`,
+1. Identify the core challenge
+2. Make a compelling commitment
+3. Provide evidence/credibility
+4. Present offer and final action step`
     };
 
     return structures[framework] || structures[ContentFramework.AIDA];
@@ -171,6 +143,6 @@ export class ContentTemplateService {
     framework: ContentFramework,
     tone: WritingTone,
   ): string {
-    return `Create email content using the ${framework} framework with a ${tone} tone. Follow the structure provided and ensure the content is engaging and persuasive.`;
+    return `Create email content using the ${framework} framework with ${tone} tone. Focus on natural flow between concepts without section headers. Use persuasive language and maintain professional tone.`;
   }
 }

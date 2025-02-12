@@ -158,6 +158,6 @@ contentTemplateSchema.index({ "successMetrics.avgConversionRate": -1 });
 contentTemplateSchema.index({ framework: 1, tone: 1 });
 
 export const ContentTemplate = mongoose.model<IContentTemplate>(
-	"ContentTemplate",
+	"contenttemplates",
 	contentTemplateSchema,
 );

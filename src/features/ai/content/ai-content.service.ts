@@ -102,6 +102,15 @@ export class AIContentService {
       Product Details:
       ${JSON.stringify(productInfo)}
       
+      Format Requirements:
+      - Use HTML formatting
+      - Include section headers with <h2>
+      - Use unordered lists (<ul> with <li> items)
+      - Bold key benefits with <strong>
+      - Maintain clean semantic HTML
+      - Do NOT include a subject line
+      - Remove unnecessary newlines (\\n) between HTML tags
+      
       Communication Guidelines:
       - Apply: ${template.framework}
       - Style: ${template.tone}
@@ -112,6 +121,7 @@ export class AIContentService {
       3. Present specific next steps
       4. Highlight key advantages
       5. Write with authenticity
+      6. Use proper HTML syntax
       
       Important - Avoid these terms (full list):
       ${spamKeywords.join(", ")}
@@ -123,34 +133,45 @@ export class AIContentService {
       - Write in a professional, straightforward manner
       - Describe features and benefits clearly
       - Use specific, measurable outcomes when possible
+      
+      HTML Structure Requirements:
+      - Section headers using <h2>
+      - List items in <ul> with <li> elements
+      - Key benefits wrapped in <strong> tags
+      - Proper HTML paragraph (<p>) formatting
+      - Semantic HTML structure
+      - No subject line or header tags
+      - No extra newlines between HTML elements
     `;
 
-    const completion = await this.openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a skilled communications specialist focusing on authentic messaging. Avoid using any spam trigger words or phrases that could affect email deliverability.",
-        },
-        { role: "user", content: prompt },
-      ],
-    });
+		const completion = await this.openai.chat.completions.create({
+			model: "gpt-4",
+			messages: [
+				{
+					role: "system",
+					content:
+						"You are a skilled communications specialist focusing on authentic messaging. Avoid using any spam trigger words or phrases that could affect email deliverability.",
+				},
+				{ role: "user", content: prompt },
+			],
+		});
 
-    return completion.choices[0].message?.content || "";
-  }
+		return completion.choices[0].message?.content || "";
+	}
 
-  private static async generateSubject(content: string): Promise<string> {
-    const spamKeywords = getAllSpamKeywords();
+	private static async generateSubject(content: string): Promise<string> {
+		const spamKeywords = getAllSpamKeywords();
 
-    const prompt = `
-      Review this message content and suggest 3 engaging opening lines.
-      Select the most appropriate one that encourages readership.
+		const prompt = `
+      Create a single compelling opening line for this message content that:
+      1. Is 50-60 characters maximum
+      2. Clearly states the primary value proposition
+      3. Uses professional but engaging language
       
       Message Content: ${content}
       
       Requirements:
-      1. Maximum 40 characters
+      1. Maximum 50-60 characters
       2. Focus on relevance and value
       3. Use natural, conversational language
       4. Maintain professionalism
@@ -164,6 +185,12 @@ export class AIContentService {
       - Avoid marketing language
       - Use clear, direct statements
       - Keep it informative and genuine
+      
+      Response Format:
+      - Only return the subject line itself
+      - No quotation marks
+      - No numbering
+      - Plain text only
     `;
 
     const completion = await this.openai.chat.completions.create({
