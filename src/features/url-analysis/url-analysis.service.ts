@@ -4,6 +4,7 @@ import { load } from "cheerio";
 import {
   AffiliateOffer,
   IAffiliateOffer,
+  IOfferParameter,
   OfferStatus,
 } from "@features/affiliate/models/affiliate-offer.model";
 import { logger } from "@config/logger";
@@ -44,7 +45,8 @@ export class UrlAnalysisService {
   static async createOfferFromUrl(
     url: string,
     userId: string,
-    commissionRate: number
+    commissionRate: number,
+    parameters: IOfferParameter[]
   ): Promise<Partial<IAffiliateOffer>> {
     try {
       const scrapedData = await this.scrapeWebpage(url);
@@ -66,7 +68,7 @@ export class UrlAnalysisService {
           targetAudience: offerContent.targetAudience,
           features: offerContent.features,
         },
-        parameters: [],
+        parameters,
         userId: userId as any,
         isAdminOffer: false,
         lastChecked: new Date(),

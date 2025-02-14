@@ -241,11 +241,6 @@ export class AIConfigController {
 
       res.status(200).json({
         success: true,
-        emailContent: JSON.parse(result.emailContent),
-        framework: result.framework,
-        tone: result.tone,
-        personality: result.personality,
-        recommendedStyle: result.recommendedStyle,
       });
     } catch (error) {
       console.error("Error in runWritingStyleOptimization:", error);
@@ -258,20 +253,42 @@ export class AIConfigController {
 
   static async startCampaign(req: Request, res: Response): Promise<void> {
     try {
-      const { offerId, smtpProviderId, campaignData, emailData } = req.body;
+      const {
+        offerIds,
+        smtpProviderId,
+        subscriberListId,
+        selectionPercentage,
+      } = req.body;
+
+      if (!offerIds || !Array.isArray(offerIds) || offerIds.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: "offerIds array is required and must not be empty",
+        });
+        return;
+      }
+
+      if (!smtpProviderId || !subscriberListId) {
+        res.status(400).json({
+          success: false,
+          error: "smtpProviderId and subscriberListId are required",
+        });
+        return;
+      }
 
       const agent = new WritingStyleOptimizationAgent();
-      await agent.startCampaign(
-        offerId,
+      const results = await agent.startRandomCampaign(
+        offerIds,
+        subscriberListId,
         smtpProviderId,
         req.user?._id?.toString() || "",
-        campaignData,
-        emailData
+        selectionPercentage
       );
 
       res.status(200).json({
         success: true,
-        message: "Campaign started successfully",
+        message: "Random test campaigns started successfully",
+        data: results,
       });
     } catch (error) {
       console.error("Error in startCampaign:", error);

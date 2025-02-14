@@ -8,10 +8,10 @@ export class UrlAnalysisController {
   static async createOfferFromUrl(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> {
     try {
-      const { url, commissionRate } = req.body;
+      const { url, commissionRate, parameters } = req.body;
       const userId = req.user?._id;
 
       if (!url || !userId) {
@@ -26,6 +26,7 @@ export class UrlAnalysisController {
         url,
         userId.toString(),
         commissionRate,
+        parameters
       );
 
       const offer = await AffiliateService.createOffer(offerData);
@@ -43,7 +44,7 @@ export class UrlAnalysisController {
   static async deleteAnalysis(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> {
     try {
       await UrlAnalysisService.deleteAnalysis(req.params.id);
@@ -57,7 +58,7 @@ export class UrlAnalysisController {
   static async createCompleteOfferFromUrl(
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> {
     try {
       const { url, commissionRate, subscriberListId, smtpProviderId } =
@@ -70,7 +71,7 @@ export class UrlAnalysisController {
         userId.toString(),
         subscriberListId,
         smtpProviderId,
-        res,
+        res
       );
 
       res.status(201).json({

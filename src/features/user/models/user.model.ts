@@ -44,13 +44,13 @@ export interface IUser extends Document {
   type: UserType;
   name: string;
   email: string;
-  phone: string;
-  document: string;
-  bornAt: Date;
-  address: IAddress;
-  sex: UserSex;
+  phone?: string;
+  document?: string;
+  bornAt?: Date;
+  address?: IAddress;
+  sex?: UserSex;
   avatar?: string;
-  configuration: IConfiguration;
+  configuration?: IConfiguration;
   password: string;
   deletedAt?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -111,20 +111,16 @@ const userSchema = new Schema<IUser>(
     },
     phone: {
       type: String,
-      required: true,
     },
     document: {
       type: String,
-      required: true,
       unique: true,
     },
     bornAt: {
       type: Date,
-      required: true,
     },
     address: {
       type: addressSchema,
-      required: true,
     },
     sex: {
       type: Number,
@@ -132,7 +128,6 @@ const userSchema = new Schema<IUser>(
         values: Object.values(UserSex),
         message: "Sex must be either 1 (MALE) or 2 (FEMALE)",
       },
-      required: true,
     },
     avatar: {
       type: String,
@@ -143,8 +138,6 @@ const userSchema = new Schema<IUser>(
     },
     password: {
       type: String,
-      required: true,
-      minlength: 8,
     },
     deletedAt: {
       type: Date,
@@ -158,7 +151,7 @@ const userSchema = new Schema<IUser>(
         return ret;
       },
     },
-  },
+  }
 );
 
 userSchema.pre("save", async function (next) {
@@ -173,7 +166,7 @@ userSchema.pre(/^find/, function (this: Query<any, Document>) {
 });
 
 userSchema.methods.comparePassword = async function (
-  candidatePassword: string,
+  candidatePassword: string
 ): Promise<boolean> {
   return argon2.verify(this.password, candidatePassword);
 };

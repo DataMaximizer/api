@@ -14,6 +14,13 @@ import {
   ICampaign,
 } from "@/features/campaign/models/campaign.model";
 import { Types } from "mongoose";
+import {
+  CopywritingStyle,
+  OfferSelectionAgent,
+  Personality,
+  Tone,
+  WritingStyle,
+} from "../offer-selection/OfferSelectionAgent";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -200,37 +207,23 @@ export class WritingStyleOptimizationAgent {
    * Uses GPT to write a marketing email.
    * @param offerId - The ID of the affiliate offer.
    * @param subscriberId - The subscriber's ID.
+   * @param styleOptions - Optional style configurations
    * @returns The generated email content.
    */
   public async generateEmailMarketing(
     offerId: string,
-    subscriberId: string
-  ): Promise<{
-    emailContent: string;
-    framework: string;
-    tone: string;
-    personality: string;
-    recommendedStyle: string;
-  }> {
+    styleOptions: {
+      writingStyle: WritingStyle;
+      copywritingStyle: CopywritingStyle;
+      tone: Tone;
+      personality: Personality;
+    }
+  ): Promise<string> {
     // Fetch the offer from the AffiliateOffer model.
     const offer = await AffiliateOffer.findById(offerId);
     if (!offer) throw new Error("Offer not found");
 
-    // Use the offer's productInfo description in the GPT optimization.
-    const optimizationResult = await this.getOptimizedWritingStyles(
-      subscriberId,
-      offer.productInfo ? JSON.stringify(offer.productInfo) : ""
-    );
-
-    const recommendedStyle =
-      optimizationResult.recommendedStyle || "Short & Direct";
-    // Set defaults for framework, tone, and personality.
-    const framework = "PAS (Problem-Agitate-Solution)";
-    const tone = "Friendly";
-    const personality = "Expert";
-
-    // Pass along the personalization message as extra instructions.
-    const extraInstructions = optimizationResult.personalizationMessage;
+    // Pass along the personalization message as extra instructions
     const extraRules = `
     - Don't use placeholders like [Name] or anything similar to refer to the subscriber.
     - Be sure to sound like a human and not like a robot.
@@ -238,67 +231,216 @@ export class WritingStyleOptimizationAgent {
     - Your response should be in a valid JSON format with the following keys:
       - subject: The subject of the email.
       - body: The body of the email in HTML format compliant with email clients, escape if needed.
+
+    Closely follow this writing style:
+
+    <writing style>
+    Use clear, direct language and avoid complex terminology.
+    Aim for a Flesch reading score of 80 or higher.
+    Use the active voice.
+    Avoid adverbs.
+    Avoid buzzwords and instead use plain English.
+    Use jargon where relevant.
+    Avoid being salesy or overly enthusiastic and instead express calm confidence.
+    </writing style>
     `;
 
     const emailContent = await CampaignService.generateEmailContent(
       offer.productInfo,
-      framework,
-      tone,
-      personality,
-      recommendedStyle,
-      `${extraInstructions}\n${extraRules}`,
+      styleOptions.copywritingStyle,
+      styleOptions.tone,
+      styleOptions.personality,
+      styleOptions.writingStyle,
+      extraRules,
       true
     );
 
-    return { emailContent, framework, tone, personality, recommendedStyle };
+    return emailContent;
   }
 
-  public async startCampaign(
+  public async generateCampaign(
+    campaignData: Pick<
+      ICampaign,
+      "name" | "subject" | "content" | "framework" | "tone" | "writingStyle"
+    >,
+    userId: string,
     offerId: string,
+    smtpProviderId: string
+  ) {
+    const campaign = await Campaign.create({
+      name: campaignData.name,
+      type: CampaignType.EMAIL,
+      status: CampaignStatus.RUNNING,
+      userId: new Types.ObjectId(userId),
+      offerId: new Types.ObjectId(offerId),
+      subject: campaignData.subject,
+      content: campaignData.content,
+      framework: campaignData.framework,
+      tone: campaignData.tone,
+      writingStyle: campaignData.writingStyle,
+      smtpProviderId: new Types.ObjectId(smtpProviderId),
+      metrics: {
+        totalSent: 0,
+        totalOpens: 0,
+        totalClicks: 0,
+        totalConversions: 0,
+        totalRevenue: 0,
+      },
+    });
+
+    return campaign;
+  }
+
+  /**
+   * Starts a campaign with random writing styles for a subset of subscribers.
+   *
+   * @param offerIds - Array of offer IDs to distribute
+   * @param subscriberListId - ID of the subscriber list
+   * @param smtpProviderId - ID of the SMTP provider
+   * @returns Promise<void>
+   */
+  public async startRandomCampaign(
+    offerIds: string[],
+    subscriberListId: string,
     smtpProviderId: string,
     userId: string,
-    campaignData: Partial<ICampaign>,
-    emailData: {
+    selectionPercentage: number = 0.2
+  ): Promise<
+    {
+      offerId: string;
+      campaignId: string;
       subscriberId: string;
       subject: string;
       content: string;
-    }[]
-  ): Promise<void> {
-    try {
-      const campaign = await Campaign.create({
-        name: campaignData.name,
-        type: CampaignType.EMAIL,
-        status: CampaignStatus.RUNNING,
-        userId: new Types.ObjectId(userId),
-        offerId: new Types.ObjectId(offerId),
-        subject: "-",
-        content: "-",
-        framework: campaignData.framework,
-        tone: campaignData.tone,
-        writingStyle: campaignData.writingStyle,
-        smtpProviderId: new Types.ObjectId(smtpProviderId),
-        metrics: {
-          totalSent: 0,
-          totalOpens: 0,
-          totalClicks: 0,
-          totalConversions: 0,
-          totalRevenue: 0,
-        },
+    }[][]
+  > {
+    // Get all active subscribers from the list
+    const subscribers = await Subscriber.find({
+      lists: { $in: [new Types.ObjectId(subscriberListId)] },
+      status: "active",
+    });
+
+    if (!subscribers.length) {
+      throw new Error("No active subscribers found in the list");
+    }
+
+    // Extract subscriber IDs
+    const subscriberIds = subscribers.map((sub) => sub.id);
+
+    // Initialize OfferSelectionAgent
+    const offerSelectionAgent = new OfferSelectionAgent();
+
+    // Get distribution of subscribers to offers with their writing styles
+    const distribution =
+      await offerSelectionAgent.distributeOffersToSubscribers(
+        subscriberIds,
+        offerIds,
+        selectionPercentage
+      );
+
+    let toSend = [];
+
+    // Process each offer and its assigned subscribers
+    for (const [offerId, assignments] of distribution) {
+      // Get the offer details
+      const offer = await AffiliateOffer.findById(offerId);
+      if (!offer) {
+        console.error(`Offer ${offerId} not found, skipping...`);
+        continue;
+      }
+
+      // Group assignments by style combination
+      const styleGroups = new Map<
+        string,
+        {
+          style: {
+            writingStyle: WritingStyle;
+            copywritingStyle: CopywritingStyle;
+            tone: Tone;
+            personality: Personality;
+          };
+          subscribers: string[];
+        }
+      >();
+
+      assignments.forEach((assignment) => {
+        const styleKey = JSON.stringify({
+          writingStyle: assignment.writingStyle,
+          copywritingStyle: assignment.copywritingStyle,
+          tone: assignment.tone,
+          personality: assignment.personality,
+        });
+
+        if (!styleGroups.has(styleKey)) {
+          styleGroups.set(styleKey, {
+            style: {
+              writingStyle: assignment.writingStyle,
+              copywritingStyle: assignment.copywritingStyle,
+              tone: assignment.tone,
+              personality: assignment.personality,
+            },
+            subscribers: [],
+          });
+        }
+
+        styleGroups.get(styleKey)!.subscribers.push(assignment.subscriberId);
       });
 
-      for (const data of emailData) {
-        await CampaignService.sendCampaignEmail(
-          offerId,
-          data.subscriberId,
-          (campaign._id as Types.ObjectId).toString(),
-          smtpProviderId,
-          data.content,
-          data.subject
-        );
-      }
-    } catch (error) {
-      console.error("Error starting campaign:", error);
-      throw error;
+      // Process each style group
+      const emailData = await Promise.all(
+        Array.from(styleGroups.entries()).map(async ([_, group]) => {
+          // Generate email content once per style combination
+          const emailContent = await this.generateEmailMarketing(
+            offerId,
+            group.style
+          );
+          const parsedContent = JSON.parse(emailContent);
+          const currentTimestamp = new Date().getTime();
+
+          // Create one campaign per style combination
+          const campaign = await this.generateCampaign(
+            {
+              name: `Random Test - ${offer.name} - ${currentTimestamp}`,
+              content: parsedContent.body,
+              subject: parsedContent.subject,
+              framework: group.style.copywritingStyle,
+              tone: group.style.tone,
+              writingStyle: group.style.writingStyle,
+            },
+            userId,
+            offerId,
+            smtpProviderId
+          );
+
+          // Return data for each subscriber in this style group
+          return group.subscribers.map((subscriberId) => ({
+            offerId,
+            campaignId: campaign.id,
+            subscriberId,
+            subscriberEmail: subscribers.find((sub) => sub.id === subscriberId)
+              ?.email,
+            subject: parsedContent.subject,
+            content: parsedContent.body,
+            ...group.style,
+          }));
+        })
+      );
+
+      toSend.push(emailData.flat());
     }
+
+    // Send emails
+    for (const data of toSend.flatMap((d) => d)) {
+      await CampaignService.sendCampaignEmail(
+        data.offerId,
+        data.subscriberId,
+        data.campaignId,
+        smtpProviderId,
+        data.content,
+        data.subject
+      );
+    }
+
+    return toSend;
   }
 }

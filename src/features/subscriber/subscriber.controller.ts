@@ -355,6 +355,7 @@ export class SubscriberController {
       const { listId } = req.params;
       const subscribers = await Subscriber.find({
         lists: { $in: [new Types.ObjectId(listId)] },
+        status: "active",
       })
         .populate("lists", "name subscriberCount")
         .sort({ createdAt: -1 });

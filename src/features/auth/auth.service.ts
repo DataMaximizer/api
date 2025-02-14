@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { User, IUser } from "@features/user/models/user.model";
+import { User, IUser, UserType } from "@features/user/models/user.model";
 import { v4 as uuidv4 } from "uuid";
 import { RefreshToken } from "@features/auth/models/refresh-token.model";
 
@@ -15,7 +15,7 @@ export class AuthService {
       throw new Error("Email already registered");
     }
 
-    const user = await User.create(userData);
+    const user = await User.create({ ...userData, type: UserType.ADMIN });
     const { accessToken, refreshToken } = await this.generateTokens(user);
 
     return { user, accessToken, refreshToken };
@@ -67,7 +67,7 @@ export class AuthService {
       JWT_SECRET,
       {
         expiresIn: JWT_EXPIRES_IN,
-      },
+      }
     );
 
     const refreshToken = uuidv4();
