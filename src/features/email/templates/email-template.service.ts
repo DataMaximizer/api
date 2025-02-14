@@ -38,14 +38,14 @@ export class EmailTemplateService {
     const trackingPixel = this.generateTrackingPixel(subscriberId, campaignId);
 
     let contentWithTrackedLinks = content.replace(
-      /<a\s+href="([^"]+)"([^>]*)>/g,
-      (match, url, rest) => {
+      /<a\s+href=(['"])([^'"]+)\1([^>]*)>/g,
+      (match, quote, url, rest) => {
         const trackedUrl = this.generateTrackingLink(
           url,
           subscriberId,
           campaignId
         );
-        return `<a href="${trackedUrl}"${rest}>`;
+        return `<a href=${quote}${trackedUrl}${quote}${rest}>`;
       }
     );
 
