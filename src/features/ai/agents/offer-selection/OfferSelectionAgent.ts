@@ -31,6 +31,48 @@ export interface OfferSelectionResult {
   selectedOffers: ISelectedOffer[];
 }
 
+export type CopywritingStyle =
+  | "AIDA" // Attention, Interest, Desire, Action
+  | "PAS" // Problem, Agitation, Solution
+  | "BAB" // Before, After, Bridge
+  | "PPP" // Problem, Promise, Proof
+  | "FAB" // Features, Advantages, Benefits
+  | "QUEST"; // Qualify, Understand, Educate, Stimulate, Transition
+
+export type WritingStyle =
+  | "descriptive"
+  | "narrative"
+  | "persuasive"
+  | "expository"
+  | "conversational"
+  | "direct";
+
+export type Tone =
+  | "professional"
+  | "friendly"
+  | "enthusiastic"
+  | "urgent"
+  | "empathetic"
+  | "authoritative"
+  | "casual";
+
+export type Personality =
+  | "confident"
+  | "humorous"
+  | "analytical"
+  | "caring"
+  | "adventurous"
+  | "innovative"
+  | "trustworthy";
+
+export interface SubscriberAssignment {
+  subscriberId: string;
+  copywritingStyle: CopywritingStyle;
+  writingStyle: WritingStyle;
+  tone: Tone;
+  personality: Personality;
+}
+
 /**
  * The OfferSelectionAgent class uses an epsilon-greedy (multi-armed bandit) approach to select offer(s).
  * It can now select more than one offer based on the provided parameter.
@@ -182,7 +224,7 @@ export class OfferSelectionAgent {
         adjustments.writingStyleSuggestion =
           "Emphasize urgency or social proof (e.g., testimonials) in the email.";
       }
-      // Also, if the subscriber’s overall engagement is low, suggest a different offer angle.
+      // Also, if the subscriber's overall engagement is low, suggest a different offer angle.
       if (subscriber.engagementScore < LOW_ENGAGEMENT_THRESHOLD) {
         adjustments.offerAngleSuggestion =
           "Experiment with alternative offer angles, such as adding bonuses or limited-time offers.";
@@ -200,5 +242,121 @@ export class OfferSelectionAgent {
     return {
       selectedOffers,
     };
+  }
+
+  /**
+   * Distributes offers among a random subset of subscribers.
+   *
+   * @param subscriberIds - Array of subscriber IDs to choose from
+   * @param offerIds - Array of offer IDs to distribute
+   * @returns A Map where keys are offer IDs and values are arrays of subscriber assignments
+   */
+  public async distributeOffersToSubscribers(
+    subscriberIds: string[],
+    offerIds: string[],
+    selectionPercentage: number = 0.2
+  ): Promise<Map<string, SubscriberAssignment[]>> {
+    if (!subscriberIds.length || !offerIds.length) {
+      throw new Error("Both subscriberIds and offerIds must not be empty");
+    }
+
+    const copywritingStyles: CopywritingStyle[] = [
+      "AIDA",
+      "PAS",
+      "BAB",
+      "PPP",
+      "FAB",
+      "QUEST",
+    ];
+
+    const writingStyles: WritingStyle[] = [
+      "descriptive",
+      "narrative",
+      "persuasive",
+      "expository",
+      "conversational",
+      "direct",
+    ];
+
+    const tones: Tone[] = [
+      "professional",
+      "friendly",
+      "enthusiastic",
+      "urgent",
+      "empathetic",
+      "authoritative",
+      "casual",
+    ];
+
+    const personalities: Personality[] = [
+      "confident",
+      "humorous",
+      "analytical",
+      "caring",
+      "adventurous",
+      "innovative",
+      "trustworthy",
+    ];
+
+    // Calculate 20% of total subscribers (rounded up)
+    const totalToSelect = Math.ceil(subscriberIds.length * selectionPercentage);
+
+    // Randomly select 20% of subscribers
+    const shuffledSubscribers = [...subscriberIds]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, totalToSelect);
+
+    // Create a pool of available subscribers
+    let availableSubscribers = [...shuffledSubscribers];
+
+    // Generate random weights for each offer
+    const offerWeights = offerIds.map(() => Math.random());
+    const totalWeight = offerWeights.reduce((sum, weight) => sum + weight, 0);
+
+    // Normalize weights to sum up to the total available subscribers
+    const normalizedWeights = offerWeights.map((weight) =>
+      Math.ceil((weight / totalWeight) * availableSubscribers.length)
+    );
+
+    // Create the distribution map
+    const distribution = new Map<string, SubscriberAssignment[]>();
+
+    // Helper function to get random element from array
+    const getRandomElement = <T>(array: T[]): T =>
+      array[Math.floor(Math.random() * array.length)];
+
+    // Distribute subscribers to offers
+    for (let i = 0; i < offerIds.length; i++) {
+      const offerId = offerIds[i];
+      const subscribersToSelect = Math.min(
+        normalizedWeights[i],
+        availableSubscribers.length
+      );
+
+      // Randomly select subscribers for this offer and assign styles
+      const selectedSubscribers = availableSubscribers
+        .sort(() => Math.random() - 0.5)
+        .slice(0, subscribersToSelect)
+        .map((subscriberId) => ({
+          subscriberId,
+          copywritingStyle: getRandomElement(copywritingStyles),
+          writingStyle: getRandomElement(writingStyles),
+          tone: getRandomElement(tones),
+          personality: getRandomElement(personalities),
+        }));
+
+      // Remove selected subscribers from available pool
+      availableSubscribers = availableSubscribers.filter(
+        (id) =>
+          !selectedSubscribers.some(
+            (assignment) => assignment.subscriberId === id
+          )
+      );
+
+      // Add to distribution map
+      distribution.set(offerId, selectedSubscribers);
+    }
+
+    return distribution;
   }
 }

@@ -23,7 +23,7 @@ export interface IProductInfo {
   technicalDetails?: Record<string, any>;
 }
 
-interface IOfferParameter {
+export interface IOfferParameter {
   type: string;
   name: string;
   placeholder: string;
