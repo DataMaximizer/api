@@ -58,12 +58,12 @@ export interface IUser extends Document {
 }
 
 const addressSchema = new Schema<IAddress>({
-  line1: { type: String, required: true },
+  line1: { type: String },
   line2: { type: String },
   line3: { type: String },
-  postalCode: { type: String, required: true },
-  neighborhood: { type: String, required: true },
-  state: { type: String, required: true, length: 2 },
+  postalCode: { type: String },
+  neighborhood: { type: String },
+  state: { type: String, length: 2 },
 });
 
 const configurationSchema = new Schema<IConfiguration>({
@@ -114,6 +114,7 @@ const userSchema = new Schema<IUser>(
     },
     document: {
       type: String,
+      sparse: true,
       unique: true,
     },
     bornAt: {

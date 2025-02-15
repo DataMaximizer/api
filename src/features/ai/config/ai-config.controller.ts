@@ -7,6 +7,12 @@ import { Subscriber } from "@/features/subscriber/models/subscriber.model";
 import { OfferSelectionAgent } from "../agents/offer-selection/OfferSelectionAgent";
 import { ConversionAnalysisAgent } from "../agents/conversion-analysis/ConversionAnalysisAgent";
 import { WritingStyleOptimizationAgent } from "../agents/writing-style/WritingStyleOptimizationAgent";
+import { v4 as uuidv4 } from "uuid";
+import { CampaignTrackerService } from "../services/campaign-tracker.service";
+import jwt from "jsonwebtoken";
+import { config } from "@config/config";
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+
 interface AuthRequest extends Request {
   user?: IUser;
 }
@@ -276,19 +282,54 @@ export class AIConfigController {
         return;
       }
 
-      const agent = new WritingStyleOptimizationAgent();
-      const results = await agent.startRandomCampaign(
-        offerIds,
-        subscriberListId,
-        smtpProviderId,
-        req.user?._id?.toString() || "",
-        selectionPercentage
+      const campaignTracker = CampaignTrackerService.getInstance();
+      const campaign = await campaignTracker.createCampaign(
+        req.user?._id?.toString() || ""
       );
 
-      res.status(200).json({
+      // Start the campaign processing in the background
+      const agent = new WritingStyleOptimizationAgent();
+      process.nextTick(async () => {
+        try {
+          await campaignTracker.updateCampaignStatus(
+            campaign.id,
+            {
+              status: "processing",
+            },
+            smtpProviderId
+          );
+
+          const results = await agent.startRandomCampaign(
+            offerIds,
+            subscriberListId,
+            smtpProviderId,
+            req.user?._id?.toString() || "",
+            selectionPercentage
+          );
+
+          await campaignTracker.updateCampaignStatus(
+            campaign.id,
+            {
+              status: "completed",
+              result: results,
+            },
+            smtpProviderId
+          );
+        } catch (error) {
+          await campaignTracker.updateCampaignStatus(
+            campaign.id,
+            {
+              status: "failed",
+              error: error instanceof Error ? error.message : "Unknown error",
+            },
+            smtpProviderId
+          );
+        }
+      });
+
+      res.status(202).json({
         success: true,
-        message: "Random test campaigns started successfully",
-        data: results,
+        message: "Automated emails processing started",
       });
     } catch (error) {
       console.error("Error in startCampaign:", error);
@@ -296,6 +337,98 @@ export class AIConfigController {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       });
+    }
+  }
+
+  static async getCampaignStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { campaignId } = req.params;
+      const campaignTracker = CampaignTrackerService.getInstance();
+      const campaign = await campaignTracker.getCampaignStatus(campaignId);
+
+      if (!campaign) {
+        res.status(404).json({
+          success: false,
+          error: "Campaign not found",
+        });
+        return;
+      }
+
+      // Check if the campaign belongs to the requesting user
+      if (campaign.userId.toString() !== req.user?._id?.toString()) {
+        res.status(403).json({
+          success: false,
+          error: "Unauthorized access to campaign",
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: campaign,
+      });
+    } catch (error) {
+      console.error("Error in getCampaignStatus:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  static async getUserCampaigns(req: Request, res: Response): Promise<void> {
+    try {
+      const campaignTracker = CampaignTrackerService.getInstance();
+      const campaigns = await campaignTracker.getUserCampaigns(
+        req.user?._id?.toString() || ""
+      );
+
+      res.json({
+        success: true,
+        data: campaigns,
+      });
+    } catch (error) {
+      console.error("Error in getUserCampaigns:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  static async subscribeToUserEvents(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    try {
+      const token = req.query.token as string;
+      if (!token) {
+        res.status(401).json({ success: false, error: "No token provided" });
+        return;
+      }
+
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+      const userId = decoded.userId;
+
+      const campaignTracker = CampaignTrackerService.getInstance();
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const listener = (update: any) => {
+        res.write(
+          `data: ${JSON.stringify({ type: "update", campaign: update })}\n\n`
+        );
+      };
+
+      campaignTracker.subscribeToUserUpdates(userId, listener);
+
+      req.on("close", () => {
+        campaignTracker.unsubscribeFromUserUpdates(userId, listener);
+      });
+    } catch (error) {
+      res.status(401).json({ success: false, error: "Invalid token" });
     }
   }
 }

@@ -26,7 +26,7 @@ router.post(
   "/offers",
   authenticate,
   validateRequest(createOfferSchema),
-  AffiliateController.createOffer,
+  AffiliateController.createOffer
 );
 
 router.get("/offers", authenticate, AffiliateController.getOffers);
@@ -35,28 +35,28 @@ router.put(
   "/offers/:id",
   authenticate,
   validateRequest(updateOfferSchema),
-  AffiliateController.updateOffer,
+  AffiliateController.updateOffer
 );
 
 router.post(
   "/offers/validate",
   authenticate,
   authorize([UserType.OWNER]),
-  AffiliateController.validateOffers,
+  AffiliateController.validateOffers
 );
 
 router.post(
   "/analyze-url",
   authenticate,
   validateRequest(createOfferFromUrlSchema),
-  (req, res, next) => UrlAnalysisController.createOfferFromUrl(req, res, next),
+  (req, res, next) => UrlAnalysisController.createOfferFromUrl(req, res, next)
 );
 
 router.delete(
   "/analyze-url/:id",
   authenticate,
   authorize([UserType.OWNER]),
-  AffiliateController.deleteAnalyzedUrl,
+  AffiliateController.deleteAnalyzedUrl
 );
 
 export default router;

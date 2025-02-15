@@ -304,7 +304,7 @@ export class AffiliateService {
       });
       const cachedData = await CacheService.get<IAffiliateOffer[]>(cacheKey);
 
-      if (cachedData) {
+      if (cachedData && cachedData.length > 0) {
         console.log(`✅ Retrieved ${cachedData.length} offers from cache`);
         logger.debug("Returning cached offers");
         return cachedData;

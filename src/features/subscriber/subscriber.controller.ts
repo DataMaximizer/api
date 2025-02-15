@@ -313,7 +313,21 @@ export class SubscriberController {
       }
 
       if (subscribers.length > 0) {
-        await Subscriber.create(subscribers);
+        const existingSubscribers = await Subscriber.find({
+          email: { $in: subscribers.map((s) => s.email) },
+        });
+
+        const uniqueSubscribers = subscribers.filter(
+          (s) => !existingSubscribers.some((es) => es.email === s.email)
+        );
+
+        // update the subscriber lists
+        await Subscriber.updateMany(
+          { _id: { $in: existingSubscribers.map((s) => s._id) } },
+          { $addToSet: { lists: list.id } }
+        );
+
+        await Subscriber.create(uniqueSubscribers);
         await SubscriberList.findByIdAndUpdate(list._id, {
           subscriberCount: importedCount,
         });
