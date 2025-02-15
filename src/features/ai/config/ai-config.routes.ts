@@ -43,4 +43,12 @@ router.post("/agents/start-campaign", authenticate, (req, res) =>
   AIConfigController.startCampaign(req, res)
 );
 
+router.get("/agents/campaigns", authenticate, (req, res) =>
+  AIConfigController.getUserCampaigns(req, res)
+);
+
+router.get("/agents/user-events", (req, res) =>
+  AIConfigController.subscribeToUserEvents(req, res)
+);
+
 export default router;

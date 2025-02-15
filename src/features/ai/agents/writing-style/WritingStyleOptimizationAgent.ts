@@ -227,7 +227,9 @@ export class WritingStyleOptimizationAgent {
     const extraRules = `
     - Don't use placeholders like [Name] or anything similar to refer to the subscriber.
     - Be sure to sound like a human and not like a robot.
+    - You MUST add the offer url link to the email, this is VERY important.
     - Wherever you put the offer url, make sure to put it in the {offer_url} placeholder, this is very important.
+    - DO NOT add telephone numbers to the email or any other contact information, the only thing you should add is the offer url.
     - Your response should be in a valid JSON format with the following keys:
       - subject: The subject of the email.
       - body: The body of the email in HTML format compliant with email clients, escape if needed.
@@ -308,7 +310,10 @@ export class WritingStyleOptimizationAgent {
   ): Promise<
     {
       offerId: string;
+      offerName: string;
+      offerUrl: string;
       campaignId: string;
+      campaignName: string;
       subscriberId: string;
       subject: string;
       content: string;
@@ -396,11 +401,12 @@ export class WritingStyleOptimizationAgent {
           );
           const parsedContent = JSON.parse(emailContent);
           const currentTimestamp = new Date().getTime();
+          const campaignName = `Random Test - ${offer.name} - ${currentTimestamp}`;
 
           // Create one campaign per style combination
           const campaign = await this.generateCampaign(
             {
-              name: `Random Test - ${offer.name} - ${currentTimestamp}`,
+              name: campaignName,
               content: parsedContent.body,
               subject: parsedContent.subject,
               framework: group.style.copywritingStyle,
@@ -415,7 +421,10 @@ export class WritingStyleOptimizationAgent {
           // Return data for each subscriber in this style group
           return group.subscribers.map((subscriberId) => ({
             offerId,
+            offerName: offer.name,
+            offerUrl: offer.url,
             campaignId: campaign.id,
+            campaignName,
             subscriberId,
             subscriberEmail: subscribers.find((sub) => sub.id === subscriberId)
               ?.email,
