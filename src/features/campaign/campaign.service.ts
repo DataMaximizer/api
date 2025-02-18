@@ -284,11 +284,6 @@ export class CampaignService {
       }
 
       let offerUrl = offer.url;
-      if (!offerUrl.includes("{clickId}")) {
-        const urlObj = new URL(offerUrl);
-        urlObj.searchParams.append("clickId", "{clickId}");
-        offerUrl = urlObj.toString();
-      }
 
       const click = await Click.create({
         subscriberId: subscriberId,

@@ -165,12 +165,6 @@ export class AutomatedEmailService {
 
       for (const subscriber of subscribers) {
         let trackingUrl = offer.url;
-        if (!trackingUrl.includes("{clickId}")) {
-          const urlObj = new URL(trackingUrl);
-          urlObj.searchParams.append("clickId", "{clickId}");
-          trackingUrl = urlObj.toString();
-        }
-
         const click = await Click.create({
           subscriberId: subscriber._id,
           campaignId: campaign._id,
