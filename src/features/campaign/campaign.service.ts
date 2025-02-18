@@ -302,7 +302,8 @@ export class CampaignService {
       const emailWithTracking = EmailTemplateService.addTrackingToTemplate(
         replacedContent,
         subscriberId,
-        campaignId
+        campaignId,
+        click.id
       );
 
       await SmtpService.sendEmail({

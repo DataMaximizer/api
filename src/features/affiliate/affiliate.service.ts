@@ -298,23 +298,9 @@ export class AffiliateService {
       console.log("📥 Getting offers with filters:", JSON.stringify(filters));
       console.log("⚙️ Query options:", JSON.stringify(options));
 
-      const cacheKey = CacheService.generateKey(this.CACHE_PREFIX, {
-        filters,
-        options,
-      });
-      const cachedData = await CacheService.get<IAffiliateOffer[]>(cacheKey);
-
-      if (cachedData && cachedData.length > 0) {
-        console.log(`✅ Retrieved ${cachedData.length} offers from cache`);
-        logger.debug("Returning cached offers");
-        return cachedData;
-      }
-
-      console.log("🔄 Cache miss - fetching from database");
       const offers = await AffiliateOffer.find(filters, null, options);
       console.log(`📝 Found ${offers.length} offers in database`);
 
-      await CacheService.set(cacheKey, offers, this.CACHE_TTL);
       return offers;
     } catch (error) {
       logger.error("Error in getOffers:", error);

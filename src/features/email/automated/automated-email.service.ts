@@ -97,7 +97,8 @@ export class AutomatedEmailService {
       const offerData = await UrlAnalysisService.createOfferFromUrl(
         url,
         userId,
-        commissionRate
+        commissionRate,
+        parameters ?? []
       );
 
       // 2. Enhance tags generation
@@ -183,7 +184,8 @@ export class AutomatedEmailService {
         const emailWithTracking = EmailTemplateService.addTrackingToTemplate(
           emailContent[0].content,
           subscriber._id as string,
-          campaign._id.toString()
+          campaign._id.toString(),
+          click.id
         );
 
         await SmtpService.sendEmail({

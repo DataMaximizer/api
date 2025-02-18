@@ -15,36 +15,26 @@ export class EmailTemplateService {
     }" width="1" height="1" style="display:none;" alt="" />`;
   }
 
-  static generateTrackingLink(
-    originalUrl: string,
-    subscriberId: string,
-    campaignId?: string
-  ): string {
-    const linkId = uuidv4();
+  static generateTrackingLink(originalUrl: string, clickId: string): string {
     return `${
       this.BASE_URL
     }/api/metrics/track/redirect?url=${encodeURIComponent(
       originalUrl
-    )}&subscriberId=${subscriberId}&linkId=${linkId}&campaignId=${
-      campaignId || ""
-    }`;
+    )}&clickId=${clickId}`;
   }
 
   static addTrackingToTemplate(
     content: string,
     subscriberId: string,
-    campaignId?: string
+    campaignId: string,
+    clickId: string
   ): string {
     const trackingPixel = this.generateTrackingPixel(subscriberId, campaignId);
 
     let contentWithTrackedLinks = content.replace(
       /<a\s+href=(['"])([^'"]+)\1([^>]*)>/g,
       (match, quote, url, rest) => {
-        const trackedUrl = this.generateTrackingLink(
-          url,
-          subscriberId,
-          campaignId
-        );
+        const trackedUrl = this.generateTrackingLink(url, clickId);
         return `<a href=${quote}${trackedUrl}${quote}${rest}>`;
       }
     );
