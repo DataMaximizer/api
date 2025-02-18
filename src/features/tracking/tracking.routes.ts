@@ -43,18 +43,26 @@ router.get("/pixel/:subscriberId", async (req, res) => {
 
 router.get("/redirect", async (req, res) => {
   try {
-    const { url, subscriberId, linkId, campaignId } = req.query;
+    const { url, clickId } = req.query;
 
-    if (!url || !isValidUrl(url as string)) {
-      logger.warn("Invalid URL in redirect:", { url });
-      res.status(400).send("Invalid URL");
+    if (!clickId) {
+      logger.warn("Missing clickId in redirect");
+      res.status(400).send("Missing clickId");
       return;
     }
 
-    // Get campaign and offer details
-    const campaign = await Campaign.findById(campaignId);
+    // Get click details first
+    const click = await Click.findById(clickId);
+    if (!click) {
+      logger.warn("Click not found:", { clickId });
+      res.status(404).send("Click not found");
+      return;
+    }
+
+    // Get campaign and offer details from click
+    const campaign = await Campaign.findById(click.campaignId);
     if (!campaign) {
-      logger.warn("Campaign not found:", { campaignId });
+      logger.warn("Campaign not found:", { campaignId: click.campaignId });
       res.status(404).send("Campaign not found");
       return;
     }
@@ -76,25 +84,21 @@ router.get("/redirect", async (req, res) => {
       return;
     }
 
-    // Get the click ID from the URL's query parameters using the configured name
-    const urlObj = new URL(url as string);
-    const clickId = urlObj.searchParams.get(clickIdParam.name);
-
     await MetricsTrackingService.trackClick(
-      subscriberId as string,
-      linkId as string,
-      campaignId as string,
+      click.subscriberId.toString(),
+      click.linkId.toString(),
+      click.campaignId.toString(),
       req,
       clickId as string
     );
     await SubscriberCleanupService.updateEngagementScores(
-      subscriberId as string
+      click.subscriberId.toString()
     );
 
     res.redirect(url as string);
   } catch (error) {
     logger.error("Error tracking click:", error);
-    res.redirect(req.query.url as string);
+    res.status(500).send("Internal Server Error");
   }
 });
 
