@@ -36,7 +36,10 @@ export class CampaignController {
     try {
       logger.info("Fetching campaigns with query:", req.query);
 
-      const filter: any = {};
+      const filter: any = {
+        userId: req.user?._id,
+      };
+
       if (req.query.type) {
         filter.type = req.query.type.toString();
       }

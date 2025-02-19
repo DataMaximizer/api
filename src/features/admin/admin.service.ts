@@ -11,9 +11,9 @@ export class AdminService {
   static async login(email: string, password: string) {
     const user = await User.findOne({
       email,
-      type: { $in: [UserType.OWNER, UserType.ADMIN] }
+      type: { $in: [UserType.OWNER, UserType.ADMIN, UserType.CUSTOMER] },
     });
-    
+
     if (!user) {
       throw new Error("Invalid credentials");
     }

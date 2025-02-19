@@ -52,11 +52,6 @@ router.post(
   (req, res, next) => UrlAnalysisController.createOfferFromUrl(req, res, next)
 );
 
-router.delete(
-  "/analyze-url/:id",
-  authenticate,
-  authorize([UserType.OWNER]),
-  AffiliateController.deleteAnalyzedUrl
-);
+router.delete("/offers/:id", authenticate, AffiliateController.deleteOffer);
 
 export default router;

@@ -11,6 +11,13 @@ import { load } from "cheerio";
 import { OfferEnhancementService } from "@features/shared/services/offer-enhancement.service";
 import { CacheService } from "@core/services/cache.service";
 import { Click } from "../tracking/models/click.model";
+import mongoose from "mongoose";
+import { Campaign } from "../campaign/models/campaign.model";
+import {
+  Commission,
+  CommissionRule,
+} from "../comission/models/commission.model";
+import { LinkValidation } from "../url-analysis/models/link-validation.model";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -22,9 +29,18 @@ export class AffiliateService {
   private static CACHE_TTL = 3600; // 1 hour
   private static CACHE_PREFIX = "affiliate:offers";
 
-  static async createOffer(offerData: Partial<IAffiliateOffer>) {
-    const enhancedOfferData =
-      await OfferEnhancementService.enhanceOfferDescription(offerData);
+  static async createOffer(
+    offerData: Partial<IAffiliateOffer>,
+    manual: boolean = false
+  ) {
+    let enhancedOfferData;
+    if (manual) {
+      enhancedOfferData = offerData;
+    } else {
+      enhancedOfferData = await OfferEnhancementService.enhanceOfferDescription(
+        offerData
+      );
+    }
 
     const offer = new AffiliateOffer(enhancedOfferData);
 
@@ -342,20 +358,70 @@ export class AffiliateService {
     }
   }
 
-  static async deleteOffer(id: string) {
+  static async deleteOffer(id: string, userId: string) {
     try {
-      const result = await AffiliateOffer.findByIdAndUpdate(
-        id,
-        { status: "deleted" },
-        { new: true }
-      );
+      // First check if the offer exists and belongs to the user
+      const offer = await AffiliateOffer.findOne({
+        _id: id,
+        userId: userId,
+      });
+
+      if (!offer) {
+        return { success: false, error: "Offer not found or unauthorized" };
+      }
+
+      // Check for related data
+      const [
+        campaignsCount,
+        clicksCount,
+        commissionsCount,
+        commissionRulesCount,
+        linkValidationsCount,
+      ] = await Promise.all([
+        Campaign.countDocuments({ offerId: id }),
+        Click.countDocuments({
+          campaignId: {
+            $in: await Campaign.find({ offerId: id }).distinct("_id"),
+          },
+        }),
+        Commission.countDocuments({ offerId: id }),
+        CommissionRule.countDocuments({ offerId: id }),
+        LinkValidation.countDocuments({ offerId: id }),
+      ]);
+
+      // If any related data exists, block the deletion
+      if (
+        campaignsCount > 0 ||
+        clicksCount > 0 ||
+        commissionsCount > 0 ||
+        commissionRulesCount > 0 ||
+        linkValidationsCount > 0
+      ) {
+        return {
+          success: false,
+          error: "Cannot delete offer with existing relationships",
+          relationships: {
+            campaigns: campaignsCount,
+            clicks: clicksCount,
+            commissions: commissionsCount,
+            commissionRules: commissionRulesCount,
+            linkValidations: linkValidationsCount,
+          },
+        };
+      }
+
+      // If no relationships exist, proceed with deletion
+      await AffiliateOffer.deleteOne({ _id: id });
+
+      // Clear cache
       await Promise.all([
         CacheService.del(`${this.CACHE_PREFIX}:*`),
         CacheService.del(
           `${this.CACHE_PREFIX}:single:${JSON.stringify({ id })}`
         ),
       ]);
-      return result;
+
+      return { success: true };
     } catch (error) {
       logger.error("Error in deleteOffer:", error);
       throw error;

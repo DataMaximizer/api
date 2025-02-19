@@ -15,7 +15,7 @@ export class AuthService {
       throw new Error("Email already registered");
     }
 
-    const user = await User.create({ ...userData, type: UserType.ADMIN });
+    const user = await User.create({ ...userData, type: UserType.CUSTOMER });
     const { accessToken, refreshToken } = await this.generateTokens(user);
 
     return { user, accessToken, refreshToken };

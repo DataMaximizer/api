@@ -279,11 +279,11 @@ export class MetricsTrackingService {
     clickId: string;
   }): Promise<boolean> {
     try {
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
 
       const click = await Click.findOne({
         _id: clickId,
-        timestamp: { $gt: twentyFourHoursAgo },
+        timestamp: { $gt: twoDaysAgo },
       }).populate("subscriberId");
 
       if (!click) {

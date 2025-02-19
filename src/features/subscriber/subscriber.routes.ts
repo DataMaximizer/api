@@ -49,4 +49,18 @@ router.post(
   SubscriberController.importSubscribers
 );
 
+router.post("/blocked-emails", authenticate, SubscriberController.blockEmail);
+
+router.get(
+  "/blocked-emails",
+  authenticate,
+  SubscriberController.getBlockedEmails
+);
+
+router.delete(
+  "/blocked-emails/:id",
+  authenticate,
+  SubscriberController.unblockEmail
+);
+
 export default router;

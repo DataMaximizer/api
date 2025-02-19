@@ -21,6 +21,7 @@ import {
   Tone,
   WritingStyle,
 } from "../offer-selection/OfferSelectionAgent";
+import { BlockedEmail } from "@/features/subscriber/models/blocked-email.model";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -230,6 +231,7 @@ export class WritingStyleOptimizationAgent {
     - You MUST add the offer url link to the email, this is VERY important.
     - Wherever you put the offer url, make sure to put it in the {offer_url} placeholder, this is very important.
     - DO NOT add telephone numbers to the email or any other contact information, the only thing you should add is the offer url.
+    - DO NOT segmentate the email showing the framework steps, like "Before", "After", "Bridge", "Problem", "Agitation", "Solution" etc.
     - Your response should be in a valid JSON format with the following keys:
       - subject: The subject of the email.
       - body: The body of the email in HTML format compliant with email clients, escape if needed.
@@ -329,8 +331,27 @@ export class WritingStyleOptimizationAgent {
       throw new Error("No active subscribers found in the list");
     }
 
-    // Extract subscriber IDs
-    const subscriberIds = subscribers.map((sub) => sub.id);
+    // Get blocked emails for this user
+    const blockedEmails = await BlockedEmail.find({
+      userId: new Types.ObjectId(userId),
+    }).distinct("email");
+    const blockedEmailSet = new Set(
+      blockedEmails.map((email) => email.toLowerCase())
+    );
+
+    // Filter out subscribers with blocked emails
+    const validSubscribers = subscribers.filter(
+      (sub) => !blockedEmailSet.has(sub.email.toLowerCase())
+    );
+
+    if (!validSubscribers.length) {
+      throw new Error(
+        "No valid subscribers found after filtering blocked emails"
+      );
+    }
+
+    // Extract subscriber IDs from filtered list
+    const subscriberIds = validSubscribers.map((sub) => sub.id);
 
     // Initialize OfferSelectionAgent
     const offerSelectionAgent = new OfferSelectionAgent();
@@ -426,8 +447,9 @@ export class WritingStyleOptimizationAgent {
             campaignId: campaign.id,
             campaignName,
             subscriberId,
-            subscriberEmail: subscribers.find((sub) => sub.id === subscriberId)
-              ?.email,
+            subscriberEmail: validSubscribers.find(
+              (sub) => sub.id === subscriberId
+            )?.email,
             subject: parsedContent.subject,
             content: parsedContent.body,
             ...group.style,

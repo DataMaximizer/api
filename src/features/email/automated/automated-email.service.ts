@@ -15,6 +15,7 @@ import { Response } from "express";
 import { Click } from "@features/tracking/models/click.model";
 import { CampaignService } from "@features/campaign/campaign.service";
 import { availableRecommendedStyles } from "@features/ai/agents/writing-style/WritingStyleOptimizationAgent";
+import { BlockedEmail } from "@/features/subscriber/models/blocked-email.model";
 
 interface ContentStrategy {
   framework: ContentFramework;
@@ -158,9 +159,17 @@ export class AutomatedEmailService {
       })) as ICampaignWithId;
 
       // 7. Send email to subscriber list
+      const blockedEmails = await BlockedEmail.find({
+        userId: new Types.ObjectId(userId),
+      }).distinct("email");
+      const blockedEmailSet = new Set(
+        blockedEmails.map((email) => email.toLowerCase())
+      );
+
       const subscribers = await Subscriber.find({
         lists: new Types.ObjectId(subscriberListId),
         status: "active",
+        email: { $nin: blockedEmails },
       });
 
       for (const subscriber of subscribers) {

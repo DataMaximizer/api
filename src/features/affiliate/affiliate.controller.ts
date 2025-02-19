@@ -13,7 +13,7 @@ export class AffiliateController {
         isAdminOffer: req.user?.type === "owner",
       };
 
-      const offer = await AffiliateService.createOffer(offerData);
+      const offer = await AffiliateService.createOffer(offerData, true);
 
       res.status(201).json(offer);
     } catch (error) {
@@ -88,19 +88,25 @@ export class AffiliateController {
 
   static async deleteOffer(req: Request, res: Response) {
     try {
-      const offer = await AffiliateService.deleteOffer(req.params.id);
+      const { id } = req.params;
+      const userId = req.user?._id;
 
-      if (!offer) {
-        return res.status(404).json({
+      if (!id || !userId) {
+        res.status(400).json({
           success: false,
-          error: "Offer not found",
+          error: "Offer ID and user ID are required",
         });
+        return;
       }
 
-      res.json({
-        success: true,
-        message: "Offer deleted successfully",
-      });
+      const result = await AffiliateService.deleteOffer(id, userId as string);
+
+      if (!result) {
+        res.status(500).json(result);
+        return;
+      }
+
+      res.json(result);
     } catch (error) {
       logger.error("Error deleting offer:", error);
       res.status(500).json({

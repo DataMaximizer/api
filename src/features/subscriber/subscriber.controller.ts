@@ -12,6 +12,7 @@ import {
   ISubscriberList,
 } from "@features/subscriber/models/subscriber-list.model";
 import { Types } from "mongoose";
+import { BlockedEmail } from "./models/blocked-email.model";
 
 interface AuthRequest extends Request {
   user?: IUser;
@@ -73,32 +74,28 @@ export class SubscriberController {
         return;
       }
 
-      const page = parseInt(req.query.page as string) || 1; // Default to page 1
-      const limit = parseInt(req.query.limit as string) || 5; // Default to 10 items per page
-      const skip = (page - 1) * limit;
+      // Get blocked emails for this user
+      const blockedEmails = await BlockedEmail.find({
+        userId: req.user._id,
+      }).distinct("email");
 
-      const total = await Subscriber.countDocuments({ userId: req.user._id }); // Count total documents
-      const subscribers = await Subscriber.find({ userId: req.user._id })
+      const subscribers = await Subscriber.find({
+        userId: req.user._id,
+        email: { $nin: blockedEmails },
+      })
         .populate("lists", "name subscriberCount")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
+        .sort({ createdAt: -1 });
 
       res.json({
         success: true,
         data: subscribers,
-        meta: {
-          total,
-          page,
-          pages: Math.ceil(total / limit),
-          limit,
-        },
       });
     } catch (error) {
       logger.error("Error in getSubscribers:", error);
-      res
-        .status(500)
-        .json({ success: false, error: "Failed to fetch subscribers" });
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch subscribers",
+      });
     }
   }
 
@@ -156,6 +153,20 @@ export class SubscriberController {
 
       const form = await Form.findById(formId).lean();
 
+      // Check if email is blocked
+      const isBlocked = await BlockedEmail.findOne({
+        userId: new Types.ObjectId(req.user?._id as string),
+        email: email.toLowerCase(),
+      });
+
+      if (isBlocked) {
+        res.status(400).json({
+          success: false,
+          error: "This email address has been blocked",
+        });
+        return;
+      }
+
       if (!form) {
         res.status(404).json({
           success: false,
@@ -173,8 +184,8 @@ export class SubscriberController {
       }
 
       const subscriberData: Partial<ISubscriber> = {
-        formId: new Types.ObjectId(formId),
-        userId: new Types.ObjectId(form.userId),
+        formId,
+        userId: new Types.ObjectId(req.user?._id as string),
         data: data || {},
         email: email.toLowerCase(),
         metadata: {
@@ -223,9 +234,17 @@ export class SubscriberController {
         return;
       }
 
-      const fileName = req.file.originalname.split(".")[0];
       const userId = new Types.ObjectId(req.user._id.toString());
 
+      // Get all blocked emails for this user
+      const blockedEmails = await BlockedEmail.find({ userId }).distinct(
+        "email"
+      );
+      const blockedEmailSet = new Set(
+        blockedEmails.map((email) => email.toLowerCase())
+      );
+
+      const fileName = req.file.originalname.split(".")[0];
       const listName = `Import - ${fileName} ${new Date().toISOString()}`;
 
       const list = await SubscriberList.create({
@@ -244,6 +263,7 @@ export class SubscriberController {
       const subscribers = [];
       let importedCount = 0;
       let errorCount = 0;
+      let blockedCount = 0;
       const errorDetails = [];
 
       for (let i = 1; i < rows.length; i++) {
@@ -286,18 +306,18 @@ export class SubscriberController {
                   subscriberData.email = value.toLowerCase();
                 }
                 break;
-              case "tags":
-                subscriberData.tags = value
-                  .split(";")
-                  .map((tag) => tag.trim()) as string[];
-                break;
-              default:
-                subscriberData.data[mapping.mappedField] = value;
             }
           }
 
           if (!subscriberData.email) {
             throw new Error("Missing or invalid email");
+          }
+
+          // Check if email is blocked
+          if (blockedEmailSet.has(subscriberData.email)) {
+            blockedCount++;
+            errorDetails.push(`Row ${i + 1}: Email is blocked`);
+            continue;
           }
 
           subscribers.push(subscriberData);
@@ -338,6 +358,7 @@ export class SubscriberController {
         data: {
           imported: importedCount,
           errors: errorCount,
+          blocked: blockedCount,
           total: rows.length - 1,
           errorDetails,
           list: {
@@ -367,9 +388,15 @@ export class SubscriberController {
       }
 
       const { listId } = req.params;
+
+      const blockedEmails = await BlockedEmail.find({
+        userId: req.user._id,
+      }).distinct("email");
+
       const subscribers = await Subscriber.find({
         lists: { $in: [new Types.ObjectId(listId)] },
         status: "active",
+        email: { $nin: blockedEmails },
       })
         .populate("lists", "name subscriberCount")
         .sort({ createdAt: -1 });
@@ -383,6 +410,100 @@ export class SubscriberController {
       res.status(500).json({
         success: false,
         error: "Failed to fetch subscribers for the list",
+      });
+    }
+  }
+
+  static async blockEmail(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, error: "Unauthorized" });
+        return;
+      }
+
+      const { email } = req.body;
+
+      if (!email) {
+        res.status(400).json({
+          success: false,
+          error: "Email is required",
+        });
+        return;
+      }
+
+      const blockedEmail = await SubscriberService.blockEmail(
+        req.user._id.toString(),
+        email
+      );
+
+      res.status(201).json({
+        success: true,
+        data: blockedEmail,
+      });
+    } catch (error) {
+      logger.error("Error in blockEmail:", error);
+      res.status(400).json({
+        success: false,
+        error: "Failed to block email",
+      });
+    }
+  }
+
+  static async getBlockedEmails(
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, error: "Unauthorized" });
+        return;
+      }
+
+      const blockedEmails = await SubscriberService.getBlockedEmails(
+        req.user._id.toString()
+      );
+
+      res.json({
+        success: true,
+        data: blockedEmails,
+      });
+    } catch (error) {
+      logger.error("Error in getBlockedEmails:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch blocked emails",
+      });
+    }
+  }
+
+  static async unblockEmail(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, error: "Unauthorized" });
+        return;
+      }
+
+      const { id } = req.params;
+
+      if (!id) {
+        res.status(400).json({
+          success: false,
+          error: "Id is required",
+        });
+        return;
+      }
+
+      await SubscriberService.unblockEmail(id);
+
+      res.status(200).json({
+        success: true,
+        message: "Email unblocked successfully",
+      });
+    } catch (error) {
+      logger.error("Error in unblockEmail:", error);
+      res.status(400).json({
+        success: false,
+        error: "Failed to unblock email",
       });
     }
   }

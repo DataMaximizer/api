@@ -68,7 +68,7 @@ export class UrlAnalysisController {
       await AutomatedEmailService.processUrlAndGenerateEmail(
         url,
         commissionRate,
-        userId.toString(),
+        userId as string,
         subscriberListId,
         smtpProviderId,
         res
