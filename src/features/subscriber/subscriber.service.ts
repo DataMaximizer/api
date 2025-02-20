@@ -112,22 +112,26 @@ export class SubscriberService {
     emails: string[]
   ): Promise<IBlockedEmail[]> {
     try {
-      // Convert emails to lowercase and get existing blocked emails
-      const normalizedEmails = emails.map((email) => email.toLowerCase());
+      // Deduplicate and normalize emails
+      const normalizedEmails = [
+        ...new Set(emails.map((email) => email.toLowerCase())),
+      ];
+
       const existingBlocked = await BlockedEmail.find({
         userId: new Types.ObjectId(userId),
         email: { $in: normalizedEmails },
       });
+
+      // If all emails are already blocked, return early
+      if (existingBlocked.length === normalizedEmails.length) {
+        return existingBlocked;
+      }
 
       // Filter out emails that are already blocked
       const existingEmailSet = new Set(existingBlocked.map((doc) => doc.email));
       const newEmails = normalizedEmails.filter(
         (email) => !existingEmailSet.has(email)
       );
-
-      if (newEmails.length === 0) {
-        return existingBlocked;
-      }
 
       // Insert only new emails
       const newBlockedEmails = await BlockedEmail.insertMany(
