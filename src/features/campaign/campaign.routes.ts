@@ -10,6 +10,8 @@ import {
   // regenerateVariantSchema,
   updateMetricsSchema,
   sendEmailSchema,
+  createNetworkSchema,
+  updateNetworkSchema,
 } from "@core/utils/validators/validations/campaign.validation";
 
 const router = Router();

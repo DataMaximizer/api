@@ -95,6 +95,7 @@ export class MetricsController {
       const subscribers = await Subscriber.find({
         userId,
         createdAt: { $gte: startDate },
+        status: "active",
       });
 
       const engagement = {

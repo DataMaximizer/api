@@ -11,6 +11,7 @@ export class AffiliateController {
         ...req.body,
         userId: req.user?._id,
         isAdminOffer: req.user?.type === "owner",
+        networkId: req.body.networkId,
       };
 
       const offer = await AffiliateService.createOffer(offerData, true);

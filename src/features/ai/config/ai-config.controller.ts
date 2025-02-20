@@ -11,6 +11,8 @@ import { v4 as uuidv4 } from "uuid";
 import { CampaignTrackerService } from "../services/campaign-tracker.service";
 import jwt from "jsonwebtoken";
 import { config } from "@config/config";
+import { BlockedEmail } from "@/features/subscriber/models/blocked-email.model";
+import { Types } from "mongoose";
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 interface AuthRequest extends Request {
@@ -141,10 +143,16 @@ export class AIConfigController {
         return;
       }
 
+      const blockedEmails = await BlockedEmail.find({
+        userId: req.user?._id,
+      }).distinct("email");
+
       // Retrieve all subscribers associated with this list.
       // Note: Subscribers store the list references in the "lists" property.
       const subscribers = await Subscriber.find({
         lists: subscriberListId,
+        status: "active",
+        email: { $nin: blockedEmails },
       });
       if (!subscribers || subscribers.length === 0) {
         res.status(404).json({
@@ -409,6 +417,11 @@ export class AIConfigController {
 
       const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
       const userId = decoded.userId;
+
+      if (!userId) {
+        res.status(401).json({ success: false, error: "No user ID provided" });
+        return;
+      }
 
       const campaignTracker = CampaignTrackerService.getInstance();
 

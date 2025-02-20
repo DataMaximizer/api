@@ -37,12 +37,12 @@ export class DormancyService {
       const lastInteraction =
         subscriber.lastInteraction || subscriber.createdAt;
       const daysSinceLastInteraction = Math.floor(
-        (Date.now() - lastInteraction.getTime()) / (1000 * 60 * 60 * 24),
+        (Date.now() - lastInteraction.getTime()) / (1000 * 60 * 60 * 24)
       );
 
       // Get last interaction details
       const lastInteractionRecord = subscriber.metrics?.interactions?.sort(
-        (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+        (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
       )[0];
 
       // Get reengagement attempts
@@ -56,7 +56,7 @@ export class DormancyService {
       const recommendedAction = this.getRecommendedAction(
         status,
         reengagementAttempts,
-        subscriber.engagementScore,
+        subscriber.engagementScore
       );
 
       return {
@@ -74,7 +74,7 @@ export class DormancyService {
   }
 
   private static getDormancyStatus(
-    days: number,
+    days: number
   ): "active" | "mild" | "moderate" | "severe" | "terminal" {
     if (days < this.THRESHOLDS.mild) return "active";
     if (days < this.THRESHOLDS.moderate) return "mild";
@@ -86,7 +86,7 @@ export class DormancyService {
   private static getRecommendedAction(
     status: string,
     reengagementAttempts: number,
-    engagementScore: number,
+    engagementScore: number
   ): string {
     if (status === "active") return "Continue regular campaigns";
     if (reengagementAttempts >= this.MAX_REENGAGEMENT_ATTEMPTS) {
@@ -111,7 +111,7 @@ export class DormancyService {
 
   static async createReengagementCampaign(
     subscriberId: string,
-    userId: string,
+    userId: string
   ): Promise<ICampaign | null> {
     try {
       const dormancyStats = await this.analyzeDormancy(subscriberId);
@@ -153,7 +153,7 @@ export class DormancyService {
         status: "active",
         lastInteraction: {
           $lt: new Date(
-            Date.now() - this.THRESHOLDS.terminal * 24 * 60 * 60 * 1000,
+            Date.now() - this.THRESHOLDS.terminal * 24 * 60 * 60 * 1000
           ),
         },
       });
@@ -172,7 +172,7 @@ export class DormancyService {
           });
 
           logger.info(
-            `Marked subscriber ${subscriber._id} as inactive due to dormancy`,
+            `Marked subscriber ${subscriber._id} as inactive due to dormancy`
           );
         }
       }
@@ -186,6 +186,7 @@ export class DormancyService {
     try {
       const subscribers = await Subscriber.find({
         userId: new Types.ObjectId(userId),
+        status: "active",
       });
 
       const dormancyStats = {

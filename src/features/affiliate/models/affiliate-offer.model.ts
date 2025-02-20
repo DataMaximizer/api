@@ -33,6 +33,7 @@ export interface IAffiliateOffer extends Document {
   name: string;
   description: string;
   url: string;
+  networkId: Schema.Types.ObjectId;
   categories: string[];
   tags: string[];
   commissionRate: number;
@@ -66,6 +67,7 @@ const productInfoSchema = new Schema(
 
 const offerSchema = new Schema<IAffiliateOffer>(
   {
+    networkId: { type: Schema.Types.ObjectId, ref: "Network", required: true },
     name: { type: String, required: true },
     description: { type: String, required: true },
     url: { type: String, required: true },
@@ -111,6 +113,7 @@ offerSchema.index({
   description: "text",
   "productInfo.description": "text",
 });
+offerSchema.index({ networkId: 1 });
 
 offerSchema.pre("save", function (next) {
   if (this.tags) {

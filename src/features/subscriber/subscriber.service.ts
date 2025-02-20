@@ -6,6 +6,7 @@ import {
 import { logger } from "@config/logger";
 import { FilterQuery, Types } from "mongoose";
 import { BlockedEmail, IBlockedEmail } from "./models/blocked-email.model";
+import { Click } from "../tracking/models/click.model";
 
 interface SubscriberInput extends Omit<Partial<ISubscriber>, "formId"> {
   formId?: string;
@@ -108,17 +109,37 @@ export class SubscriberService {
 
   static async blockEmail(
     userId: string,
-    email: string
-  ): Promise<IBlockedEmail> {
+    emails: string[]
+  ): Promise<IBlockedEmail[]> {
     try {
-      const blockedEmail = await BlockedEmail.create({
+      // Convert emails to lowercase and get existing blocked emails
+      const normalizedEmails = emails.map((email) => email.toLowerCase());
+      const existingBlocked = await BlockedEmail.find({
         userId: new Types.ObjectId(userId),
-        email: email.toLowerCase(),
+        email: { $in: normalizedEmails },
       });
 
-      return blockedEmail;
+      // Filter out emails that are already blocked
+      const existingEmailSet = new Set(existingBlocked.map((doc) => doc.email));
+      const newEmails = normalizedEmails.filter(
+        (email) => !existingEmailSet.has(email)
+      );
+
+      if (newEmails.length === 0) {
+        return existingBlocked;
+      }
+
+      // Insert only new emails
+      const newBlockedEmails = await BlockedEmail.insertMany(
+        newEmails.map((email) => ({
+          userId: new Types.ObjectId(userId),
+          email: email,
+        }))
+      );
+
+      return [...existingBlocked, ...newBlockedEmails];
     } catch (error) {
-      logger.error("Error blocking email:", error);
+      logger.error("Error blocking emails:", error);
       throw error;
     }
   }
@@ -141,6 +162,31 @@ export class SubscriberService {
       });
     } catch (error) {
       logger.error("Error unblocking email:", error);
+      throw error;
+    }
+  }
+
+  static async unsubscribe(clickId: string, reason?: string): Promise<void> {
+    try {
+      // Find the click record to get subscriber and campaign info
+      const click = await Click.findById(clickId);
+
+      if (!click) {
+        throw new Error("Invalid unsubscribe link");
+      }
+
+      // Update subscriber status to unsubscribed
+      await Subscriber.findByIdAndUpdate(click.subscriberId, {
+        $set: {
+          status: "unsubscribed",
+          lastInteraction: new Date(),
+          "metadata.unsubscribeDate": new Date(),
+          "metadata.unsubscribeCampaignId": click.campaignId,
+          "metadata.unsubscribeReason": reason || "No reason provided",
+        },
+      });
+    } catch (error) {
+      logger.error("Error unsubscribing:", error);
       throw error;
     }
   }

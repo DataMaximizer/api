@@ -11,7 +11,7 @@ export class UrlAnalysisController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const { url, commissionRate, parameters } = req.body;
+      const { url, commissionRate, parameters, networkId } = req.body;
       const userId = req.user?._id;
 
       if (!url || !userId) {
@@ -26,7 +26,8 @@ export class UrlAnalysisController {
         url,
         userId.toString(),
         commissionRate,
-        parameters
+        parameters,
+        networkId
       );
 
       const offer = await AffiliateService.createOffer(offerData);

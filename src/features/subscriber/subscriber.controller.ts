@@ -82,6 +82,7 @@ export class SubscriberController {
       const subscribers = await Subscriber.find({
         userId: req.user._id,
         email: { $nin: blockedEmails },
+        status: "active",
       })
         .populate("lists", "name subscriberCount")
         .sort({ createdAt: -1 });
@@ -279,6 +280,7 @@ export class SubscriberController {
             data: {},
             lastInteraction: new Date(),
             engagementScore: 0,
+            phone: "",
             metadata: {
               source: "import",
               importDate: new Date(),
@@ -305,6 +307,9 @@ export class SubscriberController {
                 if (value.includes("@")) {
                   subscriberData.email = value.toLowerCase();
                 }
+                break;
+              case "phone":
+                subscriberData.phone = value;
                 break;
             }
           }
@@ -421,30 +426,30 @@ export class SubscriberController {
         return;
       }
 
-      const { email } = req.body;
+      const { emails } = req.body;
 
-      if (!email) {
+      if (!emails || !Array.isArray(emails) || emails.length === 0) {
         res.status(400).json({
           success: false,
-          error: "Email is required",
+          error: "Emails array is required",
         });
         return;
       }
 
-      const blockedEmail = await SubscriberService.blockEmail(
+      const blockedEmails = await SubscriberService.blockEmail(
         req.user._id.toString(),
-        email
+        emails
       );
 
       res.status(201).json({
         success: true,
-        data: blockedEmail,
+        data: blockedEmails,
       });
     } catch (error) {
       logger.error("Error in blockEmail:", error);
       res.status(400).json({
         success: false,
-        error: "Failed to block email",
+        error: "Failed to block emails",
       });
     }
   }
@@ -504,6 +509,33 @@ export class SubscriberController {
       res.status(400).json({
         success: false,
         error: "Failed to unblock email",
+      });
+    }
+  }
+
+  static async unsubscribe(req: Request, res: Response): Promise<void> {
+    try {
+      const { clickId, reason } = req.body;
+
+      if (!clickId) {
+        res.status(400).json({
+          success: false,
+          error: "Click ID is required",
+        });
+        return;
+      }
+
+      await SubscriberService.unsubscribe(clickId, reason);
+
+      res.status(200).json({
+        success: true,
+        message: "Successfully unsubscribed",
+      });
+    } catch (error) {
+      logger.error("Error in unsubscribe:", error);
+      res.status(400).json({
+        success: false,
+        error: "Failed to unsubscribe",
       });
     }
   }

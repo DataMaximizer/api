@@ -29,6 +29,7 @@ export interface ISubscriber extends Document {
   formId: Types.ObjectId;
   userId: Types.ObjectId;
   email: string;
+  phone?: string;
   status: "active" | "unsubscribed" | "bounced" | "inactive";
   tags: string[];
   lists: Types.ObjectId[]; // Add this field
@@ -98,6 +99,10 @@ const subscriberSchema = new Schema<ISubscriber>(
       lowercase: true,
       trim: true,
     },
+    phone: {
+      type: String,
+      trim: true,
+    },
     status: {
       type: String,
       enum: ["active", "unsubscribed", "bounced", "inactive"],
@@ -115,6 +120,9 @@ const subscriberSchema = new Schema<ISubscriber>(
       bounceDate: Date,
       inactivationReason: String,
       inactivationDate: Date,
+      unsubscribeDate: Date,
+      unsubscribeCampaignId: Types.ObjectId,
+      unsubscribeReason: String,
     },
     metrics: {
       type: metricsSchema,

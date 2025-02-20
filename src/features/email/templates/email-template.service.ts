@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from "uuid";
 export class EmailTemplateService {
   private static readonly BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  private static readonly FRONTEND_URL =
+    process.env.FRONTEND_URL || "http://localhost:3000";
 
   static generateTrackingPixel(
     subscriberId: string,
@@ -21,6 +23,10 @@ export class EmailTemplateService {
     }/api/metrics/track/redirect?url=${encodeURIComponent(
       originalUrl
     )}&clickId=${clickId}`;
+  }
+
+  static generateUnsubscribeLink(clickId: string): string {
+    return `${this.FRONTEND_URL}/unsubscribe?clickId=${clickId}`;
   }
 
   static addTrackingToTemplate(
@@ -42,6 +48,18 @@ export class EmailTemplateService {
     contentWithTrackedLinks += trackingPixel;
 
     return contentWithTrackedLinks;
+  }
+
+  static addUnsubscribeToTemplate(content: string, clickId: string): string {
+    const unsubscribeLink = this.generateUnsubscribeLink(clickId);
+    const unsubscribeText = `
+      <br />
+      <br />
+      <br />
+      <br />
+      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, you can unsubscribe by clicking <a href="${unsubscribeLink}">here</a>.</p>
+    `;
+    return content + unsubscribeText;
   }
 
   static createEmailTemplate(

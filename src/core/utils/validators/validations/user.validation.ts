@@ -14,7 +14,7 @@ export const createUserSchema = z.object({
       line3: z.string().optional(),
       postalCode: z.string().optional(),
       neighborhood: z.string().optional(),
-      state: z.string().length(2).optional(),
+      state: z.string().optional(),
     })
     .optional(),
   sex: z

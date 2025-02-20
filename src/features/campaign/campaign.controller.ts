@@ -8,6 +8,7 @@ import {
   ContentFramework,
   WritingTone,
 } from "@features/ai/models/ai-content.model";
+import { Network } from "@/features/network/network.model";
 
 export class CampaignController {
   static async createCampaign(

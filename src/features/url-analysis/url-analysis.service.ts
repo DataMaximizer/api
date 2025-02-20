@@ -8,6 +8,7 @@ import {
   OfferStatus,
 } from "@features/affiliate/models/affiliate-offer.model";
 import { logger } from "@config/logger";
+import { Types } from "mongoose";
 
 import {
   PREDEFINED_CATEGORIES,
@@ -46,7 +47,8 @@ export class UrlAnalysisService {
     url: string,
     userId: string,
     commissionRate: number,
-    parameters: IOfferParameter[]
+    parameters: IOfferParameter[],
+    networkId: string
   ): Promise<Partial<IAffiliateOffer>> {
     try {
       const scrapedData = await this.scrapeWebpage(url);
@@ -73,6 +75,7 @@ export class UrlAnalysisService {
         isAdminOffer: false,
         lastChecked: new Date(),
         lastActive: new Date(),
+        networkId: new Types.ObjectId(networkId) as any,
       };
 
       if (!offerData.name || !offerData.description) {

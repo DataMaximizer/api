@@ -162,9 +162,6 @@ export class AutomatedEmailService {
       const blockedEmails = await BlockedEmail.find({
         userId: new Types.ObjectId(userId),
       }).distinct("email");
-      const blockedEmailSet = new Set(
-        blockedEmails.map((email) => email.toLowerCase())
-      );
 
       const subscribers = await Subscriber.find({
         lists: new Types.ObjectId(subscriberListId),

@@ -33,6 +33,7 @@ import swaggerJSDoc from "swagger-jsdoc";
 import { CacheService } from "@core/services/cache.service";
 import { userRouter } from "./features/user/user.routes";
 import contentTemplateRoutes from "@features/email/templates/content-template.routes";
+import networkRoutes from "./features/network/network.routes";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -106,6 +107,7 @@ app.use("/api/metrics", metricsRoutes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/profile", profileRoutes);
 app.use("/api/ai", aiConfigRoutes);
+app.use("/api/networks", networkRoutes);
 
 app.get(
   "/api/admin/dashboard",

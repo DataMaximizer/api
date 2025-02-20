@@ -63,4 +63,6 @@ router.delete(
   SubscriberController.unblockEmail
 );
 
+router.post("/unsubscribe", SubscriberController.unsubscribe);
+
 export default router;

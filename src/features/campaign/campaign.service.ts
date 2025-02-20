@@ -297,14 +297,21 @@ export class CampaignService {
       const emailWithTracking = EmailTemplateService.addTrackingToTemplate(
         replacedContent,
         subscriberId,
-        campaignId
+        campaignId,
+        click.id
       );
+
+      const emailWithUnsubscribe =
+        EmailTemplateService.addUnsubscribeToTemplate(
+          emailWithTracking,
+          click.id
+        );
 
       await SmtpService.sendEmail({
         providerId: smtpProviderId,
         to: subscriber.email,
         subject: subject,
-        html: emailWithTracking,
+        html: emailWithUnsubscribe,
       });
 
       await CampaignService.updateCampaignMetrics(campaignId, "", {

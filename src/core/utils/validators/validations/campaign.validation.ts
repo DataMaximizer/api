@@ -68,3 +68,9 @@ export const sendEmailSchema = z.object({
   emailContent: z.string().min(1, "Email content is required"),
   subject: z.string().min(1, "Subject is required"),
 });
+
+export const createNetworkSchema = z.object({
+  name: z.string().min(1, "Network name is required"),
+});
+
+export const updateNetworkSchema = createNetworkSchema.partial();

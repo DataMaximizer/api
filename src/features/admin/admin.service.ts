@@ -44,6 +44,7 @@ export class AdminService {
         name: user.name,
         email: user.email,
         type: user.type,
+        address: user.address,
       },
       accessToken,
       refreshToken,

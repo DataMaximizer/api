@@ -79,7 +79,7 @@ export class AffiliateService {
       }
     }
 
-    await this.scanAndEnrichOffer(offer);
+    if (!manual) await this.scanAndEnrichOffer(offer);
     await offer.save();
     // Clear all offer-related caches
     await CacheService.del(`${this.CACHE_PREFIX}:*`);
@@ -276,15 +276,6 @@ export class AffiliateService {
     const offer = await AffiliateOffer.findById(id);
     if (!offer) throw new Error("Offer not found");
 
-    if (updateData.description || updateData.categories) {
-      const enhancedData =
-        await OfferEnhancementService.enhanceOfferDescription({
-          ...offer.toObject(),
-          ...updateData,
-        });
-      updateData = { ...updateData, ...enhancedData };
-    }
-
     if (updateData.parameters) {
       updateData.parameters = updateData.parameters.map((param) => ({
         type: param.type,
@@ -295,7 +286,6 @@ export class AffiliateService {
 
     if (updateData.url && updateData.url !== offer.url) {
       offer.url = updateData.url;
-      await this.scanAndEnrichOffer(offer);
     }
 
     Object.assign(offer, updateData);
