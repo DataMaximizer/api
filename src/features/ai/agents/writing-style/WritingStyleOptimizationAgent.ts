@@ -230,11 +230,10 @@ export class WritingStyleOptimizationAgent {
     - Don't use placeholders like [Name] or anything similar to refer to the subscriber.
     - Be sure to sound like a human and not like a robot.
     - You MUST add the offer url link to the email, this is VERY important.
-    - Wherever you put the offer url, make sure to put it in the {offer_url} placeholder, this is very important.
+    - Wherever you put the offer url, make sure to put {offer_url} placeholder inside the <a> href attribute, this is very important.
     - DO NOT add telephone numbers to the email or any other contact information, the only thing you should add is the offer url.
     - DO NOT segmentate the email showing the framework steps, like "Before", "After", "Bridge", "Problem", "Agitation", "Solution" etc.
     - The call to action link should be put in the middle of the email, not at the end. It should be a plain text link, not a button. Also, there should be 1 to 3 links in the email, all pointing to {offer_url}, you can choose when to use them to make it more appealing.
-    - The link placeholder {offer_url} MUST be inside the href attribute of the anchor tag, not outside of it.
     - Highlight some action words in bold using <b> tags, but not too many, only a few to make it more appealing.
     - Your response should be in a valid JSON format with the following keys:
       - subject: The subject of the email.
