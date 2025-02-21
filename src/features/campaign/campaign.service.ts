@@ -326,7 +326,6 @@ export class CampaignService {
       });
     } catch (error) {
       logger.error("Error sending campaign email:", error);
-      throw error;
     }
   }
 

@@ -194,7 +194,6 @@ export class MetricsTrackingService {
         `Error tracking bounce for subscriber ${subscriberId}:`,
         error
       );
-      throw error;
     }
   }
 
