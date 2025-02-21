@@ -9,6 +9,7 @@ import {
   WritingTone,
 } from "@features/ai/models/ai-content.model";
 import { Network } from "@/features/network/network.model";
+import { IAddress, User } from "../user/models/user.model";
 
 export class CampaignController {
   static async createCampaign(
@@ -366,13 +367,23 @@ export class CampaignController {
         subject,
       } = req.body;
 
+      const user = await User.findById(req.user?._id);
+      const websiteUrl = user?.companyUrl;
+
+      if (!websiteUrl) {
+        throw new Error("User website url not found");
+      }
+
       await CampaignService.sendCampaignEmail(
         offerId,
         subscriberId,
         campaignId,
         smtpProviderId,
         emailContent,
-        subject
+        subject,
+        websiteUrl,
+        user?.address as IAddress,
+        user?.companyName as string
       );
 
       res.json({

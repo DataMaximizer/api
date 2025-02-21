@@ -14,6 +14,7 @@ import { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/co
 import { Click } from "../tracking/models/click.model";
 import { AffiliateOffer } from "../affiliate/models/affiliate-offer.model";
 import { Subscriber } from "../subscriber/models/subscriber.model";
+import { IAddress } from "../user/models/user.model";
 
 const COPYWRITING_FRAMEWORKS = [
   "PAS (Problem-Agitate-Solution)",
@@ -270,7 +271,10 @@ export class CampaignService {
     campaignId: string,
     smtpProviderId: string,
     emailContent: string,
-    subject: string
+    subject: string,
+    unsubscribeWebsiteUrl: string,
+    address: IAddress,
+    companyName: string
   ) {
     try {
       const offer = await AffiliateOffer.findById(offerId);
@@ -304,7 +308,10 @@ export class CampaignService {
       const emailWithUnsubscribe =
         EmailTemplateService.addUnsubscribeToTemplate(
           emailWithTracking,
-          click.id
+          click.id,
+          unsubscribeWebsiteUrl,
+          address,
+          companyName
         );
 
       await SmtpService.sendEmail({

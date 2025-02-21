@@ -4,19 +4,19 @@ export const createUserSchema = z.object({
   type: z.enum(["owner", "customer", "employee"]).optional(),
   name: z.string().min(2),
   email: z.string().email(),
-  phone: z.string().min(10).optional(),
+  phone: z.string(),
   document: z.string().optional(),
   bornAt: z.string().or(z.date()).optional(),
-  address: z
-    .object({
-      line1: z.string().optional(),
-      line2: z.string().optional(),
-      line3: z.string().optional(),
-      postalCode: z.string().optional(),
-      neighborhood: z.string().optional(),
-      state: z.string().optional(),
-    })
-    .optional(),
+  address: z.object({
+    line1: z.string(),
+    line2: z.string().optional(),
+    line3: z.string().optional(),
+    postalCode: z.string(),
+    neighborhood: z.string().optional(),
+    state: z.string(),
+    city: z.string(),
+    country: z.string(),
+  }),
   sex: z
     .number()
     .refine((val) => val === 1 || val === 2, {

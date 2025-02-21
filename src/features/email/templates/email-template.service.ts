@@ -1,3 +1,4 @@
+import { IAddress } from "@/features/user/models/user.model";
 import { v4 as uuidv4 } from "uuid";
 
 export class EmailTemplateService {
@@ -25,8 +26,8 @@ export class EmailTemplateService {
     )}&clickId=${clickId}`;
   }
 
-  static generateUnsubscribeLink(clickId: string): string {
-    return `${this.FRONTEND_URL}/unsubscribe?clickId=${clickId}`;
+  static generateUnsubscribeLink(clickId: string, websiteUrl: string): string {
+    return `${this.BASE_URL}/api/subscribers/unsubscribe?clickId=${clickId}&websiteUrl=${websiteUrl}`;
   }
 
   static addTrackingToTemplate(
@@ -50,14 +51,25 @@ export class EmailTemplateService {
     return contentWithTrackedLinks;
   }
 
-  static addUnsubscribeToTemplate(content: string, clickId: string): string {
-    const unsubscribeLink = this.generateUnsubscribeLink(clickId);
+  static addUnsubscribeToTemplate(
+    content: string,
+    clickId: string,
+    websiteUrl: string,
+    address: IAddress,
+    companyName: string
+  ): string {
+    const unsubscribeLink = this.generateUnsubscribeLink(clickId, websiteUrl);
     const unsubscribeText = `
       <br />
       <br />
       <br />
       <br />
-      <p style="font-size: 12px; color: #666;">If you no longer wish to receive these emails, you can unsubscribe by clicking <a href="${unsubscribeLink}">here</a>.</p>
+      <div style="text-align: center;">
+        <p style="font-size: 12px; color: #666;margin:0;">${companyName}</p>
+        <p style="font-size: 12px; color: #666;margin:0;">${address.line1}</p>
+        <p style="font-size: 12px; color: #666;margin:0;">${address.city}, ${address.state} - ${address.postalCode}</p>
+        <p style="font-size: 12px; color: #666;margin:0;">If you no longer wish to receive these emails, you can unsubscribe by clicking <a href="${unsubscribeLink}">here</a>.</p>
+      </div>
     `;
     return content + unsubscribeText;
   }

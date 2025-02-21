@@ -304,7 +304,9 @@ export class AffiliateService {
       console.log("📥 Getting offers with filters:", JSON.stringify(filters));
       console.log("⚙️ Query options:", JSON.stringify(options));
 
-      const offers = await AffiliateOffer.find(filters, null, options);
+      const offers = await AffiliateOffer.find(filters, null, options)
+        .populate("networkId", "name")
+        .exec();
       console.log(`📝 Found ${offers.length} offers in database`);
 
       return offers;

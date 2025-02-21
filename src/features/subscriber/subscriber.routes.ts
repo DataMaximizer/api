@@ -29,6 +29,15 @@ router.post(
   SubscriberController.createList
 );
 
+router.put(
+  "/lists/:listId",
+  authenticate,
+  validateRequest(updateListSchema),
+  SubscriberController.updateList
+);
+
+router.delete("/lists/:listId", authenticate, SubscriberController.deleteList);
+
 router.get("/lists", authenticate, SubscriberController.getLists);
 
 router.get(
@@ -63,6 +72,6 @@ router.delete(
   SubscriberController.unblockEmail
 );
 
-router.post("/unsubscribe", SubscriberController.unsubscribe);
+router.get("/unsubscribe", SubscriberController.unsubscribe);
 
 export default router;

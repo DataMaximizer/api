@@ -170,7 +170,7 @@ export class SubscriberService {
     }
   }
 
-  static async unsubscribe(clickId: string, reason?: string): Promise<void> {
+  static async unsubscribe(clickId: string): Promise<void> {
     try {
       // Find the click record to get subscriber and campaign info
       const click = await Click.findById(clickId);
@@ -186,11 +186,62 @@ export class SubscriberService {
           lastInteraction: new Date(),
           "metadata.unsubscribeDate": new Date(),
           "metadata.unsubscribeCampaignId": click.campaignId,
-          "metadata.unsubscribeReason": reason || "No reason provided",
         },
       });
     } catch (error) {
       logger.error("Error unsubscribing:", error);
+      throw error;
+    }
+  }
+
+  static async updateList(
+    listId: string,
+    userId: string,
+    updateData: Partial<ISubscriberList>
+  ): Promise<ISubscriberList | null> {
+    try {
+      const list = await SubscriberList.findOneAndUpdate(
+        {
+          _id: new Types.ObjectId(listId),
+          userId: new Types.ObjectId(userId),
+        },
+        { $set: updateData },
+        { new: true }
+      );
+
+      if (!list) {
+        throw new Error("List not found or unauthorized");
+      }
+
+      return list;
+    } catch (error) {
+      logger.error("Error updating list:", error);
+      throw error;
+    }
+  }
+
+  static async deleteList(listId: string, userId: string): Promise<void> {
+    try {
+      // First verify the list exists and belongs to the user
+      const list = await SubscriberList.findOne({
+        _id: new Types.ObjectId(listId),
+        userId: new Types.ObjectId(userId),
+      });
+
+      if (!list) {
+        throw new Error("List not found or unauthorized");
+      }
+
+      // Remove the list reference from all subscribers
+      await Subscriber.updateMany(
+        { lists: new Types.ObjectId(listId) },
+        { $pull: { lists: new Types.ObjectId(listId) } }
+      );
+
+      // Delete the list itself
+      await SubscriberList.findByIdAndDelete(listId);
+    } catch (error) {
+      logger.error("Error deleting list:", error);
       throw error;
     }
   }

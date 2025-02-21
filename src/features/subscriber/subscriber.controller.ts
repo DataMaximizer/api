@@ -338,18 +338,25 @@ export class SubscriberController {
       }
 
       if (subscribers.length > 0) {
+        // Deduplicate subscribers array by email
+        const uniqueEmailMap = new Map();
+        subscribers.forEach((sub) => {
+          uniqueEmailMap.set(sub.email, sub);
+        });
+        const deduplicatedSubscribers = Array.from(uniqueEmailMap.values());
+
         const existingSubscribers = await Subscriber.find({
-          email: { $in: subscribers.map((s) => s.email) },
+          email: { $in: deduplicatedSubscribers.map((s) => s.email) },
         });
 
-        const uniqueSubscribers = subscribers.filter(
+        const uniqueSubscribers = deduplicatedSubscribers.filter(
           (s) => !existingSubscribers.some((es) => es.email === s.email)
         );
 
         // update the subscriber lists
         await Subscriber.updateMany(
           { _id: { $in: existingSubscribers.map((s) => s._id) } },
-          { $addToSet: { lists: list.id } }
+          { $addToSet: { lists: list._id } } // Changed list.id to list._id for consistency
         );
 
         await Subscriber.create(uniqueSubscribers);
@@ -515,27 +522,76 @@ export class SubscriberController {
 
   static async unsubscribe(req: Request, res: Response): Promise<void> {
     try {
-      const { clickId, reason } = req.body;
+      const { clickId, websiteUrl } = req.query;
 
-      if (!clickId) {
+      if (!clickId || !websiteUrl) {
         res.status(400).json({
           success: false,
-          error: "Click ID is required",
+          error: "Click ID and website URL are required",
         });
         return;
       }
 
-      await SubscriberService.unsubscribe(clickId, reason);
+      await SubscriberService.unsubscribe(clickId as string);
 
-      res.status(200).json({
-        success: true,
-        message: "Successfully unsubscribed",
-      });
+      res.redirect(websiteUrl as string);
     } catch (error) {
       logger.error("Error in unsubscribe:", error);
       res.status(400).json({
         success: false,
         error: "Failed to unsubscribe",
+      });
+    }
+  }
+
+  static async updateList(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, error: "Unauthorized" });
+        return;
+      }
+
+      const { listId } = req.params;
+      const updateData = req.body;
+
+      const updatedList = await SubscriberService.updateList(
+        listId,
+        req.user._id.toString(),
+        updateData
+      );
+
+      if (!updatedList) {
+        res.status(404).json({ success: false, error: "List not found" });
+        return;
+      }
+
+      res.json({ success: true, data: updatedList });
+    } catch (error) {
+      logger.error("Error in updateList:", error);
+      res.status(400).json({ success: false, error: "Failed to update list" });
+    }
+  }
+
+  static async deleteList(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, error: "Unauthorized" });
+        return;
+      }
+
+      const { listId } = req.params;
+
+      await SubscriberService.deleteList(listId, req.user._id.toString());
+
+      res.json({
+        success: true,
+        message: "List deleted successfully",
+      });
+    } catch (error) {
+      logger.error("Error in deleteList:", error);
+      res.status(400).json({
+        success: false,
+        error: "Failed to delete list",
       });
     }
   }

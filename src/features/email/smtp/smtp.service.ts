@@ -154,97 +154,40 @@ export class SmtpService {
     text?: string;
     attachments?: any[];
   }) {
-    let transporter: Transporter | null = null;
-    try {
-      const provider = await SmtpProvider.findById(providerId);
-      if (!provider) {
-        throw new Error("SMTP provider not found");
-      }
-
-      transporter = await this.getTransporter(providerId);
-
-      // Add bounce handling
-      transporter.on("error", async (error) => {
-        if (this.isBounceError(error)) {
-          const subscriber = await Subscriber.findOne({
-            email: Array.isArray(to) ? to[0] : to,
-          });
-
-          if (subscriber) {
-            await MetricsTrackingService.trackBounce(
-              subscriber._id as string,
-              this.getBounceType(error),
-              error.message,
-              new Date()
-            );
-          }
-        }
-      });
-
-      const mailOptions = {
-        from: `${provider.fromName} <${provider.fromEmail}>`,
-        to: Array.isArray(to) ? to.join(",") : to,
-        subject,
-        html,
-        text,
-        attachments,
-        headers: {
-          "X-Priority": "1",
-          "X-MSMail-Priority": "High",
-          Importance: "high",
-        },
-      };
-
-      const result = await transporter.sendMail(mailOptions);
-      logger.info("Email sent successfully", { messageId: result.messageId });
-      return result;
-    } catch (error: any) {
-      // Handle immediate bounces
-      if (this.isBounceError(error)) {
-        const subscriber = await Subscriber.findOne({
-          email: Array.isArray(to) ? to[0] : to,
-        });
-
-        if (subscriber) {
-          await MetricsTrackingService.trackBounce(
-            subscriber._id as string,
-            this.getBounceType(error),
-            error.message,
-            new Date()
-          );
-        }
-      }
-      logger.error("Failed to send email:", error);
-      throw error;
-    }
+    // let transporter: Transporter | null = null;
     // try {
     //   const provider = await SmtpProvider.findById(providerId);
     //   if (!provider) {
     //     throw new Error("SMTP provider not found");
     //   }
 
-    //   const brevoApi = new TransactionalEmailsApi();
-    //   brevoApi.setApiKey(
-    //     TransactionalEmailsApiApiKeys.apiKey,
-    //     process.env.BREVO_API_KEY as string
-    //   );
+    //   transporter = await this.getTransporter(providerId);
 
-    //   const sendSmtpEmail = {
-    //     sender: {
-    //       name: provider.fromName,
-    //       email: provider.fromEmail,
-    //     },
-    //     to: Array.isArray(to)
-    //       ? to.map((email) => ({ email }))
-    //       : [{ email: to }],
+    //   // Add bounce handling
+    //   transporter.on("error", async (error) => {
+    //     if (this.isBounceError(error)) {
+    //       const subscriber = await Subscriber.findOne({
+    //         email: Array.isArray(to) ? to[0] : to,
+    //       });
+
+    //       if (subscriber) {
+    //         await MetricsTrackingService.trackBounce(
+    //           subscriber._id as string,
+    //           this.getBounceType(error),
+    //           error.message,
+    //           new Date()
+    //         );
+    //       }
+    //     }
+    //   });
+
+    //   const mailOptions = {
+    //     from: `${provider.fromName} <${provider.fromEmail}>`,
+    //     to: Array.isArray(to) ? to.join(",") : to,
     //     subject,
-    //     htmlContent: html,
-    //     textContent: text,
-    //     attachment: attachments?.map((att) => ({
-    //       name: att.filename,
-    //       content: att.content.toString("base64"),
-    //       type: att.contentType,
-    //     })),
+    //     html,
+    //     text,
+    //     attachments,
     //     headers: {
     //       "X-Priority": "1",
     //       "X-MSMail-Priority": "High",
@@ -252,18 +195,12 @@ export class SmtpService {
     //     },
     //   };
 
-    //   const result = await brevoApi.sendTransacEmail(sendSmtpEmail);
-    //   logger.info("Email sent successfully via Brevo API", {
-    //     body: result.body,
-    //   });
-
+    //   const result = await transporter.sendMail(mailOptions);
+    //   logger.info("Email sent successfully", { messageId: result.messageId });
     //   return result;
     // } catch (error: any) {
-    //   // Handle bounces using Brevo's error response
-    //   if (
-    //     error.response?.body?.code === "invalid_parameter" &&
-    //     error.response?.body?.message?.includes("blocked")
-    //   ) {
+    //   // Handle immediate bounces
+    //   if (this.isBounceError(error)) {
     //     const subscriber = await Subscriber.findOne({
     //       email: Array.isArray(to) ? to[0] : to,
     //     });
@@ -271,19 +208,77 @@ export class SmtpService {
     //     if (subscriber) {
     //       await MetricsTrackingService.trackBounce(
     //         subscriber._id as string,
-    //         "hard", // Brevo typically blocks hard bounces
-    //         error.response.body.message,
+    //         this.getBounceType(error),
+    //         error.message,
     //         new Date()
     //       );
     //     }
     //   }
-
-    //   logger.error(
-    //     "Failed to send email via Brevo API:",
-    //     error?.response?.body || error
-    //   );
+    //   logger.error("Failed to send email:", error);
     //   throw error;
     // }
+    try {
+      const provider = await SmtpProvider.findById(providerId);
+      if (!provider) {
+        throw new Error("SMTP provider not found");
+      }
+
+      const brevoApi = new TransactionalEmailsApi();
+      brevoApi.setApiKey(
+        TransactionalEmailsApiApiKeys.apiKey,
+        process.env.BREVO_API_KEY as string
+      );
+
+      const sendSmtpEmail = {
+        sender: {
+          name: provider.fromName,
+          email: provider.fromEmail,
+        },
+        to: Array.isArray(to)
+          ? to.map((email) => ({ email }))
+          : [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text,
+        headers: {
+          "X-Priority": "1",
+          "X-MSMail-Priority": "High",
+          Importance: "high",
+        },
+      };
+
+      const result = await brevoApi.sendTransacEmail(sendSmtpEmail);
+      logger.info("Email sent successfully via Brevo API", {
+        body: result.body,
+      });
+
+      return result;
+    } catch (error: any) {
+      // Handle bounces using Brevo's error response
+      if (
+        error.response?.body?.code === "invalid_parameter" &&
+        error.response?.body?.message?.includes("blocked")
+      ) {
+        const subscriber = await Subscriber.findOne({
+          email: Array.isArray(to) ? to[0] : to,
+        });
+
+        if (subscriber) {
+          await MetricsTrackingService.trackBounce(
+            subscriber._id as string,
+            "hard", // Brevo typically blocks hard bounces
+            error.response.body.message,
+            new Date()
+          );
+        }
+      }
+
+      logger.error(
+        "Failed to send email via Brevo API:",
+        error?.response?.body || error
+      );
+      throw error;
+    }
   }
 
   static async testSmtpConnection(providerId: string): Promise<boolean> {

@@ -25,6 +25,8 @@ export interface IAddress {
   postalCode: string;
   neighborhood: string;
   state: string;
+  city: string;
+  country: string;
 }
 
 export interface IConfiguration {
@@ -51,6 +53,8 @@ export interface IUser extends Document {
   sex?: UserSex;
   avatar?: string;
   configuration?: IConfiguration;
+  companyName: string;
+  companyUrl: string;
   password: string;
   deletedAt?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -63,7 +67,9 @@ const addressSchema = new Schema<IAddress>({
   line3: { type: String },
   postalCode: { type: String },
   neighborhood: { type: String },
-  state: { type: String, length: 2 },
+  state: { type: String, required: true },
+  city: { type: String, required: true },
+  country: { type: String, required: true },
 });
 
 const configurationSchema = new Schema<IConfiguration>({
@@ -136,6 +142,14 @@ const userSchema = new Schema<IUser>(
     configuration: {
       type: configurationSchema,
       default: {},
+    },
+    companyName: {
+      type: String,
+      required: true,
+    },
+    companyUrl: {
+      type: String,
+      required: true,
     },
     password: {
       type: String,
