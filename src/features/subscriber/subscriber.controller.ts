@@ -82,7 +82,6 @@ export class SubscriberController {
       const subscribers = await Subscriber.find({
         userId: req.user._id,
         email: { $nin: blockedEmails },
-        status: "active",
       })
         .populate("lists", "name subscriberCount")
         .sort({ createdAt: -1 });

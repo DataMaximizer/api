@@ -44,4 +44,8 @@ router.post("/webhook/bounce", (req, res) =>
   smtpController.handleBounce(req, res)
 );
 
+router.get("/brevo/senders", authenticate, (req, res) =>
+  smtpController.getBrevoSenders(req, res)
+);
+
 export default router;

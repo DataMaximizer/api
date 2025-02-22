@@ -272,6 +272,7 @@ export class AIConfigController {
         smtpProviderId,
         subscriberListId,
         selectionPercentage,
+        sender: { name: senderName, email: senderEmail },
       } = req.body;
 
       if (!offerIds || !Array.isArray(offerIds) || offerIds.length === 0) {
@@ -286,6 +287,14 @@ export class AIConfigController {
         res.status(400).json({
           success: false,
           error: "smtpProviderId and subscriberListId are required",
+        });
+        return;
+      }
+
+      if (!senderName || !senderEmail) {
+        res.status(400).json({
+          success: false,
+          error: "senderName and senderEmail are required",
         });
         return;
       }
@@ -312,7 +321,9 @@ export class AIConfigController {
             subscriberListId,
             smtpProviderId,
             req.user?._id?.toString() || "",
-            selectionPercentage
+            selectionPercentage,
+            senderName,
+            senderEmail
           );
 
           await campaignTracker.updateCampaignStatus(

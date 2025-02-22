@@ -236,7 +236,7 @@ export class WritingStyleOptimizationAgent {
     - The call to action link should be put in the middle of the email, not at the end. It should be a plain text link, not a button. Also, there should be 1 to 3 links in the email, all pointing to {offer_url}, you can choose when to use them to make it more appealing.
     - Highlight some action words in bold using <b> tags, but not too many, only a few to make it more appealing.
     - Your response should be in a valid JSON format with the following keys:
-      - subject: The subject of the email.
+      - subject: The subject of the email, it should be based on the product description and Tone/Writing Style/Personality/Copywriting Style.
       - body: The body of the email in HTML format compliant with email clients, escape if needed.
 
     Closely follow this writing style:
@@ -311,7 +311,9 @@ export class WritingStyleOptimizationAgent {
     subscriberListId: string,
     smtpProviderId: string,
     userId: string,
-    selectionPercentage: number = 0.2
+    selectionPercentage: number = 0.2,
+    senderName: string,
+    senderEmail: string
   ): Promise<
     {
       offerId: string;
@@ -322,6 +324,8 @@ export class WritingStyleOptimizationAgent {
       subscriberId: string;
       subject: string;
       content: string;
+      senderName: string;
+      senderEmail: string;
     }[][]
   > {
     // Get all active subscribers from the list
@@ -463,6 +467,8 @@ export class WritingStyleOptimizationAgent {
             )?.email,
             subject: parsedContent.subject,
             content: parsedContent.body,
+            senderName,
+            senderEmail,
             ...group.style,
           }));
         })
@@ -482,7 +488,9 @@ export class WritingStyleOptimizationAgent {
         data.subject,
         websiteUrl,
         user?.address as IAddress,
-        user?.companyName as string
+        user?.companyName as string,
+        senderName,
+        senderEmail
       );
     }
 

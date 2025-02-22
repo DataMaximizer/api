@@ -274,7 +274,9 @@ export class CampaignService {
     subject: string,
     unsubscribeWebsiteUrl: string,
     address: IAddress,
-    companyName: string
+    companyName: string,
+    senderName: string,
+    senderEmail: string
   ) {
     try {
       const offer = await AffiliateOffer.findById(offerId);
@@ -319,6 +321,8 @@ export class CampaignService {
         to: subscriber.email,
         subject: subject,
         html: emailWithUnsubscribe,
+        senderName,
+        senderEmail,
       });
 
       await CampaignService.updateCampaignMetrics(campaignId, "", {

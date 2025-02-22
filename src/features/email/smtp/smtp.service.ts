@@ -8,6 +8,22 @@ import {
   TransactionalEmailsApiApiKeys,
 } from "@getbrevo/brevo";
 
+type BrevoSenderIp = {
+  ip: string;
+  domain: string;
+  weight: number;
+};
+
+type BrevoSenderResponse = {
+  senders: Array<{
+    id: number;
+    name: string;
+    email: string;
+    active: boolean;
+    ips?: BrevoSenderIp[];
+  }>;
+};
+
 export class SmtpService {
   private static transporters: Map<
     string,
@@ -145,6 +161,8 @@ export class SmtpService {
     subject,
     html,
     text,
+    senderName,
+    senderEmail,
     attachments = [],
   }: {
     providerId: string;
@@ -153,6 +171,8 @@ export class SmtpService {
     html?: string;
     text?: string;
     attachments?: any[];
+    senderName?: string;
+    senderEmail?: string;
   }) {
     // let transporter: Transporter | null = null;
     // try {
@@ -231,8 +251,8 @@ export class SmtpService {
 
       const sendSmtpEmail = {
         sender: {
-          name: provider.fromName,
-          email: provider.fromEmail,
+          name: senderName,
+          email: senderEmail,
         },
         to: Array.isArray(to)
           ? to.map((email) => ({ email }))
@@ -301,52 +321,33 @@ export class SmtpService {
     }
   }
 
-  static async rotateSmtpProvider(
-    userId: string
-  ): Promise<ISmtpProvider | null> {
+  static async getBrevoSenders() {
     try {
-      const providers = await SmtpProvider.find({
-        userId,
-        deletedAt: null,
-      }).select("-password");
+      const response = await fetch("https://api.brevo.com/v3/senders", {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          "api-key": process.env.BREVO_API_KEY as string,
+        },
+      });
 
-      if (!providers.length) {
-        return null;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const provider = providers[Math.floor(Math.random() * providers.length)];
-      return provider;
-    } catch (error) {
-      logger.error("Failed to rotate SMTP provider:", error);
-      return null;
+      const data = (await response.json()) as BrevoSenderResponse;
+
+      return data.senders
+        .filter((sender) => sender.active)
+        .map(({ id, name, email }) => ({
+          id,
+          name,
+          email,
+        }));
+    } catch (error: any) {
+      logger.error("Failed to fetch Brevo senders:", error);
+      throw error;
     }
-  }
-
-  private static isBounceError(error: any): boolean {
-    return (
-      error.code === "EENVELOPE" ||
-      error.code === "EMESSAGE" ||
-      (error.responseCode && error.responseCode >= 500)
-    );
-  }
-
-  private static getBounceType(error: any): "hard" | "soft" {
-    // Common hard bounce indicators
-    const hardBounceIndicators = [
-      "no such user",
-      "invalid recipient",
-      "account disabled",
-      "mailbox not found",
-      "recipient rejected",
-      "bad destination",
-    ];
-
-    const message = (error.message || "").toLowerCase();
-    return hardBounceIndicators.some((indicator) =>
-      message.includes(indicator.toLowerCase())
-    )
-      ? "hard"
-      : "soft";
   }
 }
 

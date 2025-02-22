@@ -192,7 +192,6 @@ class SmtpController {
       res.json({
         success: true,
         message: "Test email sent successfully",
-        data: { messageId: result.messageId },
       });
     } catch (error) {
       logger.error("Error sending test email:", error);
@@ -238,6 +237,24 @@ class SmtpController {
         success: false,
         error: "Failed to process bounce",
         message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  async getBrevoSenders(req: Request, res: Response): Promise<void> {
+    try {
+      const senders = await SmtpService.getBrevoSenders();
+
+      res.json({
+        success: true,
+        data: senders,
+      });
+    } catch (error) {
+      logger.error("Error fetching Brevo senders:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch Brevo senders",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
