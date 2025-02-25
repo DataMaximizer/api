@@ -237,33 +237,33 @@ export class AIConfigController {
     }
   }
 
-  static async runWritingStyleOptimization(
-    req: Request,
-    res: Response
-  ): Promise<void> {
-    try {
-      const { offerId, subscriberId } = req.body;
-      if (!subscriberId || !subscriberId) {
-        res.status(400).json({
-          success: false,
-          message: "subscriberId and offerId are required.",
-        });
-      }
+  // static async runWritingStyleOptimization(
+  //   req: Request,
+  //   res: Response
+  // ): Promise<void> {
+  //   try {
+  //     const { offerId, subscriberId } = req.body;
+  //     if (!subscriberId || !subscriberId) {
+  //       res.status(400).json({
+  //         success: false,
+  //         message: "subscriberId and offerId are required.",
+  //       });
+  //     }
 
-      const agent = new WritingStyleOptimizationAgent();
-      const result = await agent.generateEmailMarketing(offerId, subscriberId);
+  //     const agent = new WritingStyleOptimizationAgent();
+  //     const result = await agent.generateEmailMarketing(offerId, subscriberId);
 
-      res.status(200).json({
-        success: true,
-      });
-    } catch (error) {
-      console.error("Error in runWritingStyleOptimization:", error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }
+  //     res.status(200).json({
+  //       success: true,
+  //     });
+  //   } catch (error) {
+  //     console.error("Error in runWritingStyleOptimization:", error);
+  //     res.status(500).json({
+  //       success: false,
+  //       error: error instanceof Error ? error.message : "Unknown error",
+  //     });
+  //   }
+  // }
 
   static async startCampaign(req: Request, res: Response): Promise<void> {
     try {
@@ -273,6 +273,7 @@ export class AIConfigController {
         subscriberListId,
         selectionPercentage,
         sender: { name: senderName, email: senderEmail },
+        aiProvider,
       } = req.body;
 
       if (!offerIds || !Array.isArray(offerIds) || offerIds.length === 0) {
@@ -323,7 +324,8 @@ export class AIConfigController {
             req.user?._id?.toString() || "",
             selectionPercentage,
             senderName,
-            senderEmail
+            senderEmail,
+            aiProvider
           );
 
           await campaignTracker.updateCampaignStatus(

@@ -24,6 +24,7 @@
 		"typescript": "^5.6.3"
 	},
 	"dependencies": {
+		"@anthropic-ai/sdk": "^0.37.0",
 		"@getbrevo/brevo": "^2.2.0",
 		"@tensorflow/tfjs-node": "^4.22.0",
 		"@types/ioredis": "^5.0.0",

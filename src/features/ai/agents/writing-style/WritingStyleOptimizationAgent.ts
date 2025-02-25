@@ -214,6 +214,7 @@ export class WritingStyleOptimizationAgent {
    */
   public async generateEmailMarketing(
     offerId: string,
+    aiProvider: "openai" | "claude",
     styleOptions: {
       writingStyle: WritingStyle;
       copywritingStyle: CopywritingStyle;
@@ -259,7 +260,8 @@ export class WritingStyleOptimizationAgent {
       styleOptions.personality,
       styleOptions.writingStyle,
       extraRules,
-      true
+      true,
+      aiProvider
     );
 
     return emailContent;
@@ -313,7 +315,8 @@ export class WritingStyleOptimizationAgent {
     userId: string,
     selectionPercentage: number = 0.2,
     senderName: string,
-    senderEmail: string
+    senderEmail: string,
+    aiProvider: "openai" | "claude"
   ): Promise<
     {
       offerId: string;
@@ -326,6 +329,7 @@ export class WritingStyleOptimizationAgent {
       content: string;
       senderName: string;
       senderEmail: string;
+      aiProvider: "openai" | "claude";
     }[][]
   > {
     // Get all active subscribers from the list
@@ -433,6 +437,7 @@ export class WritingStyleOptimizationAgent {
           // Generate email content once per style combination
           const emailContent = await this.generateEmailMarketing(
             offerId,
+            aiProvider,
             group.style
           );
           const parsedContent = JSON.parse(emailContent);
@@ -469,6 +474,7 @@ export class WritingStyleOptimizationAgent {
             content: parsedContent.body,
             senderName,
             senderEmail,
+            aiProvider,
             ...group.style,
           }));
         })

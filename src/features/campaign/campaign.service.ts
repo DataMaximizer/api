@@ -15,6 +15,8 @@ import { Click } from "../tracking/models/click.model";
 import { AffiliateOffer } from "../affiliate/models/affiliate-offer.model";
 import { Subscriber } from "../subscriber/models/subscriber.model";
 import { IAddress } from "../user/models/user.model";
+import { Anthropic } from "@anthropic-ai/sdk";
+import { TextBlock } from "@anthropic-ai/sdk/resources";
 
 const COPYWRITING_FRAMEWORKS = [
   "PAS (Problem-Agitate-Solution)",
@@ -59,6 +61,10 @@ const WRITING_STYLES = [
 export class CampaignService {
   private static openai = new OpenAI({
     apiKey: OPENAI_API_KEY,
+  });
+
+  private static anthropic = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY || "",
   });
 
   private static readonly BATCH_SIZE = 100;
@@ -166,16 +172,15 @@ export class CampaignService {
     }
   }
 
-  public static async generateEmailContent(
+  private static generateEmailPrompt(
     productInfo: any,
     framework: string,
     tone: string,
     personality: string,
     writingStyle: string,
-    extraInstructions?: string,
-    jsonResponse?: boolean
-  ): Promise<string> {
-    const prompt = `
+    extraInstructions?: string
+  ): string {
+    return `
       Write a marketing email using the ${framework} framework.
       Product Information: ${JSON.stringify(productInfo)}
       Tone: ${tone}
@@ -192,7 +197,35 @@ export class CampaignService {
       4. Keep it concise and engaging
       5. Focus on benefits and value proposition
     `;
+  }
 
+  public static async generateEmailContent(
+    productInfo: any,
+    framework: string,
+    tone: string,
+    personality: string,
+    writingStyle: string,
+    extraInstructions?: string,
+    jsonResponse?: boolean,
+    aiProvider: "openai" | "claude" = "openai"
+  ): Promise<string> {
+    const prompt = this.generateEmailPrompt(
+      productInfo,
+      framework,
+      tone,
+      personality,
+      writingStyle,
+      extraInstructions
+    );
+    return aiProvider === "openai"
+      ? this.generateOpenAIEmailContent(prompt, jsonResponse)
+      : this.generateClaudeEmailContent(prompt, jsonResponse);
+  }
+
+  private static async generateOpenAIEmailContent(
+    prompt: string,
+    jsonResponse?: boolean
+  ): Promise<string> {
     const gptParams: ChatCompletionCreateParamsNonStreaming = {
       model: "gpt-4o-mini",
       messages: [
@@ -210,11 +243,46 @@ export class CampaignService {
     }
 
     const completion = await this.openai.chat.completions.create(gptParams);
-
     return completion.choices[0].message?.content || "";
   }
 
-  private static async generateEmailSubject(content: string): Promise<string> {
+  private static async generateClaudeEmailContent(
+    prompt: string,
+    jsonResponse?: boolean
+  ): Promise<string> {
+    let finalPrompt = prompt;
+
+    if (jsonResponse) {
+      finalPrompt = `${prompt}\n\nPlease respond with valid JSON only, without any markdown formatting, code blocks, or explanations.`;
+    }
+
+    const message = await this.anthropic.messages.create({
+      model: "claude-3-7-sonnet-latest",
+      max_tokens: 1000,
+      system:
+        "You are an expert email copywriter with deep knowledge of marketing frameworks and psychology.",
+      messages: [
+        {
+          role: "user",
+          content: finalPrompt,
+        },
+      ],
+    });
+
+    let response = (message.content[0] as TextBlock).text;
+
+    // Clean up JSON response if needed
+    if (jsonResponse && response.startsWith("```json")) {
+      response = response.replace(/```json\n/, "").replace(/\n```$/, "");
+    }
+
+    return response;
+  }
+
+  private static async generateEmailSubject(
+    content: string,
+    aiProvider: "openai" | "claude" = "openai"
+  ): Promise<string> {
     const prompt = `
       Based on this email content, generate a compelling subject line that will maximize open rates:
       ${content}
@@ -226,6 +294,12 @@ export class CampaignService {
       4. Make it relevant to the content
     `;
 
+    return aiProvider === "openai"
+      ? this.generateOpenAISubject(prompt)
+      : this.generateClaudeSubject(prompt);
+  }
+
+  private static async generateOpenAISubject(prompt: string): Promise<string> {
     const completion = await this.openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
@@ -239,6 +313,24 @@ export class CampaignService {
     });
 
     return completion.choices[0].message?.content || "";
+  }
+
+  private static async generateClaudeSubject(prompt: string): Promise<string> {
+    const message = await this.anthropic.messages.create({
+      model: "claude-3-sonnet-20240229",
+      max_tokens: 100,
+      system:
+        "You are an expert in writing email subject lines that maximize open rates.",
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const messageContent = message.content[0] as TextBlock;
+    return messageContent.text;
   }
 
   static async updateCampaignMetrics(
