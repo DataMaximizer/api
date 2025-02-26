@@ -236,6 +236,7 @@ export class WritingStyleOptimizationAgent {
     - DO NOT segmentate the email showing the framework steps, like "Before", "After", "Bridge", "Problem", "Agitation", "Solution" etc.
     - The call to action link should be put in the middle of the email, not at the end. It should be a plain text link, not a button. Also, there should be 1 to 3 links in the email, all pointing to {offer_url}, you can choose when to use them to make it more appealing.
     - Highlight some action words in bold using <b> tags, but not too many, only a few to make it more appealing.
+    - Do NOT include any signature at the end of the email.
     - Your response should be in a valid JSON format with the following keys:
       - subject: The subject of the email, it should be based on the product description and Tone/Writing Style/Personality/Copywriting Style.
       - body: The body of the email in HTML format compliant with email clients, escape if needed.
