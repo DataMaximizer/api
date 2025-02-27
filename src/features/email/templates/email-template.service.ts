@@ -19,12 +19,8 @@ export class EmailTemplateService {
     }" width="1" height="1" style="display:none;" alt="" />`;
   }
 
-  static generateTrackingLink(originalUrl: string, clickId: string): string {
-    return `${
-      this.REDIRECT_URL
-    }/api/metrics/track/redirect?url=${encodeURIComponent(
-      originalUrl
-    )}&clickId=${clickId}`;
+  static generateTrackingLink(clickId: string): string {
+    return `${this.REDIRECT_URL}/api/metrics/track/redirect?clickId=${clickId}`;
   }
 
   static generateUnsubscribeLink(clickId: string, websiteUrl: string): string {
@@ -42,7 +38,7 @@ export class EmailTemplateService {
     let contentWithTrackedLinks = content.replace(
       /<a\s+href=(['"])([^'"]+)\1([^>]*)>/g,
       (match, quote, url, rest) => {
-        const trackedUrl = this.generateTrackingLink(url, clickId);
+        const trackedUrl = this.generateTrackingLink(clickId);
         return `<a href=${quote}${trackedUrl}${quote}${rest}>`;
       }
     );
