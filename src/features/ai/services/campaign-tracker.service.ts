@@ -95,6 +95,8 @@ export class CampaignTrackerService {
         html: `Your automated emails processing has ${campaign.status}. ${
           campaign.error ? `Error: ${campaign.error}` : ""
         }`,
+        senderName: "Inbox Engine",
+        senderEmail: "info@inboxengine.ai",
       });
 
       // Mark as notified after sending email
