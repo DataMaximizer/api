@@ -220,8 +220,7 @@ export class WritingStyleOptimizationAgent {
       copywritingStyle: CopywritingStyle;
       tone: Tone;
       personality: Personality;
-    },
-    hasName: boolean
+    }
   ): Promise<string> {
     // Fetch the offer from the AffiliateOffer model.
     const offer = await AffiliateOffer.findById(offerId);
@@ -238,11 +237,7 @@ export class WritingStyleOptimizationAgent {
     - The call to action link should be put in the middle of the email, not at the end. It should be a plain text link, not a button. Also, there should be 1 to 3 links in the email, all pointing to {offer_url}, you can choose when to use them to make it more appealing.
     - Highlight some action words in bold using <b> tags, but not too many, only a few to make it more appealing.
     - Do NOT include any signature at the end of the email.
-    ${
-      hasName
-        ? `- Address the subscriber by name in the email, for that you can add the placeholder {subscriber_name} in the email content.`
-        : ""
-    }
+    - Address the subscriber by name in the email, for that you can add the placeholder {subscriber_name} in the email content.
     - Your response should be in a valid JSON format with the following keys:
       - subject: The subject of the email, it should be based on the product description and Tone/Writing Style/Personality/Copywriting Style.
       - body: The body of the email in HTML format compliant with email clients, escape if needed.
@@ -378,7 +373,6 @@ export class WritingStyleOptimizationAgent {
 
     // Extract subscriber IDs from filtered list
     const subscriberIds = validSubscribers.map((sub) => sub.id);
-    const hasName = validSubscribers.every((sub) => sub.data?.name);
 
     // Initialize OfferSelectionAgent
     const offerSelectionAgent = new OfferSelectionAgent();
@@ -446,8 +440,7 @@ export class WritingStyleOptimizationAgent {
           const emailContent = await this.generateEmailMarketing(
             offerId,
             aiProvider,
-            group.style,
-            hasName
+            group.style
           );
           const parsedContent = JSON.parse(emailContent);
           const currentTimestamp = new Date().getTime();

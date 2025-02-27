@@ -54,6 +54,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 router.post(
   "/import",
+  authenticate,
   upload.single("file"),
   SubscriberController.importSubscribers
 );
