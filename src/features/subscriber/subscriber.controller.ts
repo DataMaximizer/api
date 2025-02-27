@@ -235,6 +235,8 @@ export class SubscriberController {
       }
 
       const userId = new Types.ObjectId(req.user._id.toString());
+      const listId = req.body.listId;
+      let list;
 
       // Get all blocked emails for this user
       const blockedEmails = await BlockedEmail.find({ userId }).distinct(
@@ -244,26 +246,42 @@ export class SubscriberController {
         blockedEmails.map((email) => email.toLowerCase())
       );
 
-      const fileName = req.file.originalname.split(".")[0];
-      const listName = `Import - ${fileName} ${new Date().toISOString()}`;
+      if (listId) {
+        // Use existing list
+        list = await SubscriberList.findById(listId);
 
-      const list = await SubscriberList.create({
-        name: listName,
-        description: `Imported from ${req.file.originalname}`,
-        userId,
-        subscriberCount: 0,
-        tags: ["imported"],
-      });
+        if (!list || list.userId.toString() !== userId.toString()) {
+          res
+            .status(404)
+            .json({ success: false, error: "List not found or unauthorized" });
+          return;
+        }
+      } else {
+        // Create new list
+        const fileName = req.file.originalname.split(".")[0];
+        const listName = `Import - ${fileName} ${new Date().toISOString()}`;
+
+        list = await SubscriberList.create({
+          name: listName,
+          description: `Imported from ${req.file.originalname}`,
+          userId,
+          subscriberCount: 0,
+          tags: ["imported"],
+        });
+      }
 
       const fileContent = req.file.buffer.toString("utf-8");
       const rows = fileContent.split("\n").filter((row) => row.trim());
       const headers = rows[0].split(",").map((header) => header.trim());
       const mappings = JSON.parse(req.body.mappings);
+      const updateExisting = req.body.updateExisting === "true";
 
       const subscribers = [];
       let importedCount = 0;
+      let updatedCount = 0;
       let errorCount = 0;
       let blockedCount = 0;
+      let existingSubscribersCount = 0;
       const errorDetails = [];
 
       for (let i = 1; i < rows.length; i++) {
@@ -294,6 +312,9 @@ export class SubscriberController {
           };
 
           // Map fields
+          let firstName = "";
+          let lastName = "";
+
           for (const mapping of mappings) {
             const columnIndex = headers.indexOf(mapping.csvHeader);
             if (columnIndex === -1) continue;
@@ -310,8 +331,26 @@ export class SubscriberController {
               case "phone":
                 subscriberData.phone = value;
                 break;
+              case "firstName":
+                firstName = value;
+                break;
+              case "lastName":
+                lastName = value;
+                break;
               case "name":
                 subscriberData.data.name = value;
+                break;
+              case "gender":
+                subscriberData.data.gender = value;
+                break;
+              case "dateOfBirth":
+              case "dob":
+                subscriberData.data.dateOfBirth = value;
+                break;
+              case "country":
+              case "region":
+              case "countryRegion":
+                subscriberData.data.countryRegion = value;
                 break;
               default:
                 // Handle any custom fields by adding them to the data object
@@ -321,6 +360,13 @@ export class SubscriberController {
                 }
                 break;
             }
+          }
+
+          // Combine first and last name if both exist
+          if (firstName || lastName) {
+            subscriberData.data.name = [firstName, lastName]
+              .filter(Boolean)
+              .join(" ");
           }
 
           // Also check if there's a direct "name" column in the CSV
@@ -364,16 +410,58 @@ export class SubscriberController {
           email: { $in: deduplicatedSubscribers.map((s) => s.email) },
         });
 
+        existingSubscribersCount = existingSubscribers.length;
+
         const uniqueSubscribers = deduplicatedSubscribers.filter(
           (s) => !existingSubscribers.some((es) => es.email === s.email)
         );
 
-        // update the subscriber lists
-        await Subscriber.updateMany(
-          { _id: { $in: existingSubscribers.map((s) => s._id) } },
-          { $addToSet: { lists: list._id } }
-        );
+        // Update existing subscribers with new data if updateExisting is true
+        if (updateExisting && existingSubscribers.length > 0) {
+          for (const existingSub of existingSubscribers) {
+            const newData = deduplicatedSubscribers.find(
+              (s) => s.email === existingSub.email
+            );
+            if (newData) {
+              const updateFields: Record<string, any> = {};
 
+              // Add all data fields that exist in the new data
+              if (Object.keys(newData.data).length > 0) {
+                for (const [key, value] of Object.entries(newData.data)) {
+                  updateFields[`data.${key}`] = value;
+                }
+              }
+
+              // Add phone if it exists
+              if (newData.phone) {
+                updateFields.phone = newData.phone;
+              }
+
+              await Subscriber.updateOne(
+                { _id: existingSub._id },
+                {
+                  $set: updateFields,
+                  $addToSet: { lists: list._id },
+                }
+              );
+              updatedCount++;
+            } else {
+              // Just add to the list if no data update
+              await Subscriber.updateOne(
+                { _id: existingSub._id },
+                { $addToSet: { lists: list._id } }
+              );
+            }
+          }
+        } else {
+          // Just update the subscriber lists without changing data
+          await Subscriber.updateMany(
+            { _id: { $in: existingSubscribers.map((s) => s._id) } },
+            { $addToSet: { lists: list._id } }
+          );
+        }
+
+        // Create new subscribers
         await Subscriber.create(uniqueSubscribers);
         await SubscriberList.findByIdAndUpdate(list._id, {
           subscriberCount: importedCount,
@@ -383,14 +471,15 @@ export class SubscriberController {
       res.status(200).json({
         success: true,
         data: {
-          imported: importedCount,
+          imported: importedCount - existingSubscribersCount,
+          updated: updatedCount,
           errors: errorCount,
           blocked: blockedCount,
           total: rows.length - 1,
           errorDetails,
           list: {
             _id: list._id,
-            name: listName,
+            name: list.name,
             subscriberCount: importedCount,
           },
         },
