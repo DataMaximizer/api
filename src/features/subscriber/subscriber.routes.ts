@@ -9,6 +9,7 @@ import {
 } from "@core/utils/validators/validations/subscriber.validation";
 
 import multer from "multer";
+import rateLimit from "express-rate-limit";
 
 const router = Router();
 
@@ -73,5 +74,12 @@ router.delete(
 );
 
 router.get("/unsubscribe", SubscriberController.unsubscribe);
+
+// Webhook
+const limiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 5, // Max 5 requests per IP
+});
+router.post("/webhook/add", limiter, SubscriberController.addWebhookSubscriber);
 
 export default router;

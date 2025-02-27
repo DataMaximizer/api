@@ -245,4 +245,40 @@ export class SubscriberService {
       throw error;
     }
   }
+
+  static async addWebhookSubscriber(
+    subscriberData: Partial<ISubscriber>
+  ): Promise<ISubscriber> {
+    try {
+      // Check if subscriber with this email already exists
+      const existingSubscriber = await Subscriber.findOne({
+        email: subscriberData.email,
+      });
+
+      if (existingSubscriber) {
+        // Update existing subscriber with new data
+        const updatedSubscriber = await Subscriber.findByIdAndUpdate(
+          existingSubscriber._id,
+          {
+            $set: {
+              lastInteraction: new Date(),
+              "metadata.lastWebhookUpdate": new Date(),
+            },
+            $addToSet: { tags: "webhook" },
+          },
+          { new: true }
+        );
+
+        return updatedSubscriber!;
+      }
+
+      // Create new subscriber
+      const subscriber = await Subscriber.create(subscriberData);
+
+      return subscriber;
+    } catch (error) {
+      logger.error("Error adding webhook subscriber:", error);
+      throw error;
+    }
+  }
 }

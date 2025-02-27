@@ -1,11 +1,12 @@
 import { IAddress } from "@/features/user/models/user.model";
-import { v4 as uuidv4 } from "uuid";
 
 export class EmailTemplateService {
   private static readonly BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
   private static readonly FRONTEND_URL =
     process.env.FRONTEND_URL || "http://localhost:3000";
+  private static readonly REDIRECT_URL =
+    process.env.REDIRECT_URL || "http://localhost:5002";
 
   static generateTrackingPixel(
     subscriberId: string,
@@ -20,7 +21,7 @@ export class EmailTemplateService {
 
   static generateTrackingLink(originalUrl: string, clickId: string): string {
     return `${
-      this.BASE_URL
+      this.REDIRECT_URL
     }/api/metrics/track/redirect?url=${encodeURIComponent(
       originalUrl
     )}&clickId=${clickId}`;

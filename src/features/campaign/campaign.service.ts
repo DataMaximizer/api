@@ -390,7 +390,9 @@ export class CampaignService {
         timestamp: new Date(),
       });
       offerUrl = offerUrl.replace("{clickId}", click._id as string);
-      const replacedContent = emailContent.replace(/{offer_url}/g, offerUrl);
+      const replacedContent = emailContent
+        .replace(/{offer_url}/g, offerUrl)
+        .replace(/{subscriber_name}/g, subscriber.data?.name || "");
 
       const emailWithTracking = EmailTemplateService.addTrackingToTemplate(
         replacedContent,

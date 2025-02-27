@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { SubscriberService } from "./subscriber.service";
 import { logger } from "@config/logger";
-import { IUser } from "@features/user/models/user.model";
+import { IUser, User } from "@features/user/models/user.model";
 import { Form } from "@features/form/models/form.model";
 import {
   Subscriber,
@@ -276,7 +276,7 @@ export class SubscriberController {
             email: "",
             status: "active" as const,
             tags: [],
-            data: {},
+            data: {} as Record<string, string>,
             lastInteraction: new Date(),
             engagementScore: 0,
             phone: "",
@@ -310,7 +310,23 @@ export class SubscriberController {
               case "phone":
                 subscriberData.phone = value;
                 break;
+              case "name":
+                subscriberData.data.name = value;
+                break;
+              default:
+                // Handle any custom fields by adding them to the data object
+                if (mapping.mappedField.startsWith("custom_")) {
+                  const fieldName = mapping.mappedField.replace("custom_", "");
+                  subscriberData.data[fieldName] = value;
+                }
+                break;
             }
+          }
+
+          // Also check if there's a direct "name" column in the CSV
+          const nameColumnIndex = headers.indexOf("name");
+          if (nameColumnIndex !== -1 && row[nameColumnIndex]?.trim()) {
+            subscriberData.data.name = row[nameColumnIndex].trim();
           }
 
           if (!subscriberData.email) {
@@ -355,7 +371,7 @@ export class SubscriberController {
         // update the subscriber lists
         await Subscriber.updateMany(
           { _id: { $in: existingSubscribers.map((s) => s._id) } },
-          { $addToSet: { lists: list._id } } // Changed list.id to list._id for consistency
+          { $addToSet: { lists: list._id } }
         );
 
         await Subscriber.create(uniqueSubscribers);
@@ -591,6 +607,89 @@ export class SubscriberController {
       res.status(400).json({
         success: false,
         error: "Failed to delete list",
+      });
+    }
+  }
+
+  static async addWebhookSubscriber(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    try {
+      const webhookKey =
+        "70d5ca6a54ab8e4cc0a8eb75127f681231d4313a9e70b5fcafa42f9aa5ca567b";
+      const { name, email, ownerEmail, inboxEngineKey } = req.body;
+
+      if (inboxEngineKey !== webhookKey) {
+        res.status(401).json({
+          success: false,
+          error: "Invalid webhook key",
+        });
+        return;
+      }
+
+      if (!email || !name || !ownerEmail) {
+        res.status(400).json({
+          success: false,
+          error: "Email, name and ownerEmail are required",
+        });
+        return;
+      }
+
+      if (!email.includes("@") || !ownerEmail.includes("@")) {
+        res.status(400).json({
+          success: false,
+          error: "Invalid email",
+        });
+        return;
+      }
+
+      const owner = await User.findOne({ email: ownerEmail });
+
+      if (!owner) {
+        res.status(400).json({
+          success: false,
+          error: "Owner email not found",
+        });
+        return;
+      }
+
+      const subscriberData: Partial<ISubscriber> = {
+        email: email.toLowerCase(),
+        userId: owner.id,
+        data: { name: name || "" },
+        status: "active",
+        metadata: {
+          source: "webhook",
+          ip: req.ip,
+          userAgent: req.headers["user-agent"],
+        },
+        lastInteraction: new Date(),
+        engagementScore: 0,
+        tags: ["webhook"],
+        metrics: {
+          opens: 0,
+          clicks: 0,
+          conversions: 0,
+          bounces: 0,
+          revenue: 0,
+          interactions: [],
+        },
+      };
+
+      const subscriber = await SubscriberService.addWebhookSubscriber(
+        subscriberData
+      );
+
+      res.status(201).json({
+        success: true,
+        data: subscriber,
+      });
+    } catch (error) {
+      logger.error("Error in addWebhookSubscriber:", error);
+      res.status(400).json({
+        success: false,
+        error: "Failed to add subscriber via webhook",
       });
     }
   }

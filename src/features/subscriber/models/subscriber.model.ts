@@ -26,7 +26,7 @@ export interface IMetrics {
 }
 
 export interface ISubscriber extends Document {
-  formId: Types.ObjectId;
+  formId?: Types.ObjectId;
   userId: Types.ObjectId;
   email: string;
   phone?: string;
@@ -39,6 +39,7 @@ export interface ISubscriber extends Document {
     ip?: string;
     userAgent?: string;
     source?: string;
+    lastWebhookUpdate?: Date;
   };
   metrics: {
     opens: number;
@@ -90,7 +91,7 @@ const metricsSchema = new Schema<IMetrics>(
 
 const subscriberSchema = new Schema<ISubscriber>(
   {
-    formId: { type: Schema.Types.ObjectId, ref: "Form", required: true },
+    formId: { type: Schema.Types.ObjectId, ref: "Form" },
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     data: { type: Schema.Types.Mixed, required: true },
     email: {
@@ -123,6 +124,7 @@ const subscriberSchema = new Schema<ISubscriber>(
       unsubscribeDate: Date,
       unsubscribeCampaignId: Types.ObjectId,
       unsubscribeReason: String,
+      lastWebhookUpdate: Date,
     },
     metrics: {
       type: metricsSchema,
