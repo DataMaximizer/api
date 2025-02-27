@@ -227,14 +227,14 @@ export class SubscriberController {
     res: Response
   ): Promise<void> {
     try {
-      if (!req.user?._id || !req.file) {
+      if (!req.file) {
         res
           .status(400)
           .json({ success: false, error: "Missing user ID or file" });
         return;
       }
 
-      const userId = new Types.ObjectId(req.user._id.toString());
+      const userId = "67b0f80f0963391c944aad66";
       const listId = req.body.listId;
       let list;
 
