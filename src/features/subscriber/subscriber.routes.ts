@@ -60,12 +60,7 @@ router.post(
   SubscriberController.importSubscribers
 );
 
-router.post(
-  "/blocked-emails",
-  authenticate,
-  express.json({ limit: "50mb" }),
-  SubscriberController.blockEmail
-);
+router.post("/blocked-emails", authenticate, SubscriberController.blockEmail);
 
 router.get(
   "/blocked-emails",
