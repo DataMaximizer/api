@@ -13,6 +13,7 @@ import retargetingRoutes from "@features/retargeting/retargeting.routes";
 import abTestingRoutes from "@features/ab-testing/ab-testing.routes";
 import smsRoutes from "@features/sms/sms-routes";
 import aiConfigRoutes from "@features/ai/config/ai-config.routes";
+import redirectRoutes from "@features/tracking/redirect.route";
 
 export {
   authRoutes,
@@ -29,5 +30,6 @@ export {
   retargetingRoutes,
   abTestingRoutes,
   smsRoutes,
-  aiConfigRoutes
+  aiConfigRoutes,
+  redirectRoutes,
 };

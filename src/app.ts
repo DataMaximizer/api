@@ -22,10 +22,8 @@ import {
   profileRoutes,
   metricsRoutes,
   automatedEmailRoutes,
-  retargetingRoutes,
-  abTestingRoutes,
-  smsRoutes,
   aiConfigRoutes,
+  redirectRoutes,
 } from "./routes";
 
 import { SchedulerService } from "@features/shared/services/scheduler.service";

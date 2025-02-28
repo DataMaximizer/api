@@ -705,40 +705,40 @@ export class SubscriberController {
     res: Response
   ): Promise<void> {
     try {
-      const webhookKey =
-        "70d5ca6a54ab8e4cc0a8eb75127f681231d4313a9e70b5fcafa42f9aa5ca567b";
-      const { name, email, ownerEmail, inboxEngineKey } = req.body;
+      const { uid, key } = req.query;
+      const { name, email } = req.body;
 
-      if (inboxEngineKey !== webhookKey) {
+      if (!uid || !key) {
         res.status(401).json({
           success: false,
-          error: "Invalid webhook key",
+          error: "Missing authentication parameters",
         });
         return;
       }
 
-      if (!email || !name || !ownerEmail) {
+      // Find user by ID and verify their webhook key
+      const owner = await User.findById(uid);
+
+      if (!owner || owner.webhookKey !== key) {
+        res.status(401).json({
+          success: false,
+          error: "Invalid authentication",
+        });
+        return;
+      }
+
+      if (!email || !name) {
         res.status(400).json({
           success: false,
-          error: "Email, name and ownerEmail are required",
+          error: "Email and name are required",
         });
         return;
       }
 
-      if (!email.includes("@") || !ownerEmail.includes("@")) {
+      if (!email.includes("@")) {
         res.status(400).json({
           success: false,
           error: "Invalid email",
-        });
-        return;
-      }
-
-      const owner = await User.findOne({ email: ownerEmail });
-
-      if (!owner) {
-        res.status(400).json({
-          success: false,
-          error: "Owner email not found",
         });
         return;
       }

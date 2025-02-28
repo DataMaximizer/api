@@ -174,85 +174,72 @@ export class SmtpService {
     senderName?: string;
     senderEmail?: string;
   }) {
-    // let transporter: Transporter | null = null;
-    // try {
-    //   const provider = await SmtpProvider.findById(providerId);
-    //   if (!provider) {
-    //     throw new Error("SMTP provider not found");
-    //   }
-
-    //   transporter = await this.getTransporter(providerId);
-
-    //   // Add bounce handling
-    //   transporter.on("error", async (error) => {
-    //     if (this.isBounceError(error)) {
-    //       const subscriber = await Subscriber.findOne({
-    //         email: Array.isArray(to) ? to[0] : to,
-    //       });
-
-    //       if (subscriber) {
-    //         await MetricsTrackingService.trackBounce(
-    //           subscriber._id as string,
-    //           this.getBounceType(error),
-    //           error.message,
-    //           new Date()
-    //         );
-    //       }
-    //     }
-    //   });
-
-    //   const mailOptions = {
-    //     from: `${provider.fromName} <${provider.fromEmail}>`,
-    //     to: Array.isArray(to) ? to.join(",") : to,
-    //     subject,
-    //     html,
-    //     text,
-    //     attachments,
-    //     headers: {
-    //       "X-Priority": "1",
-    //       "X-MSMail-Priority": "High",
-    //       Importance: "high",
-    //     },
-    //   };
-
-    //   const result = await transporter.sendMail(mailOptions);
-    //   logger.info("Email sent successfully", { messageId: result.messageId });
-    //   return result;
-    // } catch (error: any) {
-    //   // Handle immediate bounces
-    //   if (this.isBounceError(error)) {
-    //     const subscriber = await Subscriber.findOne({
-    //       email: Array.isArray(to) ? to[0] : to,
-    //     });
-
-    //     if (subscriber) {
-    //       await MetricsTrackingService.trackBounce(
-    //         subscriber._id as string,
-    //         this.getBounceType(error),
-    //         error.message,
-    //         new Date()
-    //       );
-    //     }
-    //   }
-    //   logger.error("Failed to send email:", error);
-    //   throw error;
-    // }
     try {
       const provider = await SmtpProvider.findById(providerId);
       if (!provider) {
         throw new Error("SMTP provider not found");
       }
 
+      // Use Brevo API if provider has brevoApiKey, otherwise use SMTP
+      if (provider.brevoApiKey) {
+        return this.sendEmailViaBrevoApi({
+          provider,
+          to,
+          subject,
+          html,
+          text,
+          senderName,
+          senderEmail,
+          attachments,
+        });
+      } else {
+        return this.sendEmailViaSmtp({
+          provider,
+          to,
+          subject,
+          html,
+          text,
+          senderName,
+          senderEmail,
+          attachments,
+        });
+      }
+    } catch (error: any) {
+      logger.error("Failed to send email:", error);
+      throw error;
+    }
+  }
+
+  private static async sendEmailViaBrevoApi({
+    provider,
+    to,
+    subject,
+    html,
+    text,
+    senderName,
+    senderEmail,
+    attachments = [],
+  }: {
+    provider: ISmtpProvider;
+    to: string | string[];
+    subject: string;
+    html?: string;
+    text?: string;
+    attachments?: any[];
+    senderName?: string;
+    senderEmail?: string;
+  }) {
+    try {
       const brevoApi = new TransactionalEmailsApi();
       brevoApi.setApiKey(
         TransactionalEmailsApiApiKeys.apiKey,
-        process.env.BREVO_API_KEY as string
+        provider.brevoApiKey || (process.env.BREVO_API_KEY as string)
       );
 
       const sendSmtpEmail = {
         sender: {
-          name: senderName,
-          email: senderEmail,
+          name: senderName || provider.fromName,
+          email: senderEmail || provider.fromEmail,
         },
         to: Array.isArray(to)
           ? to.map((email) => ({ email }))
@@ -297,6 +284,90 @@ export class SmtpService {
         "Failed to send email via Brevo API:",
         error?.response?.body || error
       );
+      throw error;
+    }
+  }
+
+  private static async sendEmailViaSmtp({
+    provider,
+    to,
+    subject,
+    html,
+    text,
+    senderName,
+    senderEmail,
+    attachments = [],
+  }: {
+    provider: ISmtpProvider;
+    to: string | string[];
+    subject: string;
+    html?: string;
+    text?: string;
+    attachments?: any[];
+    senderName?: string;
+    senderEmail?: string;
+  }) {
+    let transporter: Transporter | null = null;
+    try {
+      transporter = await this.getTransporter(provider._id.toString());
+
+      // Add bounce handling
+      transporter.on("error", async (error) => {
+        if (this.isBounceError(error)) {
+          const subscriber = await Subscriber.findOne({
+            email: Array.isArray(to) ? to[0] : to,
+          });
+
+          if (subscriber) {
+            await MetricsTrackingService.trackBounce(
+              subscriber._id as string,
+              this.getBounceType(error),
+              error.message,
+              new Date()
+            );
+          }
+        }
+      });
+
+      const mailOptions = {
+        from:
+          senderName && senderEmail
+            ? `${senderName} <${senderEmail}>`
+            : `${provider.fromName} <${provider.fromEmail}>`,
+        to: Array.isArray(to) ? to.join(",") : to,
+        subject,
+        html,
+        text,
+        attachments,
+        headers: {
+          "X-Priority": "1",
+          "X-MSMail-Priority": "High",
+          Importance: "high",
+        },
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      logger.info("Email sent successfully via SMTP", {
+        messageId: result.messageId,
+      });
+      return result;
+    } catch (error: any) {
+      // Handle immediate bounces
+      if (this.isBounceError(error)) {
+        const subscriber = await Subscriber.findOne({
+          email: Array.isArray(to) ? to[0] : to,
+        });
+
+        if (subscriber) {
+          await MetricsTrackingService.trackBounce(
+            subscriber._id as string,
+            this.getBounceType(error),
+            error.message,
+            new Date()
+          );
+        }
+      }
+      logger.error("Failed to send email via SMTP:", error);
       throw error;
     }
   }
@@ -348,6 +419,33 @@ export class SmtpService {
       logger.error("Failed to fetch Brevo senders:", error);
       throw error;
     }
+  }
+
+  private static isBounceError(error: any): boolean {
+    return (
+      error.message?.includes("bounce") ||
+      error.message?.includes("rejected") ||
+      error.message?.includes("blocked") ||
+      error.message?.includes("invalid recipient") ||
+      error.message?.includes("does not exist")
+    );
+  }
+
+  private static getBounceType(error: any): "soft" | "hard" {
+    const message = error.message?.toLowerCase() || "";
+
+    // Hard bounce indicators
+    if (
+      message.includes("does not exist") ||
+      message.includes("invalid recipient") ||
+      message.includes("permanent") ||
+      message.includes("hard bounce")
+    ) {
+      return "hard";
+    }
+
+    // Default to soft bounce
+    return "soft";
   }
 }
 

@@ -10,6 +10,7 @@ import {
 
 import multer from "multer";
 import rateLimit from "express-rate-limit";
+import express from "express";
 
 const router = Router();
 
@@ -59,7 +60,12 @@ router.post(
   SubscriberController.importSubscribers
 );
 
-router.post("/blocked-emails", authenticate, SubscriberController.blockEmail);
+router.post(
+  "/blocked-emails",
+  authenticate,
+  express.json({ limit: "50mb" }),
+  SubscriberController.blockEmail
+);
 
 router.get(
   "/blocked-emails",

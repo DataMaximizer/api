@@ -10,6 +10,7 @@ import {
 } from "@features/ai/models/ai-content.model";
 import { Network } from "@/features/network/network.model";
 import { IAddress, User } from "../user/models/user.model";
+import { UserService } from "../user/user.service";
 
 export class CampaignController {
   static async createCampaign(
@@ -162,10 +163,16 @@ export class CampaignController {
   ): Promise<void> {
     try {
       const { productInfo, numberOfVariants } = req.body;
+      const { openAiKey, claudeKey } = await UserService.getUserApiKeys(
+        req.user?._id as string
+      );
+
       const variants = await CampaignService.generateEmailVariants(
         req.params.id,
         productInfo,
-        numberOfVariants
+        numberOfVariants,
+        openAiKey,
+        claudeKey
       );
 
       res.json({
@@ -272,11 +279,15 @@ export class CampaignController {
   ): Promise<void> {
     try {
       const { offerId, prompt, tone, style } = req.body;
+      const { openAiKey } = await UserService.getUserApiKeys(
+        req.user?._id as string
+      );
 
       const variant = await CampaignService.generateCustomEmailContent(
         offerId,
         prompt,
-        tone
+        tone,
+        openAiKey
       );
 
       res.json({
@@ -383,7 +394,9 @@ export class CampaignController {
         subject,
         websiteUrl,
         user?.address as IAddress,
-        user?.companyName as string
+        user?.companyName as string,
+        user?.name as string,
+        user?.email as string
       );
 
       res.json({

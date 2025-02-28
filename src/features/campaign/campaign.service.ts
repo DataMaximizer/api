@@ -6,10 +6,8 @@ import {
   CampaignStatus,
 } from "./models/campaign.model";
 import { logger } from "@config/logger";
-import { OPENAI_API_KEY } from "@/local";
 import { EmailTemplateService } from "@features/email/templates/email-template.service";
 import { SmtpService } from "@features/email/smtp/smtp.service";
-import { Document } from "mongoose";
 import { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 import { Click } from "../tracking/models/click.model";
 import { AffiliateOffer } from "../affiliate/models/affiliate-offer.model";
@@ -59,14 +57,6 @@ const WRITING_STYLES = [
 ];
 
 export class CampaignService {
-  private static openai = new OpenAI({
-    apiKey: OPENAI_API_KEY,
-  });
-
-  private static anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY || "",
-  });
-
   private static readonly BATCH_SIZE = 100;
 
   static async createCampaign(
@@ -120,7 +110,9 @@ export class CampaignService {
   static async generateEmailVariants(
     campaignId: string,
     productInfo: any,
-    numberOfVariants: number = 2
+    numberOfVariants: number = 2,
+    openaiApiKey: string,
+    anthropicApiKey: string
   ): Promise<ICampaignVariant[]> {
     try {
       const variants: ICampaignVariant[] = [];
@@ -142,9 +134,19 @@ export class CampaignService {
           framework,
           tone,
           personality,
-          writingStyle
+          writingStyle,
+          undefined,
+          false,
+          "openai",
+          openaiApiKey,
+          anthropicApiKey
         );
-        const subject = await this.generateEmailSubject(content);
+        const subject = await this.generateEmailSubject(
+          content,
+          "openai",
+          openaiApiKey,
+          anthropicApiKey
+        );
 
         variants.push({
           subject,
@@ -207,8 +209,18 @@ export class CampaignService {
     writingStyle: string,
     extraInstructions?: string,
     jsonResponse?: boolean,
-    aiProvider: "openai" | "claude" = "openai"
+    aiProvider: "openai" | "claude" = "openai",
+    openaiApiKey?: string,
+    anthropicApiKey?: string
   ): Promise<string> {
+    if (aiProvider === "openai" && !openaiApiKey) {
+      throw new Error("OpenAI API key is required");
+    }
+
+    if (aiProvider === "claude" && !anthropicApiKey) {
+      throw new Error("Anthropic API key is required");
+    }
+
     const prompt = this.generateEmailPrompt(
       productInfo,
       framework,
@@ -217,15 +229,22 @@ export class CampaignService {
       writingStyle,
       extraInstructions
     );
+
     return aiProvider === "openai"
-      ? this.generateOpenAIEmailContent(prompt, jsonResponse)
-      : this.generateClaudeEmailContent(prompt, jsonResponse);
+      ? this.generateOpenAIEmailContent(prompt, jsonResponse, openaiApiKey)
+      : this.generateClaudeEmailContent(prompt, jsonResponse, anthropicApiKey);
   }
 
   private static async generateOpenAIEmailContent(
     prompt: string,
-    jsonResponse?: boolean
+    jsonResponse?: boolean,
+    openaiApiKey?: string
   ): Promise<string> {
+    if (!openaiApiKey) {
+      throw new Error("OpenAI API key is required");
+    }
+
+    const client = new OpenAI({ apiKey: openaiApiKey });
     const gptParams: ChatCompletionCreateParamsNonStreaming = {
       model: "gpt-4o-mini",
       messages: [
@@ -242,21 +261,27 @@ export class CampaignService {
       gptParams.response_format = { type: "json_object" };
     }
 
-    const completion = await this.openai.chat.completions.create(gptParams);
+    const completion = await client.chat.completions.create(gptParams);
     return completion.choices[0].message?.content || "";
   }
 
   private static async generateClaudeEmailContent(
     prompt: string,
-    jsonResponse?: boolean
+    jsonResponse?: boolean,
+    anthropicApiKey?: string
   ): Promise<string> {
+    if (!anthropicApiKey) {
+      throw new Error("Anthropic API key is required");
+    }
+
+    const client = new Anthropic({ apiKey: anthropicApiKey });
     let finalPrompt = prompt;
 
     if (jsonResponse) {
       finalPrompt = `${prompt}\n\nPlease respond with valid JSON only, without any markdown formatting, code blocks, or explanations.`;
     }
 
-    const message = await this.anthropic.messages.create({
+    const message = await client.messages.create({
       model: "claude-3-7-sonnet-latest",
       max_tokens: 1000,
       system:
@@ -281,8 +306,18 @@ export class CampaignService {
 
   private static async generateEmailSubject(
     content: string,
-    aiProvider: "openai" | "claude" = "openai"
+    aiProvider: "openai" | "claude" = "openai",
+    openaiApiKey?: string,
+    anthropicApiKey?: string
   ): Promise<string> {
+    if (aiProvider === "openai" && !openaiApiKey) {
+      throw new Error("OpenAI API key is required");
+    }
+
+    if (aiProvider === "claude" && !anthropicApiKey) {
+      throw new Error("Anthropic API key is required");
+    }
+
     const prompt = `
       Based on this email content, generate a compelling subject line that will maximize open rates:
       ${content}
@@ -295,12 +330,20 @@ export class CampaignService {
     `;
 
     return aiProvider === "openai"
-      ? this.generateOpenAISubject(prompt)
-      : this.generateClaudeSubject(prompt);
+      ? this.generateOpenAISubject(prompt, openaiApiKey)
+      : this.generateClaudeSubject(prompt, anthropicApiKey);
   }
 
-  private static async generateOpenAISubject(prompt: string): Promise<string> {
-    const completion = await this.openai.chat.completions.create({
+  private static async generateOpenAISubject(
+    prompt: string,
+    openaiApiKey?: string
+  ): Promise<string> {
+    if (!openaiApiKey) {
+      throw new Error("OpenAI API key is required");
+    }
+
+    const client = new OpenAI({ apiKey: openaiApiKey });
+    const completion = await client.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         {
@@ -315,8 +358,16 @@ export class CampaignService {
     return completion.choices[0].message?.content || "";
   }
 
-  private static async generateClaudeSubject(prompt: string): Promise<string> {
-    const message = await this.anthropic.messages.create({
+  private static async generateClaudeSubject(
+    prompt: string,
+    anthropicApiKey?: string
+  ): Promise<string> {
+    if (!anthropicApiKey) {
+      throw new Error("Anthropic API key is required");
+    }
+
+    const client = new Anthropic({ apiKey: anthropicApiKey });
+    const message = await client.messages.create({
       model: "claude-3-sonnet-20240229",
       max_tokens: 100,
       system:
@@ -453,8 +504,13 @@ export class CampaignService {
   static async generateCustomEmailContent(
     customPrompt: string,
     tone: string,
-    style: string
+    style: string,
+    openaiApiKey: string
   ): Promise<string> {
+    if (!openaiApiKey) {
+      throw new Error("OpenAI API key is required");
+    }
+
     const prompt = `
     Write a marketing email with the following specifications:
     Custom Instructions: ${customPrompt}
@@ -468,7 +524,8 @@ export class CampaignService {
     4. Focus on the specific instructions provided
   `;
 
-    const completion = await this.openai.chat.completions.create({
+    const client = new OpenAI({ apiKey: openaiApiKey });
+    const completion = await client.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         {

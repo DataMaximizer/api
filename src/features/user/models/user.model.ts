@@ -59,6 +59,9 @@ export interface IUser extends Document {
   deletedAt?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
   softDelete(): Promise<IUser>;
+  webhookKey: string;
+  openAiKey?: string;
+  claudeKey?: string;
 }
 
 const addressSchema = new Schema<IAddress>({
@@ -156,6 +159,15 @@ const userSchema = new Schema<IUser>(
     },
     deletedAt: {
       type: Date,
+    },
+    webhookKey: {
+      type: String,
+    },
+    openAiKey: {
+      type: String,
+    },
+    claudeKey: {
+      type: String,
     },
   },
   {

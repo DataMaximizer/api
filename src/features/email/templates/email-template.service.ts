@@ -20,7 +20,7 @@ export class EmailTemplateService {
   }
 
   static generateTrackingLink(clickId: string): string {
-    return `${this.REDIRECT_URL}/api/metrics/track/redirect?clickId=${clickId}`;
+    return `${this.REDIRECT_URL}/api/redirect?clickId=${clickId}`;
   }
 
   static generateUnsubscribeLink(clickId: string, websiteUrl: string): string {

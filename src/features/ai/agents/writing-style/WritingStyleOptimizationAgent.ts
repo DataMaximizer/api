@@ -23,6 +23,7 @@ import {
 } from "../offer-selection/OfferSelectionAgent";
 import { BlockedEmail } from "@/features/subscriber/models/blocked-email.model";
 import { IAddress, User } from "@/features/user/models/user.model";
+import { UserService } from "@/features/user/user.service";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -215,6 +216,8 @@ export class WritingStyleOptimizationAgent {
   public async generateEmailMarketing(
     offerId: string,
     aiProvider: "openai" | "claude",
+    openaiApiKey: string,
+    anthropicApiKey: string,
     styleOptions: {
       writingStyle: WritingStyle;
       copywritingStyle: CopywritingStyle;
@@ -263,7 +266,9 @@ export class WritingStyleOptimizationAgent {
       styleOptions.writingStyle,
       extraRules,
       true,
-      aiProvider
+      aiProvider,
+      openaiApiKey,
+      anthropicApiKey
     );
 
     return emailContent;
@@ -371,6 +376,8 @@ export class WritingStyleOptimizationAgent {
       throw new Error("User website url not found");
     }
 
+    const { openAiKey, claudeKey } = await UserService.getUserApiKeys(userId);
+
     // Extract subscriber IDs from filtered list
     const subscriberIds = validSubscribers.map((sub) => sub.id);
 
@@ -440,6 +447,8 @@ export class WritingStyleOptimizationAgent {
           const emailContent = await this.generateEmailMarketing(
             offerId,
             aiProvider,
+            openAiKey,
+            claudeKey,
             group.style
           );
           const parsedContent = JSON.parse(emailContent);

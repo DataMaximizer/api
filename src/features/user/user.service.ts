@@ -6,11 +6,11 @@ import {
   UserType,
 } from "./models/user.model";
 import { FilterQuery } from "mongoose";
-import { CacheService } from '@core/services/cache.service';
+import { CacheService } from "@core/services/cache.service";
 
 const CACHE_TTL = 3600; // 1 hour in seconds
-const USER_CACHE_PREFIX = 'user';
-const USERS_LIST_CACHE_KEY = 'users:list';
+const USER_CACHE_PREFIX = "user";
+const USERS_LIST_CACHE_KEY = "users:list";
 
 export class UserService {
   static async getUsers(filter: FilterQuery<IUser> = {}) {
@@ -18,7 +18,7 @@ export class UserService {
       // Try to get from cache first
       const cacheKey = CacheService.generateKey(USERS_LIST_CACHE_KEY, filter);
       const cachedUsers = await CacheService.get<IUser[]>(cacheKey);
-      
+
       if (cachedUsers) {
         return cachedUsers;
       }
@@ -29,7 +29,7 @@ export class UserService {
 
       // Cache the result
       await CacheService.set(cacheKey, users, CACHE_TTL);
-      
+
       return users;
     } catch (error) {
       throw new Error("Error fetching users");
@@ -41,7 +41,7 @@ export class UserService {
       // Try to get from cache first
       const cacheKey = CacheService.generateKey(USER_CACHE_PREFIX, { id });
       const cachedUser = await CacheService.get<IUser>(cacheKey);
-      
+
       if (cachedUser) {
         return cachedUser;
       }
@@ -53,7 +53,7 @@ export class UserService {
 
       // Cache the result
       await CacheService.set(cacheKey, user, CACHE_TTL);
-      
+
       return user;
     } catch (error) {
       throw new Error("Error fetching user");
@@ -100,6 +100,53 @@ export class UserService {
       return user;
     } catch (error) {
       throw new Error("Error deleting user");
+    }
+  }
+
+  static async getUserApiKeys(id: string) {
+    try {
+      const user = await User.findById(id).select("openAiKey claudeKey");
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      const apiKeys = {
+        openAiKey: user.openAiKey || "",
+        claudeKey: user.claudeKey || "",
+      };
+
+      return apiKeys;
+    } catch (error) {
+      throw new Error("Error fetching user API keys");
+    }
+  }
+
+  static async updateUserApiKeys(
+    id: string,
+    keys: { openAiKey?: string; claudeKey?: string }
+  ) {
+    try {
+      const user = await User.findById(id);
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      // Update only the provided keys
+      if (keys.openAiKey) {
+        user.openAiKey = keys.openAiKey;
+      }
+      if (keys.claudeKey) {
+        user.claudeKey = keys.claudeKey;
+      }
+
+      await user.save();
+
+      return {
+        openAiKey: user.openAiKey || "",
+        claudeKey: user.claudeKey || "",
+      };
+    } catch (error) {
+      throw new Error("Error updating user API keys");
     }
   }
 }
