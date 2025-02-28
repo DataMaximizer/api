@@ -243,7 +243,21 @@ class SmtpController {
 
   async getBrevoSenders(req: Request, res: Response): Promise<void> {
     try {
-      const senders = await SmtpService.getBrevoSenders();
+      const smtpProvider = await SmtpProvider.findOne({
+        userId: req.user?.id,
+      });
+
+      if (!smtpProvider) {
+        throw new Error("Brevo provider not found");
+      }
+
+      const apiKey = smtpProvider.brevoApiKey;
+
+      if (!apiKey) {
+        throw new Error("Brevo API key not found");
+      }
+
+      const senders = await SmtpService.getBrevoSenders(apiKey);
 
       res.json({
         success: true,

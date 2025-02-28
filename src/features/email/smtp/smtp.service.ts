@@ -392,13 +392,13 @@ export class SmtpService {
     }
   }
 
-  static async getBrevoSenders() {
+  static async getBrevoSenders(apiKey: string) {
     try {
       const response = await fetch("https://api.brevo.com/v3/senders", {
         method: "GET",
         headers: {
           accept: "application/json",
-          "api-key": process.env.BREVO_API_KEY as string,
+          "api-key": apiKey,
         },
       });
 
