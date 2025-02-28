@@ -441,74 +441,105 @@ export class WritingStyleOptimizationAgent {
       });
 
       // Process each style group
-      const emailData = await Promise.all(
-        Array.from(styleGroups.entries()).map(async ([_, group]) => {
-          // Generate email content once per style combination
-          const emailContent = await this.generateEmailMarketing(
-            offerId,
-            aiProvider,
-            openAiKey,
-            claudeKey,
-            group.style
-          );
-          const parsedContent = JSON.parse(emailContent);
-          const currentTimestamp = new Date().getTime();
-          const campaignName = `Random Test - ${offer.name} - ${currentTimestamp}`;
+      const emailData = [];
 
-          // Create one campaign per style combination
-          const campaign = await this.generateCampaign(
-            {
-              name: campaignName,
-              content: parsedContent.body,
+      // Process style groups in batches to avoid rate limiting
+      const styleGroupEntries = Array.from(styleGroups.entries());
+      const BATCH_SIZE = aiProvider === "claude" ? 3 : 5; // Smaller batch size for Claude
+
+      for (let i = 0; i < styleGroupEntries.length; i += BATCH_SIZE) {
+        const batch = styleGroupEntries.slice(i, i + BATCH_SIZE);
+
+        // Add a small delay between batches to avoid rate limiting
+        if (i > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 10000));
+        }
+
+        const batchResults = await Promise.all(
+          batch.map(async ([_, group]) => {
+            // Generate email content once per style combination
+            const emailContent = await this.generateEmailMarketing(
+              offerId,
+              aiProvider,
+              openAiKey,
+              claudeKey,
+              group.style
+            );
+            const parsedContent = JSON.parse(emailContent);
+            const currentTimestamp = new Date().getTime();
+            const campaignName = `Random Test - ${offer.name} - ${currentTimestamp}`;
+
+            // Create one campaign per style combination
+            const campaign = await this.generateCampaign(
+              {
+                name: campaignName,
+                content: parsedContent.body,
+                subject: parsedContent.subject,
+                framework: group.style.copywritingStyle,
+                tone: group.style.tone,
+                writingStyle: group.style.writingStyle,
+              },
+              userId,
+              offerId,
+              smtpProviderId
+            );
+
+            // Return data for each subscriber in this style group
+            return group.subscribers.map((subscriberId) => ({
+              offerId,
+              offerName: offer.name,
+              offerUrl: offer.url,
+              campaignId: campaign.id,
+              campaignName,
+              subscriberId,
+              subscriberEmail: validSubscribers.find(
+                (sub) => sub.id === subscriberId
+              )?.email,
               subject: parsedContent.subject,
-              framework: group.style.copywritingStyle,
-              tone: group.style.tone,
-              writingStyle: group.style.writingStyle,
-            },
-            userId,
-            offerId,
-            smtpProviderId
-          );
+              content: parsedContent.body,
+              senderName,
+              senderEmail,
+              aiProvider,
+              ...group.style,
+            }));
+          })
+        );
 
-          // Return data for each subscriber in this style group
-          return group.subscribers.map((subscriberId) => ({
-            offerId,
-            offerName: offer.name,
-            offerUrl: offer.url,
-            campaignId: campaign.id,
-            campaignName,
-            subscriberId,
-            subscriberEmail: validSubscribers.find(
-              (sub) => sub.id === subscriberId
-            )?.email,
-            subject: parsedContent.subject,
-            content: parsedContent.body,
-            senderName,
-            senderEmail,
-            aiProvider,
-            ...group.style,
-          }));
-        })
-      );
+        emailData.push(...batchResults);
+      }
 
       toSend.push(emailData.flat());
     }
 
-    // Send emails
-    for (const data of toSend.flatMap((d) => d)) {
-      await CampaignService.sendCampaignEmail(
-        data.offerId,
-        data.subscriberId,
-        data.campaignId,
-        smtpProviderId,
-        data.content,
-        data.subject,
-        websiteUrl,
-        user?.address as IAddress,
-        user?.companyName as string,
-        senderName,
-        senderEmail
+    // Send emails in batches to avoid overwhelming the system
+    const SEND_BATCH_SIZE = 10;
+    const allEmails = toSend.flatMap((d) => d);
+
+    for (let i = 0; i < allEmails.length; i += SEND_BATCH_SIZE) {
+      const batch = allEmails.slice(i, i + SEND_BATCH_SIZE);
+
+      await Promise.all(
+        batch.map((data) =>
+          CampaignService.sendCampaignEmail(
+            data.offerId,
+            data.subscriberId,
+            data.campaignId,
+            smtpProviderId,
+            data.content,
+            data.subject,
+            websiteUrl,
+            user?.address as IAddress,
+            user?.companyName as string,
+            data.senderName,
+            data.senderEmail
+          )
+        )
       );
+
+      // Add a small delay between sending batches
+      if (i + SEND_BATCH_SIZE < allEmails.length) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
     }
 
     return toSend;
