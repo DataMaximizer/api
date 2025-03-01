@@ -19,13 +19,13 @@ export interface ISmtpProvider extends Document {
 const smtpProviderSchema = new Schema<ISmtpProvider>(
   {
     name: { type: String, required: true },
-    host: { type: String, required: true },
-    port: { type: Number, required: true },
+    host: { type: String, required: false },
+    port: { type: Number, required: false },
     secure: { type: Boolean, default: true },
-    fromEmail: { type: String, required: true },
-    fromName: { type: String, required: true },
-    mail: { type: String, required: true },
-    password: { type: String, required: true },
+    fromEmail: { type: String, required: false },
+    fromName: { type: String, required: false },
+    mail: { type: String, required: false },
+    password: { type: String, required: false },
     brevoApiKey: { type: String, required: false },
     userId: {
       type: Schema.Types.ObjectId,

@@ -412,7 +412,29 @@ export class SmtpService {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Read the response body for more detailed error information
+        const errorBody = await response.text();
+        let parsedError;
+
+        try {
+          // Try to parse as JSON if possible
+          parsedError = JSON.parse(errorBody);
+        } catch {
+          // If not JSON, use the raw text
+          parsedError = errorBody;
+        }
+
+        logger.error("Brevo API error details:", {
+          status: response.status,
+          statusText: response.statusText,
+          body: parsedError,
+        });
+
+        throw new Error(
+          `HTTP error! status: ${response.status}, details: ${JSON.stringify(
+            parsedError
+          )}`
+        );
       }
 
       const data = (await response.json()) as BrevoSenderResponse;
