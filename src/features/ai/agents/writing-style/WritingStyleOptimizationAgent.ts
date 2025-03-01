@@ -231,31 +231,27 @@ export class WritingStyleOptimizationAgent {
 
     // Pass along the personalization message as extra instructions
     const extraRules = `
-    - Don't use placeholders like [Name] or anything similar to refer to the subscriber.
-    - Be sure to sound like a human and not like a robot.
-    - You MUST add the offer url link to the email, this is VERY important.
-    - Wherever you put the offer url, make sure to put {offer_url} placeholder inside the <a> href attribute, this is very important.
-    - DO NOT add telephone numbers to the email or any other contact information, the only thing you should add is the offer url.
-    - DO NOT segmentate the email showing the framework steps, like "Before", "After", "Bridge", "Problem", "Agitation", "Solution" etc.
-    - The call to action link should be put in the middle of the email, not at the end. It should be a plain text link, not a button. Also, there should be 1 to 3 links in the email, all pointing to {offer_url}, you can choose when to use them to make it more appealing.
-    - Highlight some action words in bold using <b> tags, but not too many, only a few to make it more appealing.
-    - Do NOT include any signature at the end of the email.
-    - Address the subscriber by name in the email, for that you can add the placeholder {subscriber_name} in the email content.
-    - Your response should be in a valid JSON format with the following keys:
-      - subject: The subject of the email, it should be based on the product description and Tone/Writing Style/Personality/Copywriting Style.
-      - body: The body of the email in HTML format compliant with email clients, escape if needed.
-
-    Closely follow this writing style:
-
-    <writing style>
-    Use clear, direct language and avoid complex terminology.
-    Aim for a Flesch reading score of 80 or higher.
-    Use the active voice.
-    Avoid adverbs.
-    Avoid buzzwords and instead use plain English.
-    Use jargon where relevant.
-    Avoid being salesy or overly enthusiastic and instead express calm confidence.
-    </writing style>
+    - Do NOT use placeholders like [Name] or anything similar to refer to the subscriber.
+    - The email must sound **human, authentic, and engaging**, not robotic or overly promotional.
+    - You MUST include the offer URL, which should be inserted as {offer_url} inside the <a> href attribute.
+    - Ensure **1-3 contextual links** to {offer_url} are placed naturally **within the body text**, not at the end.
+    - Use **plain text links**, NOT buttons.
+    - Keep the email **concise and skimmable**
+    — Use **short paragraphs** and **line breaks** where needed.
+    - Use **bold formatting (<b>) sparingly** to highlight key action words, but avoid overuse.
+    - Avoid spam-triggering words like *free*, *guaranteed*, *once-in-a-lifetime*, *risk-free*, etc.
+    - DO NOT include telephone numbers or any contact details—only the offer URL.
+    - DO NOT segment the email by explicitly labeling the framework steps (e.g., "Problem," "Agitate," "Solution").
+    - The **tone should be conversational, engaging, and confident**—avoid sounding overly salesy or pushy.
+    - **Ensure a Flesch Reading Ease score of 80+ (8th-grade reading level)** to maximize engagement and comprehension.
+    - Use **active voice**, avoid excessive adverbs, and write in **plain English**.
+    - Focus on the **benefits and value proposition** rather than just features.
+    - If relevant, **incorporate storytelling or curiosity-building hooks** to draw the reader in.
+    - DO NOT add an email signature at the end, this is VERY important.
+    
+    Your response MUST be in **valid JSON format** with the following keys:
+    - subject: A compelling subject line based on the product description, Tone, Writing Style, and Personality.
+    - body: The body of the email in **HTML format, compliant with email clients (escaped if necessary).**
     `;
 
     const emailContent = await CampaignService.generateEmailContent(

@@ -183,7 +183,7 @@ export class CampaignService {
     extraInstructions?: string
   ): string {
     return `
-      Write a marketing email using the ${framework} framework.
+      Write a persuasive, engaging marketing email using the ${framework} framework to maximize open and click-through rates.
       Product Information: ${JSON.stringify(productInfo)}
       Tone: ${tone}
       Personality: ${personality}
@@ -251,7 +251,7 @@ export class CampaignService {
         {
           role: "system",
           content:
-            "You are an expert email copywriter with deep knowledge of marketing frameworks and psychology.",
+            "You are an expert direct-response copywriter specializing in high-converting emails.",
         },
         { role: "user", content: prompt },
       ],
@@ -285,7 +285,7 @@ export class CampaignService {
       model: "claude-3-7-sonnet-latest",
       max_tokens: 1000,
       system:
-        "You are an expert email copywriter with deep knowledge of marketing frameworks and psychology.",
+        "You are an expert direct-response copywriter specializing in high-converting emails.",
       messages: [
         {
           role: "user",
@@ -445,6 +445,11 @@ export class CampaignService {
         .replace(/{offer_url}/g, offerUrl)
         .replace(/{subscriber_name}/g, subscriber.data?.name || "");
 
+      const replacedSubject = subject.replace(
+        /{subscriber_name}/g,
+        subscriber.data?.name || ""
+      );
+
       const emailWithTracking = EmailTemplateService.addTrackingToTemplate(
         replacedContent,
         subscriberId,
@@ -464,7 +469,7 @@ export class CampaignService {
       await SmtpService.sendEmail({
         providerId: smtpProviderId,
         to: subscriber.email,
-        subject: subject,
+        subject: replacedSubject,
         html: emailWithUnsubscribe,
         senderName,
         senderEmail,

@@ -373,22 +373,31 @@ export class SmtpService {
   }
 
   static async testSmtpConnection(providerId: string): Promise<boolean> {
-    let transporter: Transporter | null = null;
     try {
       const provider = await SmtpProvider.findById(providerId);
       if (!provider) {
         throw new Error("SMTP provider not found");
       }
 
-      transporter = await this.initializeTransporter(provider);
+      // If provider has Brevo API key, test using Brevo API
+      if (provider.brevoApiKey) {
+        const brevoApi = new TransactionalEmailsApi();
+        brevoApi.setApiKey(
+          TransactionalEmailsApiApiKeys.apiKey,
+          provider.brevoApiKey
+        );
+
+        // Just verify the API key is valid by fetching senders
+        await this.getBrevoSenders(provider.brevoApiKey);
+        return true;
+      }
+
+      // Otherwise test SMTP connection
+      await this.initializeTransporter(provider);
       return true;
     } catch (error: any) {
       logger.error("SMTP connection test failed:", error);
       return false;
-    } finally {
-      if (transporter && !this.POOL_CONFIG.pool) {
-        transporter.close();
-      }
     }
   }
 

@@ -547,9 +547,30 @@ export class SubscriberController {
         return;
       }
 
+      // Sanitize email inputs - trim spaces, remove trailing commas, and remove empty entries
+      const sanitizedEmails = emails
+        .map((email) => {
+          if (typeof email !== "string") return email;
+          // Trim spaces and remove trailing commas
+          let sanitized = email.trim();
+          while (sanitized.endsWith(",")) {
+            sanitized = sanitized.slice(0, -1).trim();
+          }
+          return sanitized;
+        })
+        .filter((email) => email && email.length > 0);
+
+      if (sanitizedEmails.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: "No valid emails provided after sanitization",
+        });
+        return;
+      }
+
       const blockedEmails = await SubscriberService.blockEmail(
         req.user._id.toString(),
-        emails
+        sanitizedEmails
       );
 
       res.status(201).json({

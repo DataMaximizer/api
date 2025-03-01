@@ -110,10 +110,25 @@ export class UserService {
         throw new Error("User not found");
       }
 
-      const apiKeys = {
+      let apiKeys = {
         openAiKey: user.openAiKey || "",
         claudeKey: user.claudeKey || "",
       };
+
+      // If the user doesn't have API keys, try to get them from an admin user
+      if (!apiKeys.openAiKey || !apiKeys.claudeKey) {
+        const adminUser = await User.findOne({ type: UserType.ADMIN })
+          .select("openAiKey claudeKey")
+          .sort({ createdAt: 1 }); // Get the first admin by creation date
+
+        if (adminUser) {
+          // Only use admin keys for fields that are empty
+          apiKeys = {
+            openAiKey: user.openAiKey || adminUser.openAiKey || "",
+            claudeKey: user.claudeKey || adminUser.claudeKey || "",
+          };
+        }
+      }
 
       return apiKeys;
     } catch (error) {

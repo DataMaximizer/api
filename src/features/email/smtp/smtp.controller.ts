@@ -21,6 +21,35 @@ class SmtpController {
         return;
       }
 
+      const {
+        brevoApiKey,
+        host,
+        port,
+        secure,
+        fromEmail,
+        fromName,
+        mail,
+        password,
+      } = req.body;
+
+      if (!brevoApiKey || brevoApiKey.length === 0) {
+        if (
+          !host ||
+          !port ||
+          secure === undefined ||
+          !fromEmail ||
+          !fromName ||
+          !mail ||
+          !password
+        ) {
+          res.status(400).json({
+            message:
+              "When Brevo API key is not provided, host, port, secure, fromEmail, fromName, mail, and password are required",
+          });
+          return;
+        }
+      }
+
       const smtpProvider = await SmtpProvider.create({
         ...req.body,
         userId: req.user?.id,
