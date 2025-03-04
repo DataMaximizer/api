@@ -1,8 +1,14 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { userController } from "./user.controller";
-import { authenticate, authorizeAdmin } from "@core/middlewares/auth.middleware";
+import {
+  authenticate,
+  authorizeAdmin,
+} from "@core/middlewares/auth.middleware";
 import { validateRequest } from "@core/middlewares/validation.middleware";
-import { createUserSchema } from "@core/utils/validators/validations/user.validation";
+import {
+  createUserSchema,
+  webhookSchema,
+} from "@core/utils/validators/validations/user.validation";
 
 const router = Router();
 
@@ -14,27 +20,50 @@ const asyncHandler = (
   };
 };
 
-router.get("/", 
-  authenticate, 
-  authorizeAdmin, 
+router.get(
+  "/",
+  authenticate,
+  authorizeAdmin,
   asyncHandler((req, res, next) => userController.listUsers(req, res))
 );
 
-router.get("/:id", 
-  authenticate, 
+router.get(
+  "/:id",
+  authenticate,
   asyncHandler((req, res, next) => userController.getUserById(req, res))
 );
 
-router.put("/:id", 
-  authenticate, 
+router.put(
+  "/:id",
+  authenticate,
   validateRequest(createUserSchema),
   asyncHandler((req, res, next) => userController.updateUser(req, res))
 );
 
-router.delete("/:id", 
-  authenticate, 
-  authorizeAdmin, 
+router.delete(
+  "/:id",
+  authenticate,
+  authorizeAdmin,
   asyncHandler((req, res, next) => userController.deleteUser(req, res))
+);
+
+router.post(
+  "/:id/webhooks",
+  authenticate,
+  validateRequest(webhookSchema),
+  asyncHandler((req, res, next) => userController.addWebhook(req, res))
+);
+
+router.get(
+  "/:id/webhooks",
+  authenticate,
+  asyncHandler((req, res, next) => userController.getUserWebhooks(req, res))
+);
+
+router.delete(
+  "/:id/webhooks/:webhookId",
+  authenticate,
+  asyncHandler((req, res, next) => userController.deleteWebhook(req, res))
 );
 
 export const userRouter = router;

@@ -42,6 +42,12 @@ export interface IConfiguration {
   services?: Schema.Types.ObjectId[];
 }
 
+export interface IWebhook {
+  type: string;
+  url: string;
+  parameters: Record<string, any>;
+}
+
 export interface IUser extends Document {
   type: UserType;
   name: string;
@@ -62,6 +68,7 @@ export interface IUser extends Document {
   webhookKey: string;
   openAiKey?: string;
   claudeKey?: string;
+  webhooks?: IWebhook[];
 }
 
 const addressSchema = new Schema<IAddress>({
@@ -169,6 +176,22 @@ const userSchema = new Schema<IUser>(
     claudeKey: {
       type: String,
     },
+    webhooks: [
+      {
+        type: {
+          type: String,
+          required: true,
+        },
+        url: {
+          type: String,
+          required: true,
+        },
+        parameters: {
+          type: Schema.Types.Mixed,
+          default: {},
+        },
+      },
+    ],
   },
   {
     timestamps: true,

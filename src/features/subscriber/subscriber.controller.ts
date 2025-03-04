@@ -184,7 +184,7 @@ export class SubscriberController {
       }
 
       const subscriberData: Partial<ISubscriber> = {
-        formId,
+        formId: new Types.ObjectId(formId as string),
         userId: new Types.ObjectId(req.user?._id as string),
         data: data || {},
         email: email.toLowerCase(),
@@ -204,6 +204,7 @@ export class SubscriberController {
           conversions: 0,
           bounces: 0,
           revenue: 0,
+          interactions: [],
         },
       };
 
@@ -308,6 +309,7 @@ export class SubscriberController {
               conversions: 0,
               bounces: 0,
               revenue: 0,
+              interactions: [],
             },
           };
 
@@ -548,6 +550,7 @@ export class SubscriberController {
       }
 
       // Sanitize email inputs - trim spaces, remove trailing commas, and remove empty entries
+      // Also remove initial and trailing quotes (both single and double quotes)
       const sanitizedEmails = emails
         .map((email) => {
           if (typeof email !== "string") return email;
@@ -555,6 +558,13 @@ export class SubscriberController {
           let sanitized = email.trim();
           while (sanitized.endsWith(",")) {
             sanitized = sanitized.slice(0, -1).trim();
+          }
+          // Remove initial and trailing quotes (both single and double quotes)
+          if (
+            (sanitized.startsWith('"') && sanitized.endsWith('"')) ||
+            (sanitized.startsWith("'") && sanitized.endsWith("'"))
+          ) {
+            sanitized = sanitized.slice(1, -1).trim();
           }
           return sanitized;
         })
@@ -726,7 +736,7 @@ export class SubscriberController {
     res: Response
   ): Promise<void> {
     try {
-      const { uid, key } = req.query;
+      const { uid, key, listId } = req.query;
       const { name, email } = req.body;
 
       if (!uid || !key) {
@@ -764,11 +774,22 @@ export class SubscriberController {
         return;
       }
 
+      const list = await SubscriberList.findById(listId);
+
+      if (!list) {
+        res.status(404).json({
+          success: false,
+          error: "List not found",
+        });
+        return;
+      }
+
       const subscriberData: Partial<ISubscriber> = {
         email: email.toLowerCase(),
         userId: owner.id,
         data: { name: name || "" },
         status: "active",
+        lists: [list._id as unknown as Types.ObjectId],
         metadata: {
           source: "webhook",
           ip: req.ip,

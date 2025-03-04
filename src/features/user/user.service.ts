@@ -4,9 +4,11 @@ import {
   CreateUserInput,
   UpdateUserInput,
   UserType,
+  IWebhook,
 } from "./models/user.model";
 import { FilterQuery } from "mongoose";
 import { CacheService } from "@core/services/cache.service";
+import { Types } from "mongoose";
 
 const CACHE_TTL = 3600; // 1 hour in seconds
 const USER_CACHE_PREFIX = "user";
@@ -162,6 +164,80 @@ export class UserService {
       };
     } catch (error) {
       throw new Error("Error updating user API keys");
+    }
+  }
+
+  static async addWebhook(userId: string, webhookData: IWebhook) {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      // Initialize webhooks array if it doesn't exist
+      if (!user.webhooks) {
+        user.webhooks = [];
+      }
+
+      // Add the new webhook
+      user.webhooks.push(webhookData);
+      await user.save();
+
+      return webhookData;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Error adding webhook");
+    }
+  }
+
+  static async getUserWebhooks(userId: string) {
+    try {
+      const user = await User.findById(userId).select("webhooks");
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      return user.webhooks || [];
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Error fetching user webhooks");
+    }
+  }
+
+  static async deleteWebhook(userId: string, webhookId: string) {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      if (!user.webhooks || user.webhooks.length === 0) {
+        throw new Error("Webhook not found");
+      }
+
+      // Check if the webhook exists and remove it
+      const initialLength = user.webhooks.length;
+
+      // Use MongoDB's $pull operator to remove the webhook by ID
+      const result = await User.updateOne(
+        { _id: userId },
+        { $pull: { webhooks: { _id: webhookId } } }
+      );
+
+      if (result.modifiedCount === 0) {
+        throw new Error("Webhook not found");
+      }
+
+      return true;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Error deleting webhook");
     }
   }
 }

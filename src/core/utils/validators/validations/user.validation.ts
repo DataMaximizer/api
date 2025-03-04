@@ -44,3 +44,9 @@ export const createUserSchema = z.object({
     .optional(),
   password: z.string(),
 });
+
+export const webhookSchema = z.object({
+  type: z.string().min(1, "Webhook type is required"),
+  url: z.string().url("A valid URL is required"),
+  parameters: z.record(z.string(), z.any()).optional().default({}),
+});
