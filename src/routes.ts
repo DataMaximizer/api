@@ -14,6 +14,7 @@ import abTestingRoutes from "@features/ab-testing/ab-testing.routes";
 import smsRoutes from "@features/sms/sms-routes";
 import aiConfigRoutes from "@features/ai/config/ai-config.routes";
 import redirectRoutes from "@features/tracking/redirect.route";
+import analyticsRoutes from "@features/analytics/analytics.routes";
 
 export {
   authRoutes,
@@ -32,4 +33,5 @@ export {
   smsRoutes,
   aiConfigRoutes,
   redirectRoutes,
+  analyticsRoutes,
 };

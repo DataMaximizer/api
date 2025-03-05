@@ -24,6 +24,7 @@ import {
   automatedEmailRoutes,
   aiConfigRoutes,
   redirectRoutes,
+  analyticsRoutes,
 } from "./routes";
 
 import { SchedulerService } from "@features/shared/services/scheduler.service";
@@ -106,6 +107,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/profile", profileRoutes);
 app.use("/api/ai", aiConfigRoutes);
 app.use("/api/networks", networkRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 app.get(
   "/api/admin/dashboard",
@@ -127,7 +129,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 const startServer = async (): Promise<void> => {
   try {
     await connectDB();
-    await CacheService.initialize();
+    //await CacheService.initialize();
 
     SchedulerService.initializeScheduledTasks();
 

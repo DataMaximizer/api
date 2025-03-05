@@ -749,11 +749,24 @@ export class SubscriberController {
 
       // Find user by ID and verify their webhook key
       const owner = await User.findById(uid);
+      const webhooks = owner?.webhooks;
 
-      if (!owner || owner.webhookKey !== key) {
+      if (!webhooks || webhooks.length === 0) {
         res.status(401).json({
           success: false,
-          error: "Invalid authentication",
+          error: "Webhooks not found",
+        });
+        return;
+      }
+
+      const targetWebhook = webhooks.find(
+        (w) => w.type === "lead" && w.parameters.key === key
+      );
+
+      if (!targetWebhook) {
+        res.status(401).json({
+          success: false,
+          error: "Invalid webhook key",
         });
         return;
       }
