@@ -264,7 +264,7 @@ export class SubscriberController {
 
         list = await SubscriberList.create({
           name: listName,
-          description: `Imported from ${req.file.originalname}`,
+          description: "",
           userId,
           subscriberCount: 0,
           tags: ["imported"],

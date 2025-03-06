@@ -24,6 +24,7 @@ import {
 import { BlockedEmail } from "@/features/subscriber/models/blocked-email.model";
 import { IAddress, User } from "@/features/user/models/user.model";
 import { UserService } from "@/features/user/user.service";
+import { SubscriberList } from "@/features/subscriber/models/subscriber-list.model";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -218,6 +219,7 @@ export class WritingStyleOptimizationAgent {
     aiProvider: "openai" | "claude",
     openaiApiKey: string,
     anthropicApiKey: string,
+    targetAudience: string,
     styleOptions: {
       writingStyle: WritingStyle;
       copywritingStyle: CopywritingStyle;
@@ -247,7 +249,9 @@ export class WritingStyleOptimizationAgent {
     - Use **active voice**, avoid excessive adverbs, and write in **plain English**.
     - Focus on the **benefits and value proposition** rather than just features.
     - If relevant, **incorporate storytelling or curiosity-building hooks** to draw the reader in.
-    - DO NOT add an email signature at the end, this is VERY important.
+    - DO NOT add an email signature at the end, this is VERY important. Avoid ending with "The [Company Name] Team" or anything similar.
+    - The email will be sent to a target audience described as the following. Keep this in mind when writing the email and make sure to tailor it to the audience.
+    - Target audience: ${targetAudience}
     
     Your response MUST be in **valid JSON format** with the following keys:
     - subject: A compelling subject line based on the product description, Tone, Writing Style, and Personality.
@@ -335,6 +339,11 @@ export class WritingStyleOptimizationAgent {
       aiProvider: "openai" | "claude";
     }[][]
   > {
+    const subscriberList = await SubscriberList.findById(subscriberListId);
+    if (!subscriberList) {
+      throw new Error("Subscriber list not found");
+    }
+
     // Get all active subscribers from the list
     const subscribers = await Subscriber.find({
       lists: { $in: [new Types.ObjectId(subscriberListId)] },
@@ -459,6 +468,7 @@ export class WritingStyleOptimizationAgent {
               aiProvider,
               openAiKey,
               claudeKey,
+              subscriberList.description,
               group.style
             );
             const parsedContent = JSON.parse(emailContent);
