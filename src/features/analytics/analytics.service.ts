@@ -32,7 +32,7 @@ export class AnalyticsService {
   /**
    * Get revenue data grouped by month
    * @param userId The ID of the current user
-   * @returns Revenue data grouped by month
+   * @returns Revenue data grouped by month and today's revenue
    */
   static async getRevenue(userId: string) {
     try {
@@ -43,6 +43,11 @@ export class AnalyticsService {
 
       // Initialize monthly revenue object
       const monthlyRevenue: Record<string, number> = {};
+
+      // Track today's revenue
+      let todayRevenue = 0;
+      const today = new Date();
+      const todayString = today.toISOString().split("T")[0]; // Format: YYYY-MM-DD
 
       // Process each subscriber
       subscribers.forEach((subscriber) => {
@@ -67,6 +72,12 @@ export class AnalyticsService {
           }
 
           monthlyRevenue[monthKey] += conversion.amount || 0;
+
+          // Check if conversion happened today
+          const conversionDate = date.toISOString().split("T")[0];
+          if (conversionDate === todayString) {
+            todayRevenue += conversion.amount || 0;
+          }
         });
       });
 
@@ -81,7 +92,10 @@ export class AnalyticsService {
       // Sort by month (newest first)
       result.sort((a, b) => b.month.localeCompare(a.month));
 
-      return result;
+      return {
+        monthlyData: result,
+        todayRevenue,
+      };
     } catch (error) {
       logger.error("Error getting revenue:", error);
       throw error;

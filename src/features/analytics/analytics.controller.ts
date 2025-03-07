@@ -24,7 +24,13 @@ export class AnalyticsController {
       const userId = req.user._id.toString();
       const revenueData = await AnalyticsService.getRevenue(userId);
 
-      res.json({ success: true, data: revenueData });
+      res.json({
+        success: true,
+        data: {
+          monthlyData: revenueData.monthlyData,
+          todayRevenue: revenueData.todayRevenue,
+        },
+      });
     } catch (error) {
       logger.error("Error getting revenue:", error);
       res

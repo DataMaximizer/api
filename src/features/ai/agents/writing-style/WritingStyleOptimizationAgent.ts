@@ -256,6 +256,8 @@ export class WritingStyleOptimizationAgent {
     Your response MUST be in **valid JSON format** with the following keys:
     - subject: A compelling subject line based on the product description, Tone, Writing Style, and Personality.
     - body: The body of the email in **HTML format, compliant with email clients (escaped if necessary).**
+
+    Keep in mind that the JSON response will be parsed into a JavaScript object, so make sure to escape any special characters.
     `;
 
     const emailContent = await CampaignService.generateEmailContent(
