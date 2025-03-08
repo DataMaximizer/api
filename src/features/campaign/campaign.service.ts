@@ -590,4 +590,105 @@ export class CampaignService {
       throw error;
     }
   }
+
+  /**
+   * Get campaign reports grouped by campaignProcessId
+   * Sums metrics (sent, opens, clicks, conversions, revenue) for each group
+   */
+  static async getCampaignReports(userId: string) {
+    try {
+      // Find all campaigns for the user that have a campaignProcessId
+      const campaigns = await Campaign.find({
+        userId,
+        campaignProcessId: { $exists: true, $ne: null },
+      }).lean();
+
+      // Get all offer IDs from the campaigns
+      const offerIds = [
+        ...new Set(campaigns.map((campaign) => campaign.offerId)),
+      ];
+
+      // Fetch all related offers in a single query
+      const offers = await AffiliateOffer.find({
+        _id: { $in: offerIds },
+      }).lean();
+
+      // Create a map of offer IDs to offer names for quick lookup
+      const offerMap = new Map();
+      for (const offer of offers) {
+        offerMap.set(offer._id.toString(), offer.name);
+      }
+
+      // Group campaigns by campaignProcessId and sum metrics
+      const reportMap = new Map();
+
+      for (const campaign of campaigns) {
+        const campaignProcessId = campaign.campaignProcessId?.toString();
+
+        if (!campaignProcessId) continue;
+
+        if (!reportMap.has(campaignProcessId)) {
+          reportMap.set(campaignProcessId, {
+            campaignProcessId,
+            campaignCount: 0,
+            metrics: {
+              totalSent: 0,
+              totalOpens: 0,
+              totalClicks: 0,
+              totalConversions: 0,
+              totalRevenue: 0,
+            },
+            children: [], // Array to store all campaigns belonging to this process
+          });
+        }
+
+        const report = reportMap.get(campaignProcessId);
+        report.campaignCount += 1;
+
+        // Get the offer name from the map
+        const offerId = campaign.offerId?.toString();
+        const offerName = offerId
+          ? offerMap.get(offerId) || "Unknown Offer"
+          : "Unknown Offer";
+
+        // Add campaign to the children array with additional fields
+        report.children.push({
+          id: campaign._id,
+          name: campaign.name,
+          status: campaign.status,
+          subject: campaign.subject,
+          content: campaign.content,
+          framework: campaign.framework || "",
+          tone: campaign.tone || "",
+          writingStyle: campaign.writingStyle || "",
+          offerName: offerName,
+          metrics: campaign.metrics || {
+            totalSent: 0,
+            totalOpens: 0,
+            totalClicks: 0,
+            totalConversions: 0,
+            totalRevenue: 0,
+          },
+          createdAt: campaign.createdAt,
+          updatedAt: campaign.updatedAt,
+        });
+
+        // Sum metrics if they exist
+        if (campaign.metrics) {
+          report.metrics.totalSent += campaign.metrics.totalSent || 0;
+          report.metrics.totalOpens += campaign.metrics.totalOpens || 0;
+          report.metrics.totalClicks += campaign.metrics.totalClicks || 0;
+          report.metrics.totalConversions +=
+            campaign.metrics.totalConversions || 0;
+          report.metrics.totalRevenue += campaign.metrics.totalRevenue || 0;
+        }
+      }
+
+      // Convert map to array
+      return Array.from(reportMap.values());
+    } catch (error) {
+      logger.error("Error getting campaign reports:", error);
+      throw error;
+    }
+  }
 }

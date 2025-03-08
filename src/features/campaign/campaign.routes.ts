@@ -29,6 +29,9 @@ router.post(
 // Get all campaigns with filters
 router.get("/", authenticate, CampaignController.getCampaigns);
 
+// Get campaign reports grouped by campaignProcessId
+router.get("/report", authenticate, CampaignController.getCampaignReport);
+
 // Get campaign by ID
 router.get("/:id", authenticate, CampaignController.getCampaignById);
 
@@ -75,12 +78,5 @@ router.post(
   validateRequest(sendEmailSchema),
   CampaignController.sendEmail
 );
-
-// router.post(
-// 	"/regenerate-variant",
-// 	authenticate,
-// 	validateRequest(regenerateVariantSchema),
-// 	CampaignController.regenerateVariant,
-// );
 
 export default router;

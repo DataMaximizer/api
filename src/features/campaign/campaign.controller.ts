@@ -8,8 +8,7 @@ import {
   ContentFramework,
   WritingTone,
 } from "@features/ai/models/ai-content.model";
-import { Network } from "@/features/network/network.model";
-import { IAddress, User } from "../user/models/user.model";
+import { IAddress, User, IUser } from "../user/models/user.model";
 import { UserService } from "../user/user.service";
 
 export class CampaignController {
@@ -401,6 +400,35 @@ export class CampaignController {
 
       res.json({
         success: true,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getCampaignReport(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      // Use type assertion to handle the user ID
+      const user = req.user as any;
+      const userId = user?._id?.toString();
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: "User not authenticated",
+        });
+        return;
+      }
+
+      const reports = await CampaignService.getCampaignReports(userId);
+
+      res.status(200).json({
+        success: true,
+        data: reports,
       });
     } catch (error) {
       next(error);

@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface ICampaign extends Document {
   campaignId: string;
   userId: string;
+  campaignProcessId?: string; // Reference to campaign process
   status: "pending" | "processing" | "completed" | "failed";
   result?: any;
   error?: string;
@@ -21,6 +22,10 @@ const campaignSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+    campaignProcessId: {
+      type: Schema.Types.ObjectId,
+      ref: "CampaignProcess",
     },
     status: {
       type: String,
