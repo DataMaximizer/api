@@ -603,6 +603,31 @@ export class CampaignService {
         campaignProcessId: { $exists: true, $ne: null },
       }).lean();
 
+      // Get all campaign IDs to query for unsubscribes
+      const campaignIds = campaigns.map((campaign) => campaign._id);
+
+      // Query subscribers who unsubscribed from these campaigns
+      const unsubscribes = await Subscriber.aggregate([
+        {
+          $match: {
+            "metadata.unsubscribeCampaignId": { $in: campaignIds },
+            status: "unsubscribed",
+          },
+        },
+        {
+          $group: {
+            _id: "$metadata.unsubscribeCampaignId",
+            unsubscribeCount: { $sum: 1 },
+          },
+        },
+      ]);
+
+      // Create a map of campaign IDs to unsubscribe counts for quick lookup
+      const unsubscribeMap = new Map();
+      for (const item of unsubscribes) {
+        unsubscribeMap.set(item._id.toString(), item.unsubscribeCount);
+      }
+
       // Get all offer IDs from the campaigns
       const offerIds = [
         ...new Set(campaigns.map((campaign) => campaign.offerId)),
@@ -624,6 +649,7 @@ export class CampaignService {
 
       for (const campaign of campaigns) {
         const campaignProcessId = campaign.campaignProcessId?.toString();
+        const campaignId = campaign._id.toString();
 
         if (!campaignProcessId) continue;
 
@@ -637,6 +663,7 @@ export class CampaignService {
               totalClicks: 0,
               totalConversions: 0,
               totalRevenue: 0,
+              totalUnsubscribes: 0,
             },
             children: [], // Array to store all campaigns belonging to this process
           });
@@ -651,6 +678,9 @@ export class CampaignService {
           ? offerMap.get(offerId) || "Unknown Offer"
           : "Unknown Offer";
 
+        // Get unsubscribe count for this campaign
+        const unsubscribeCount = unsubscribeMap.get(campaignId) || 0;
+
         // Add campaign to the children array with additional fields
         report.children.push({
           id: campaign._id,
@@ -662,6 +692,7 @@ export class CampaignService {
           tone: campaign.tone || "",
           writingStyle: campaign.writingStyle || "",
           offerName: offerName,
+          unsubscribeCount: unsubscribeCount,
           metrics: campaign.metrics || {
             totalSent: 0,
             totalOpens: 0,
@@ -682,12 +713,112 @@ export class CampaignService {
             campaign.metrics.totalConversions || 0;
           report.metrics.totalRevenue += campaign.metrics.totalRevenue || 0;
         }
+
+        // Add unsubscribe count to total metrics
+        report.metrics.totalUnsubscribes += unsubscribeCount;
       }
 
       // Convert map to array
       return Array.from(reportMap.values());
     } catch (error) {
       logger.error("Error getting campaign reports:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get campaign analytics grouped by writing style, tone, and framework
+   * Calculates sum of clicks and conversions for each group
+   */
+  static async getCampaignAnalytics(userId: string) {
+    try {
+      // Find all campaigns for the user
+      const campaigns = await Campaign.find({
+        userId,
+      }).lean();
+
+      // Initialize analytics objects
+      const writingStyleAnalytics = new Map();
+      const toneAnalytics = new Map();
+      const frameworkAnalytics = new Map();
+
+      // Process each campaign
+      for (const campaign of campaigns) {
+        // Extract metrics (default to 0 if not present)
+        const clicks = campaign.metrics?.totalClicks || 0;
+        const conversions = campaign.metrics?.totalConversions || 0;
+
+        // Process writing style
+        const writingStyle = campaign.writingStyle || "Unknown";
+        if (!writingStyleAnalytics.has(writingStyle)) {
+          writingStyleAnalytics.set(writingStyle, {
+            writingStyle,
+            totalClicks: 0,
+            totalConversions: 0,
+            campaignCount: 0,
+          });
+        }
+        const styleStats = writingStyleAnalytics.get(writingStyle);
+        styleStats.totalClicks += clicks;
+        styleStats.totalConversions += conversions;
+        styleStats.campaignCount += 1;
+
+        // Process tone
+        const tone = campaign.tone || "Unknown";
+        if (!toneAnalytics.has(tone)) {
+          toneAnalytics.set(tone, {
+            tone,
+            totalClicks: 0,
+            totalConversions: 0,
+            campaignCount: 0,
+          });
+        }
+        const toneStats = toneAnalytics.get(tone);
+        toneStats.totalClicks += clicks;
+        toneStats.totalConversions += conversions;
+        toneStats.campaignCount += 1;
+
+        // Process framework
+        const framework = campaign.framework || "Unknown";
+        if (!frameworkAnalytics.has(framework)) {
+          frameworkAnalytics.set(framework, {
+            framework,
+            totalClicks: 0,
+            totalConversions: 0,
+            campaignCount: 0,
+          });
+        }
+        const frameworkStats = frameworkAnalytics.get(framework);
+        frameworkStats.totalClicks += clicks;
+        frameworkStats.totalConversions += conversions;
+        frameworkStats.campaignCount += 1;
+      }
+
+      // Sort analytics by effectiveness
+      const processAnalytics = (
+        analyticsMap: Map<
+          string,
+          {
+            totalClicks: number;
+            totalConversions: number;
+            campaignCount: number;
+            [key: string]: any;
+          }
+        >
+      ) => {
+        return Array.from(analyticsMap.values()).sort(
+          (a, b) => b.totalConversions - a.totalConversions
+        );
+      };
+
+      // Return the analytics data
+      return {
+        byWritingStyle: processAnalytics(writingStyleAnalytics),
+        byTone: processAnalytics(toneAnalytics),
+        byFramework: processAnalytics(frameworkAnalytics),
+      };
+    } catch (error) {
+      logger.error("Error getting campaign analytics:", error);
       throw error;
     }
   }

@@ -32,6 +32,9 @@ router.get("/", authenticate, CampaignController.getCampaigns);
 // Get campaign reports grouped by campaignProcessId
 router.get("/report", authenticate, CampaignController.getCampaignReport);
 
+// Get campaign analytics grouped by writing style, tone, and framework
+router.get("/analytics", authenticate, CampaignController.getCampaignAnalytics);
+
 // Get campaign by ID
 router.get("/:id", authenticate, CampaignController.getCampaignById);
 

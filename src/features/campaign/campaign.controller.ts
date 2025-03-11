@@ -412,23 +412,33 @@ export class CampaignController {
     next: NextFunction
   ): Promise<void> {
     try {
-      // Use type assertion to handle the user ID
-      const user = req.user as any;
-      const userId = user?._id?.toString();
-
-      if (!userId) {
-        res.status(401).json({
-          success: false,
-          message: "User not authenticated",
-        });
-        return;
-      }
-
-      const reports = await CampaignService.getCampaignReports(userId);
-
+      const reports = await CampaignService.getCampaignReports(
+        req.user?._id as string
+      );
       res.status(200).json({
         success: true,
         data: reports,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get campaign analytics grouped by writing style, tone, and framework
+   */
+  static async getCampaignAnalytics(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const analytics = await CampaignService.getCampaignAnalytics(
+        req.user?._id as string
+      );
+      res.status(200).json({
+        success: true,
+        data: analytics,
       });
     } catch (error) {
       next(error);
