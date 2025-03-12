@@ -9,13 +9,15 @@ import {
 } from "@features/affiliate/models/affiliate-offer.model";
 import { logger } from "@config/logger";
 import { Types } from "mongoose";
+import { Anthropic } from "@anthropic-ai/sdk";
+import { TextBlock } from "@anthropic-ai/sdk/resources";
 
 import {
   PREDEFINED_CATEGORIES,
   CATEGORY_HIERARCHY,
 } from "@features/shared/constants/categories";
 
-import { OPENAI_API_KEY } from "@/local";
+import { OPENAI_API_KEY, ANTHROPIC_API_KEY } from "@/local";
 
 interface ScrapedData {
   title: string;
@@ -38,6 +40,10 @@ interface GeneratedContent {
 
 const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
+});
+
+const anthropic = new Anthropic({
+  apiKey: ANTHROPIC_API_KEY,
 });
 
 const predefinedCategories = PREDEFINED_CATEGORIES;
@@ -179,22 +185,31 @@ export class UrlAnalysisService {
     `;
 
     try {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4-turbo",
+      const message = await anthropic.messages.create({
+        model: "claude-3-7-sonnet-latest",
+        max_tokens: 2000,
+        system:
+          "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
         messages: [
           {
-            role: "system",
-            content:
-              "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response.",
+            role: "user",
+            content: prompt,
           },
-          { role: "user", content: prompt },
         ],
-        response_format: { type: "json_object" },
       });
 
-      const content = JSON.parse(
-        completion.choices[0].message?.content || "{}"
-      ) as GeneratedContent;
+      // Extract the text content from the response
+      const messageContent = message.content[0] as TextBlock;
+      let responseText = messageContent.text;
+
+      // Clean up JSON response if needed
+      if (responseText.startsWith("```json")) {
+        responseText = responseText
+          .replace(/```json\n/, "")
+          .replace(/\n```$/, "");
+      }
+
+      const content = JSON.parse(responseText) as GeneratedContent;
 
       const requiredFields: (keyof GeneratedContent)[] = [
         "name",

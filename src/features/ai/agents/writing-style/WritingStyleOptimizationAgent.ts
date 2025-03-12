@@ -279,7 +279,13 @@ export class WritingStyleOptimizationAgent {
   public async generateCampaign(
     campaignData: Pick<
       ICampaign,
-      "name" | "subject" | "content" | "framework" | "tone" | "writingStyle"
+      | "name"
+      | "subject"
+      | "content"
+      | "framework"
+      | "tone"
+      | "writingStyle"
+      | "personality"
     >,
     userId: string,
     offerId: string,
@@ -295,6 +301,7 @@ export class WritingStyleOptimizationAgent {
       content: campaignData.content,
       framework: campaignData.framework,
       tone: campaignData.tone,
+      personality: campaignData.personality,
       writingStyle: campaignData.writingStyle,
       smtpProviderId: new Types.ObjectId(smtpProviderId),
       metrics: {
@@ -486,6 +493,7 @@ export class WritingStyleOptimizationAgent {
                 framework: group.style.copywritingStyle,
                 tone: group.style.tone,
                 writingStyle: group.style.writingStyle,
+                personality: group.style.personality,
               },
               userId,
               offerId,

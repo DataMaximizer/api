@@ -691,6 +691,7 @@ export class CampaignService {
           framework: campaign.framework || "",
           tone: campaign.tone || "",
           writingStyle: campaign.writingStyle || "",
+          personality: campaign.personality || "",
           offerName: offerName,
           unsubscribeCount: unsubscribeCount,
           metrics: campaign.metrics || {
@@ -741,6 +742,7 @@ export class CampaignService {
       const writingStyleAnalytics = new Map();
       const toneAnalytics = new Map();
       const frameworkAnalytics = new Map();
+      const personalityAnalytics = new Map();
 
       // Process each campaign
       for (const campaign of campaigns) {
@@ -792,6 +794,21 @@ export class CampaignService {
         frameworkStats.totalClicks += clicks;
         frameworkStats.totalConversions += conversions;
         frameworkStats.campaignCount += 1;
+
+        // Process personality
+        const personality = campaign.personality || "Unknown";
+        if (!personalityAnalytics.has(personality)) {
+          personalityAnalytics.set(personality, {
+            personality,
+            totalClicks: 0,
+            totalConversions: 0,
+            campaignCount: 0,
+          });
+        }
+        const personalityStats = personalityAnalytics.get(personality);
+        personalityStats.totalClicks += clicks;
+        personalityStats.totalConversions += conversions;
+        personalityStats.campaignCount += 1;
       }
 
       // Sort analytics by effectiveness
@@ -816,6 +833,7 @@ export class CampaignService {
         byWritingStyle: processAnalytics(writingStyleAnalytics),
         byTone: processAnalytics(toneAnalytics),
         byFramework: processAnalytics(frameworkAnalytics),
+        byPersonality: processAnalytics(personalityAnalytics),
       };
     } catch (error) {
       logger.error("Error getting campaign analytics:", error);

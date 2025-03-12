@@ -40,6 +40,7 @@ export interface ICampaign extends Document {
   framework?: string;
   tone?: string;
   writingStyle: string;
+  personality?: string;
   smtpProviderId?: Schema.Types.ObjectId;
   schedule?: {
     startDate: Date;

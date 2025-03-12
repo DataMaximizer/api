@@ -30,11 +30,9 @@ export class UrlAnalysisController {
         networkId
       );
 
-      const offer = await AffiliateService.createOffer(offerData);
-
-      res.status(201).json({
+      res.status(200).json({
         success: true,
-        data: offer,
+        data: offerData,
       });
     } catch (error) {
       logger.error("Error in createOfferFromUrl:", error);

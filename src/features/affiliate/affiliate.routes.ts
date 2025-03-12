@@ -16,10 +16,6 @@ const router = Router();
 
 const createOfferFromUrlSchema = z.object({
   url: z.string().url("Invalid URL format"),
-  commissionRate: z
-    .number()
-    .min(0)
-    .max(100, "Commission rate must be between 0 and 100"),
 });
 
 router.post(

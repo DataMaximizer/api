@@ -44,10 +44,6 @@ export class AffiliateService {
 
     const offer = new AffiliateOffer(enhancedOfferData);
 
-    offer.categories = OfferEnhancementService.validateCategories(
-      offer.categories
-    );
-
     if (offer.tags && offer.tags.length > 3) {
       offer.tags = offer.tags.slice(0, 3);
     }
