@@ -42,10 +42,6 @@ const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
 });
 
-const anthropic = new Anthropic({
-  apiKey: ANTHROPIC_API_KEY,
-});
-
 const predefinedCategories = PREDEFINED_CATEGORIES;
 
 export class UrlAnalysisService {
@@ -54,12 +50,16 @@ export class UrlAnalysisService {
     userId: string,
     commissionRate: number,
     parameters: IOfferParameter[],
-    networkId: string
+    networkId: string,
+    anthropicApiKey?: string
   ): Promise<Partial<IAffiliateOffer>> {
     try {
       const scrapedData = await this.scrapeWebpage(url);
 
-      const offerContent = await this.generateOfferContent(scrapedData);
+      const offerContent = await this.generateOfferContent(
+        scrapedData,
+        anthropicApiKey
+      );
 
       const offerData: Partial<IAffiliateOffer> = {
         name: offerContent.name,
@@ -148,7 +148,8 @@ export class UrlAnalysisService {
   }
 
   private static async generateOfferContent(
-    scrapedData: ScrapedData
+    scrapedData: ScrapedData,
+    anthropicApiKey?: string
   ): Promise<GeneratedContent> {
     const prompt = `
       Analyze this product information and create a complete offer listing:
@@ -185,6 +186,16 @@ export class UrlAnalysisService {
     `;
 
     try {
+      const apiKey = anthropicApiKey;
+
+      if (!apiKey) {
+        throw new Error("Anthropic API key is required");
+      }
+
+      const anthropic = new Anthropic({
+        apiKey: apiKey,
+      });
+
       const message = await anthropic.messages.create({
         model: "claude-3-7-sonnet-latest",
         max_tokens: 2000,

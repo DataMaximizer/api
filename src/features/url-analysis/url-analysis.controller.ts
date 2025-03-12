@@ -3,6 +3,7 @@ import { UrlAnalysisService } from "./url-analysis.service";
 import { AffiliateService } from "@features/affiliate/affiliate.service";
 import { logger } from "@config/logger";
 import { AutomatedEmailService } from "@features/email/automated/automated-email.service";
+import { UserService } from "@features/user/user.service";
 
 export class UrlAnalysisController {
   static async createOfferFromUrl(
@@ -22,12 +23,16 @@ export class UrlAnalysisController {
         return;
       }
 
+      // Get API keys from UserService
+      const apiKeys = await UserService.getUserApiKeys(userId!.toString());
+
       const offerData = await UrlAnalysisService.createOfferFromUrl(
         url,
         userId.toString(),
         commissionRate,
         parameters,
-        networkId
+        networkId,
+        apiKeys.claudeKey
       );
 
       res.status(200).json({
@@ -64,13 +69,18 @@ export class UrlAnalysisController {
         req.body;
       const userId = req.user?._id;
 
+      // Get API keys from UserService
+      const apiKeys = await UserService.getUserApiKeys(userId!.toString());
+
       await AutomatedEmailService.processUrlAndGenerateEmail(
         url,
         commissionRate,
         userId as string,
         subscriberListId,
         smtpProviderId,
-        res
+        res,
+        undefined, // parameters
+        apiKeys.claudeKey
       );
 
       res.status(201).json({

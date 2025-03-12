@@ -85,7 +85,8 @@ export class AutomatedEmailService {
     subscriberListId: string,
     smtpProviderId: string,
     res?: Response,
-    parameters?: { type: string; name: string; placeholder: string }[]
+    parameters?: { type: string; name: string; placeholder: string }[],
+    anthropicApiKey?: string
   ): Promise<void> {
     try {
       if (res) {
@@ -99,7 +100,9 @@ export class AutomatedEmailService {
         url,
         userId,
         commissionRate,
-        parameters ?? []
+        parameters ?? [],
+        "", // networkId
+        anthropicApiKey
       );
 
       // 2. Enhance tags generation
