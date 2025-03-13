@@ -11,8 +11,10 @@ import { UrlAnalysisController } from "@features/url-analysis/url-analysis.contr
 
 import { z } from "zod";
 import { UserType } from "@features/user/models/user.model";
+import multer from "multer";
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 const createOfferFromUrlSchema = z.object({
   url: z.string().url("Invalid URL format"),
@@ -49,5 +51,12 @@ router.post(
 );
 
 router.delete("/offers/:id", authenticate, AffiliateController.deleteOffer);
+
+router.post(
+  "/generate-from-image",
+  authenticate,
+  upload.single("image"),
+  (req, res) => AffiliateController.generateOfferFromImage(req, res)
+);
 
 export default router;

@@ -50,6 +50,7 @@
 		"stripe": "^17.3.1",
 		"swagger-jsdoc": "^6.2.8",
 		"swagger-ui-express": "^5.0.1",
+		"tesseract.js": "^6.0.0",
 		"twilio": "^5.3.5",
 		"uuid": "^11.0.2",
 		"winston": "^3.15.0",

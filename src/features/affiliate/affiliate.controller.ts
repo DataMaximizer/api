@@ -3,9 +3,10 @@ import { AffiliateService } from "./affiliate.service";
 import { logger } from "@config/logger";
 import { UrlAnalysisService } from "@features/url-analysis/url-analysis.service";
 import { CacheService } from "@core/services/cache.service";
+import { UserService } from "../user/user.service";
 
 export class AffiliateController {
-  static async createOffer(req: Request, res: Response) {
+  static async createOffer(req: Request, res: Response): Promise<void> {
     try {
       const offerData = {
         ...req.body,
@@ -23,7 +24,7 @@ export class AffiliateController {
     }
   }
 
-  static async getOffers(req: Request, res: Response) {
+  static async getOffers(req: Request, res: Response): Promise<void> {
     try {
       const {
         category,
@@ -63,15 +64,16 @@ export class AffiliateController {
     }
   }
 
-  static async getOfferById(req: Request, res: Response) {
+  static async getOfferById(req: Request, res: Response): Promise<void> {
     try {
       const offer = await AffiliateService.getOfferById(req.params.id);
 
       if (!offer) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: "Offer not found",
         });
+        return;
       }
 
       res.json({
@@ -87,7 +89,7 @@ export class AffiliateController {
     }
   }
 
-  static async deleteOffer(req: Request, res: Response) {
+  static async deleteOffer(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       const userId = req.user?._id;
@@ -117,7 +119,7 @@ export class AffiliateController {
     }
   }
 
-  static async updateOffer(req: Request, res: Response) {
+  static async updateOffer(req: Request, res: Response): Promise<void> {
     try {
       const offer = await AffiliateService.updateOffer(req.params.id, req.body);
       res.json(offer);
@@ -127,7 +129,7 @@ export class AffiliateController {
     }
   }
 
-  static async validateOffers(req: Request, res: Response) {
+  static async validateOffers(req: Request, res: Response): Promise<void> {
     try {
       await AffiliateService.validateOffers();
       res.json({ message: "Validation completed" });
@@ -137,15 +139,16 @@ export class AffiliateController {
     }
   }
 
-  static async deleteAnalyzedUrl(req: Request, res: Response) {
+  static async deleteAnalyzedUrl(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
 
       if (!id) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: "Analysis ID is required",
         });
+        return;
       }
 
       await UrlAnalysisService.deleteAnalysis(id);
@@ -159,6 +162,51 @@ export class AffiliateController {
       res.status(500).json({
         success: false,
         error: "Failed to delete analysis",
+      });
+    }
+  }
+
+  static async generateOfferFromImage(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    try {
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          error: "No image file provided",
+        });
+        return;
+      }
+
+      const { aiProvider } = req.body;
+
+      if (!aiProvider) {
+        res.status(400).json({
+          success: false,
+          error: "AI provider is required",
+        });
+        return;
+      }
+
+      const apiKeys = await UserService.getUserApiKeys(req.user?._id as string);
+      const affiliateService = new AffiliateService();
+      const generatedContent = await affiliateService.generateOfferFromImage(
+        req.file.buffer,
+        aiProvider as "openai" | "claude",
+        apiKeys.openAiKey,
+        apiKeys.claudeKey
+      );
+
+      res.status(200).json({
+        success: true,
+        data: generatedContent,
+      });
+    } catch (error) {
+      logger.error("Error generating offer from image:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to generate offer from image",
       });
     }
   }

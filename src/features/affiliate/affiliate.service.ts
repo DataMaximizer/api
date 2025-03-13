@@ -1,6 +1,6 @@
 import axios from "axios";
 import OpenAI from "openai";
-import { FilterQuery, QueryOptions } from "mongoose";
+import { FilterQuery, QueryOptions, Types } from "mongoose";
 import {
   AffiliateOffer,
   OfferStatus,
@@ -18,6 +18,11 @@ import {
   CommissionRule,
 } from "../comission/models/commission.model";
 import { LinkValidation } from "../url-analysis/models/link-validation.model";
+import { PREDEFINED_CATEGORIES } from "../shared/constants/categories";
+import { Anthropic } from "@anthropic-ai/sdk";
+import { TextBlock } from "@anthropic-ai/sdk/resources";
+import { GeneratedContent } from "../url-analysis/url-analysis.service";
+import { aiService } from "../ai/services/ai.service";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -427,5 +432,165 @@ export class AffiliateService {
         logger.warn(`Offer ${offer._id} paused due to invalid URL`);
       }
     }
+  }
+
+  async generateOfferFromImage(
+    image: Buffer | string,
+    aiProvider: "openai" | "claude" = "openai",
+    openaiApiKey?: string,
+    anthropicApiKey?: string
+  ): Promise<Partial<IAffiliateOffer>> {
+    const text = await aiService.extractTextFromImage(image);
+    const generatedContent = await this.generateOfferFromText(
+      text,
+      aiProvider,
+      openaiApiKey,
+      anthropicApiKey
+    );
+
+    const offerData: Partial<IAffiliateOffer> = {
+      name: generatedContent.name,
+      description: generatedContent.description,
+      categories: generatedContent.categories,
+      tags: generatedContent.tags || [],
+      productInfo: {
+        description: generatedContent.detailedDescription,
+        benefits: generatedContent.benefits,
+        targetAudience: generatedContent.targetAudience,
+        features: generatedContent.features,
+      },
+    };
+
+    if (!offerData.name || !offerData.description) {
+      throw new Error("Failed to generate required offer content");
+    }
+
+    return offerData;
+  }
+
+  /**
+   * Processes text using AI (OpenAI or Claude)
+   * @param text - The text to process
+   * @param aiProvider - The AI provider to use ('openai' or 'claude')
+   * @param openaiApiKey - OpenAI API key (required if aiProvider is 'openai')
+   * @param anthropicApiKey - Anthropic API key (required if aiProvider is 'claude')
+   * @returns Promise containing the AI-processed text
+   */
+  async generateOfferFromText(
+    text: string,
+    aiProvider: "openai" | "claude" = "openai",
+    openaiApiKey?: string,
+    anthropicApiKey?: string
+  ): Promise<GeneratedContent> {
+    if (aiProvider === "openai" && !openaiApiKey) {
+      throw new Error("OpenAI API key is required");
+    }
+
+    if (aiProvider === "claude" && !anthropicApiKey) {
+      throw new Error("Anthropic API key is required");
+    }
+
+    // Placeholder prompt - to be replaced later
+    const prompt = `
+      The following is a text extracted from an image that is likely a product webpage.
+      I need you to analyze this text and extract the product information.
+      Keep in mind that the text might contain some noise or other unrelated products as recommendations, so you need to be careful.
+
+      <text>
+      ${text}
+      </text>
+
+      Create an e-commerce offer with the following (All fields are REQUIRED):
+
+      1. Product Name (max 100 chars, catchy and descriptive)
+      2. Short Marketing Description (max 200 chars)
+      3. Detailed Description (comprehensive but concise)
+      4. 3-5 Key Benefits (bullet points)
+      5. 3-5 Main Features (bullet points)
+      6. Target Audience Description
+      7. 3-5 Most Relevant Categories from this list ONLY: ${PREDEFINED_CATEGORIES.join(
+        ", "
+      )}
+      8. 5-8 Relevant Tags (short, 1-2 words each, highly relevant for search and categorization)
+
+      Format response as JSON with these exact keys. Keep in mind that the JSON should be valid, as it will be parsed by a JSON parser:
+      {
+        "name": "string",
+        "description": "string",
+        "detailedDescription": "string",
+        "benefits": ["string"],
+        "features": ["string"],
+        "targetAudience": "string",
+        "categories": ["string"],
+        "tags": ["string"]
+      }
+    `;
+
+    const response =
+      aiProvider === "openai"
+        ? await this.processWithOpenAI(prompt, openaiApiKey)
+        : await this.processWithClaude(prompt, anthropicApiKey);
+
+    return JSON.parse(response) as GeneratedContent;
+  }
+
+  private async processWithOpenAI(
+    prompt: string,
+    openaiApiKey?: string
+  ): Promise<string> {
+    if (!openaiApiKey) {
+      throw new Error("OpenAI API key is required");
+    }
+
+    const client = new OpenAI({ apiKey: openaiApiKey });
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
+        },
+        { role: "user", content: prompt },
+      ],
+      response_format: { type: "json_object" },
+    });
+
+    return completion.choices[0].message?.content || "";
+  }
+
+  private async processWithClaude(
+    prompt: string,
+    anthropicApiKey?: string
+  ): Promise<string> {
+    if (!anthropicApiKey) {
+      throw new Error("Anthropic API key is required");
+    }
+
+    const client = new Anthropic({ apiKey: anthropicApiKey });
+    const message = await client.messages.create({
+      model: "claude-3-7-sonnet-latest",
+      max_tokens: 1000,
+      system:
+        "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const messageContent = message.content[0] as TextBlock;
+    let responseText = messageContent.text;
+
+    // Clean up JSON response if needed
+    if (responseText.startsWith("```json")) {
+      responseText = responseText
+        .replace(/```json\n/, "")
+        .replace(/\n```$/, "");
+    }
+
+    return responseText;
   }
 }

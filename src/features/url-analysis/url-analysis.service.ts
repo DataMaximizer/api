@@ -12,12 +12,9 @@ import { Types } from "mongoose";
 import { Anthropic } from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources";
 
-import {
-  PREDEFINED_CATEGORIES,
-  CATEGORY_HIERARCHY,
-} from "@features/shared/constants/categories";
+import { PREDEFINED_CATEGORIES } from "@features/shared/constants/categories";
 
-import { OPENAI_API_KEY, ANTHROPIC_API_KEY } from "@/local";
+import { OPENAI_API_KEY } from "@/local";
 
 interface ScrapedData {
   title: string;
@@ -27,7 +24,7 @@ interface ScrapedData {
   specifications: Record<string, string>;
 }
 
-interface GeneratedContent {
+export interface GeneratedContent {
   name: string;
   description: string;
   detailedDescription: string;
