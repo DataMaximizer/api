@@ -146,8 +146,9 @@ export class AIService {
         throw new Error("Unsupported image format");
       }
 
-      // Compress the image if needed
-      const compressedImageBuffer = await this.compressImage(imageBuffer);
+      // Compress the image if needed and get format info
+      const { buffer: compressedImageBuffer, format } =
+        await this.compressImage(imageBuffer);
 
       // Convert compressed buffer to base64
       const base64Image = compressedImageBuffer.toString("base64");
@@ -173,7 +174,7 @@ export class AIService {
                 type: "image",
                 source: {
                   type: "base64",
-                  media_type: "image/jpeg",
+                  media_type: format === "png" ? "image/png" : "image/jpeg",
                   data: base64Image,
                 },
               },
@@ -185,9 +186,27 @@ export class AIService {
       // Extract the text from the response
       const extractedText = (message.content[0] as TextBlock).text;
       return extractedText;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error extracting text with Claude:", error);
-      throw new Error("Failed to extract text with Claude");
+
+      // Handle specific Claude API errors
+      if (error instanceof Anthropic.APIError) {
+        if (error.status === 429) {
+          throw new Error(
+            "Claude API rate limit exceeded. Please try again later."
+          );
+        } else if (error.status === 500 || error.status === 503) {
+          throw new Error(
+            "Claude API is currently overloaded or unavailable. Please try again later."
+          );
+        }
+      }
+
+      throw new Error(
+        `Failed to extract text with Claude: ${
+          error.message || "Unknown error"
+        }`
+      );
     }
   }
 
@@ -210,18 +229,23 @@ export class AIService {
    * Compresses an image to ensure it's under the 5MB limit for Claude
    * and dimensions are within Claude's limits (max 8000 pixels per dimension)
    * @param imageBuffer - The image buffer to compress
-   * @returns Promise containing the compressed image buffer
+   * @returns Promise containing the compressed image buffer and format
    */
-  private async compressImage(imageBuffer: Buffer): Promise<Buffer> {
+  private async compressImage(
+    imageBuffer: Buffer
+  ): Promise<{ buffer: Buffer; format: string }> {
     try {
       // Check if the image is already under 5MB
       const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
       const MAX_DIMENSION = 7900; // Slightly under Claude's 8000 pixel limit to be safe
 
-      // Get image metadata to check dimensions
+      // Get image metadata to check dimensions and format
       const metadata = await sharp(imageBuffer).metadata();
       const width = metadata.width || 0;
       const height = metadata.height || 0;
+
+      // Determine the image format (default to jpeg if unknown)
+      let imageFormat = metadata.format || "jpeg";
 
       // If image is small enough in both size and dimensions, return as is
       if (
@@ -229,7 +253,7 @@ export class AIService {
         width <= MAX_DIMENSION &&
         height <= MAX_DIMENSION
       ) {
-        return imageBuffer;
+        return { buffer: imageBuffer, format: imageFormat };
       }
 
       // Calculate resize dimensions to maintain aspect ratio
@@ -259,15 +283,34 @@ export class AIService {
 
       // Start with reasonable quality and resized dimensions
       let quality = 80;
-      let compressedBuffer = await sharp(imageBuffer)
-        .resize({
-          width: resizeWidth,
-          height: resizeHeight,
-          fit: "inside",
-          withoutEnlargement: true,
-        })
-        .jpeg({ quality })
-        .toBuffer();
+      let compressedBuffer: Buffer;
+
+      // Use the appropriate format for compression
+      if (imageFormat === "png") {
+        compressedBuffer = await sharp(imageBuffer)
+          .resize({
+            width: resizeWidth,
+            height: resizeHeight,
+            fit: "inside",
+            withoutEnlargement: true,
+          })
+          .png({ quality })
+          .toBuffer();
+      } else {
+        // Default to jpeg for all other formats for better compression
+        compressedBuffer = await sharp(imageBuffer)
+          .resize({
+            width: resizeWidth,
+            height: resizeHeight,
+            fit: "inside",
+            withoutEnlargement: true,
+          })
+          .jpeg({ quality })
+          .toBuffer();
+
+        // Update format to jpeg since we converted it
+        imageFormat = "jpeg";
+      }
 
       // If still too large, compress more aggressively
       while (compressedBuffer.length > MAX_SIZE_BYTES && quality > 10) {
@@ -280,18 +323,32 @@ export class AIService {
           resizeHeight = Math.round(resizeHeight * 0.8);
         }
 
-        compressedBuffer = await sharp(imageBuffer)
-          .resize({
-            width: resizeWidth,
-            height: resizeHeight,
-            fit: "inside",
-            withoutEnlargement: true,
-          })
-          .jpeg({ quality })
-          .toBuffer();
+        // Compress with the appropriate format
+        if (imageFormat === "png") {
+          compressedBuffer = await sharp(imageBuffer)
+            .resize({
+              width: resizeWidth,
+              height: resizeHeight,
+              fit: "inside",
+              withoutEnlargement: true,
+            })
+            .png({ quality })
+            .toBuffer();
+        } else {
+          compressedBuffer = await sharp(imageBuffer)
+            .resize({
+              width: resizeWidth,
+              height: resizeHeight,
+              fit: "inside",
+              withoutEnlargement: true,
+            })
+            .jpeg({ quality })
+            .toBuffer();
+        }
       }
 
       // If we still can't get it under 5MB, make one final aggressive attempt
+      // Convert to JPEG regardless of original format for maximum compression
       if (compressedBuffer.length > MAX_SIZE_BYTES) {
         compressedBuffer = await sharp(imageBuffer)
           .resize({
@@ -302,18 +359,32 @@ export class AIService {
           })
           .jpeg({ quality: 10 })
           .toBuffer();
+
+        // Update format since we converted to jpeg
+        imageFormat = "jpeg";
       }
 
       console.log(
         `Compressed image from ${imageBuffer.length} to ${compressedBuffer.length} bytes, ` +
-          `dimensions from ${width}x${height} to ${resizeWidth}x${resizeHeight}`
+          `dimensions from ${width}x${height} to ${resizeWidth}x${resizeHeight}, ` +
+          `format: ${imageFormat}`
       );
 
-      return compressedBuffer;
+      return { buffer: compressedBuffer, format: imageFormat };
     } catch (error) {
       console.error("Error compressing image:", error);
-      // Return original if compression fails
-      return imageBuffer;
+      // Return original if compression fails, assuming jpeg format if unknown
+      let imageFormat = "jpeg";
+      try {
+        // Try to get the actual format
+        const metadata = await sharp(imageBuffer).metadata();
+        if (metadata.format) {
+          imageFormat = metadata.format;
+        }
+      } catch (e) {
+        // Ignore errors in error handler
+      }
+      return { buffer: imageBuffer, format: imageFormat };
     }
   }
 }
