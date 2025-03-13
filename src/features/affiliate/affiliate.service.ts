@@ -440,7 +440,10 @@ export class AffiliateService {
     openaiApiKey?: string,
     anthropicApiKey?: string
   ): Promise<Partial<IAffiliateOffer>> {
-    const text = await aiService.extractTextFromImage(image);
+    const text = await aiService.extractTextWithClaude(
+      image,
+      anthropicApiKey as string
+    );
     const generatedContent = await this.generateOfferFromText(
       text,
       aiProvider,
