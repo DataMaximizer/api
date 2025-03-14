@@ -234,8 +234,6 @@ export class UrlAnalysisService {
         predefinedCategories.includes(category)
       );
 
-      content.tags = Array.from(new Set(content.tags)).slice(0, 8);
-
       for (const field of requiredFields) {
         if (!content[field]) {
           throw new Error(`Missing required field: ${field}`);
