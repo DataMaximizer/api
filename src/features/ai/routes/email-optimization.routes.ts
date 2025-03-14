@@ -1,0 +1,51 @@
+import { Router } from "express";
+import { EmailOptimizationController } from "../controllers/email-optimization.controller";
+import { authenticate } from "@core/middlewares/auth.middleware";
+
+const router = Router();
+
+/**
+ * @route POST /api/ai/email-optimization
+ * @desc Start a new email optimization process
+ * @access Private
+ */
+router.post(
+  "/",
+  authenticate,
+  EmailOptimizationController.startOptimizationProcess
+);
+
+/**
+ * @route GET /api/ai/email-optimization/status/:processId
+ * @desc Get the status of an email optimization process
+ * @access Private
+ */
+router.get(
+  "/status/:processId",
+  authenticate,
+  EmailOptimizationController.getOptimizationStatus
+);
+
+/**
+ * @route GET /api/ai/email-optimization/list
+ * @desc List all email optimization processes for a user
+ * @access Private
+ */
+router.get(
+  "/list",
+  authenticate,
+  EmailOptimizationController.listOptimizationProcesses
+);
+
+/**
+ * @route GET /api/ai/email-optimization/details/:processId
+ * @desc Get detailed information about an optimization process
+ * @access Private
+ */
+router.get(
+  "/details/:processId",
+  authenticate,
+  EmailOptimizationController.getOptimizationDetails
+);
+
+export default router;
