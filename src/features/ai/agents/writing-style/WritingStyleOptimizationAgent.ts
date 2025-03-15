@@ -25,6 +25,7 @@ import { BlockedEmail } from "@/features/subscriber/models/blocked-email.model";
 import { IAddress, User } from "@/features/user/models/user.model";
 import { UserService } from "@/features/user/user.service";
 import { SubscriberList } from "@/features/subscriber/models/subscriber-list.model";
+import { CampaignProcess } from "../../models/campaign-process.model";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -508,6 +509,12 @@ export class WritingStyleOptimizationAgent {
                   subscriberList.description,
                   group.style
                 );
+
+                await CampaignProcess.findByIdAndUpdate(campaignProcessId, {
+                  $set: {
+                    aiProvider: alternativeProvider,
+                  },
+                });
               } catch (alternativeErr) {
                 console.error(
                   `Error with alternative provider ${alternativeProvider}:`,
