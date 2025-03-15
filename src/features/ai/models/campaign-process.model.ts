@@ -17,6 +17,11 @@ const campaignProcessSchema = new Schema(
       ref: "User",
       required: true,
     },
+    aiProvider: {
+      type: String,
+      enum: ["openai", "claude"],
+      required: true,
+    },
     status: {
       type: String,
       enum: ["pending", "processing", "completed", "failed"],

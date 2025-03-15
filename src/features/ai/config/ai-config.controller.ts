@@ -302,7 +302,8 @@ export class AIConfigController {
 
       const campaignTracker = CampaignTrackerService.getInstance();
       const campaign = await campaignTracker.createCampaign(
-        req.user?._id?.toString() || ""
+        req.user?._id?.toString() || "",
+        aiProvider
       );
 
       // Start the campaign processing in the background
@@ -325,7 +326,8 @@ export class AIConfigController {
             selectionPercentage,
             senderName,
             senderEmail,
-            aiProvider
+            aiProvider,
+            campaign.id
           );
 
           await campaignTracker.updateCampaignStatus(

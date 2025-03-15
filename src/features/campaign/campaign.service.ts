@@ -129,7 +129,7 @@ export class CampaignService {
         const writingStyle =
           WRITING_STYLES[Math.floor(Math.random() * WRITING_STYLES.length)];
 
-        const content = await this.generateEmailContent(
+        const emailResult = await this.generateEmailContent(
           productInfo,
           framework,
           tone,
@@ -141,6 +141,7 @@ export class CampaignService {
           openaiApiKey,
           anthropicApiKey
         );
+        const content = emailResult.content;
         const subject = await this.generateEmailSubject(
           content,
           "openai",
@@ -212,7 +213,7 @@ export class CampaignService {
     aiProvider: "openai" | "claude" = "openai",
     openaiApiKey?: string,
     anthropicApiKey?: string
-  ): Promise<string> {
+  ): Promise<{ prompt: string; content: string }> {
     if (aiProvider === "openai" && !openaiApiKey) {
       throw new Error("OpenAI API key is required");
     }
@@ -231,8 +232,22 @@ export class CampaignService {
     );
 
     return aiProvider === "openai"
-      ? this.generateOpenAIEmailContent(prompt, jsonResponse, openaiApiKey)
-      : this.generateClaudeEmailContent(prompt, jsonResponse, anthropicApiKey);
+      ? {
+          prompt,
+          content: await this.generateOpenAIEmailContent(
+            prompt,
+            jsonResponse,
+            openaiApiKey
+          ),
+        }
+      : {
+          prompt,
+          content: await this.generateClaudeEmailContent(
+            prompt,
+            jsonResponse,
+            anthropicApiKey
+          ),
+        };
   }
 
   private static async generateOpenAIEmailContent(

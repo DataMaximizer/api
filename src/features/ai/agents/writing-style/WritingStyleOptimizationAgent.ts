@@ -226,7 +226,7 @@ export class WritingStyleOptimizationAgent {
       tone: Tone;
       personality: Personality;
     }
-  ): Promise<string> {
+  ): Promise<{ prompt: string; content: string }> {
     // Fetch the offer from the AffiliateOffer model.
     const offer = await AffiliateOffer.findById(offerId);
     if (!offer) throw new Error("Offer not found");
@@ -289,7 +289,8 @@ export class WritingStyleOptimizationAgent {
     >,
     userId: string,
     offerId: string,
-    smtpProviderId: string
+    smtpProviderId: string,
+    campaignProcessId: string
   ) {
     const campaign = await Campaign.create({
       name: campaignData.name,
@@ -304,6 +305,7 @@ export class WritingStyleOptimizationAgent {
       personality: campaignData.personality,
       writingStyle: campaignData.writingStyle,
       smtpProviderId: new Types.ObjectId(smtpProviderId),
+      campaignProcessId: new Types.ObjectId(campaignProcessId),
       metrics: {
         totalSent: 0,
         totalOpens: 0,
@@ -332,7 +334,8 @@ export class WritingStyleOptimizationAgent {
     selectionPercentage: number = 0.2,
     senderName: string,
     senderEmail: string,
-    aiProvider: "openai" | "claude"
+    aiProvider: "openai" | "claude",
+    campaignProcessId: string
   ): Promise<
     {
       offerId: string;
@@ -472,15 +475,52 @@ export class WritingStyleOptimizationAgent {
         const batchResults = await Promise.all(
           batch.map(async ([_, group]) => {
             // Generate email content once per style combination
-            const emailContent = await this.generateEmailMarketing(
-              offerId,
-              aiProvider,
-              openAiKey,
-              claudeKey,
-              subscriberList.description,
-              group.style
-            );
-            const parsedContent = JSON.parse(emailContent);
+            let emailContent;
+            let error;
+
+            // Try with the specified AI provider first
+            try {
+              emailContent = await this.generateEmailMarketing(
+                offerId,
+                aiProvider,
+                openAiKey,
+                claudeKey,
+                subscriberList.description,
+                group.style
+              );
+            } catch (err) {
+              const originalError =
+                err instanceof Error ? err.message : String(err);
+              console.error(`Error with ${aiProvider} provider:`, err);
+
+              // Try with the alternative provider
+              const alternativeProvider =
+                aiProvider === "openai" ? "claude" : "openai";
+              try {
+                console.log(
+                  `Trying alternative provider: ${alternativeProvider}`
+                );
+                emailContent = await this.generateEmailMarketing(
+                  offerId,
+                  alternativeProvider,
+                  openAiKey,
+                  claudeKey,
+                  subscriberList.description,
+                  group.style
+                );
+              } catch (alternativeErr) {
+                console.error(
+                  `Error with alternative provider ${alternativeProvider}:`,
+                  alternativeErr
+                );
+                // Both providers failed, throw the original error
+                throw new Error(
+                  `Failed to generate email content with both providers. Original error: ${originalError}`
+                );
+              }
+            }
+
+            const parsedContent = JSON.parse(emailContent.content);
             const currentTimestamp = new Date().getTime();
             const campaignName = `Random Test - ${offer.name} - ${currentTimestamp}`;
 
@@ -497,7 +537,8 @@ export class WritingStyleOptimizationAgent {
               },
               userId,
               offerId,
-              smtpProviderId
+              smtpProviderId,
+              campaignProcessId
             );
 
             // Return data for each subscriber in this style group
@@ -516,6 +557,7 @@ export class WritingStyleOptimizationAgent {
               senderName,
               senderEmail,
               aiProvider,
+              prompt: emailContent.prompt,
               ...group.style,
             }));
           })
