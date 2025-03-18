@@ -14,6 +14,7 @@ import {
   Tone,
   Personality,
 } from "../offer-selection/OfferSelectionAgent";
+import { EmailOptimizationAgent } from "../reinforcement-learning/EmailOptimizationAgent";
 
 export interface ISegmentationConfig {
   numberOfSegments: number;
@@ -24,6 +25,12 @@ export interface ISegmentationConfig {
 }
 
 export class SegmentationAgent {
+  private emailOptimizationAgent: EmailOptimizationAgent;
+
+  constructor() {
+    this.emailOptimizationAgent = new EmailOptimizationAgent();
+  }
+
   /**
    * Segments subscribers for a specific optimization round
    *
@@ -236,6 +243,7 @@ export class SegmentationAgent {
 
   /**
    * Generates parameter combinations based on previous round performance
+   * and neural network predictions
    *
    * @param campaignProcessId - Campaign process ID
    * @param currentRoundNumber - Current round number
@@ -288,18 +296,145 @@ export class SegmentationAgent {
       personality: Personality;
     }> = [];
 
-    // Add exploitation combinations (best performing)
+    // Generate potential parameter combinations for prediction
+    const copywritingStyles: CopywritingStyle[] = [
+      "AIDA",
+      "PAS",
+      "BAB",
+      "PPP",
+      "FAB",
+      "QUEST",
+    ];
+    const writingStyles: WritingStyle[] = [
+      "descriptive",
+      "narrative",
+      "persuasive",
+      "expository",
+      "conversational",
+      "direct",
+    ];
+    const tones: Tone[] = [
+      "professional",
+      "friendly",
+      "enthusiastic",
+      "urgent",
+      "empathetic",
+      "authoritative",
+      "casual",
+    ];
+    const personalities: Personality[] = [
+      "confident",
+      "humorous",
+      "analytical",
+      "caring",
+      "adventurous",
+      "innovative",
+      "trustworthy",
+    ];
+
+    // Generate a larger set of possible combinations for prediction
+    const possibleCombinations: Array<{
+      copywritingStyle: CopywritingStyle;
+      writingStyle: WritingStyle;
+      tone: Tone;
+      personality: Personality;
+      predictedConversionRate: number;
+    }> = [];
+
+    // Use the best parameters from previous rounds and some variations
+    for (const bestParam of bestParameters) {
+      // Add the exact best parameter
+      possibleCombinations.push({
+        ...bestParam,
+        predictedConversionRate: 0, // Will be filled in later
+      });
+
+      // Add variations by changing one parameter at a time
+      for (const style of copywritingStyles) {
+        if (style !== bestParam.copywritingStyle) {
+          possibleCombinations.push({
+            ...bestParam,
+            copywritingStyle: style,
+            predictedConversionRate: 0,
+          });
+        }
+      }
+
+      for (const style of writingStyles) {
+        if (style !== bestParam.writingStyle) {
+          possibleCombinations.push({
+            ...bestParam,
+            writingStyle: style,
+            predictedConversionRate: 0,
+          });
+        }
+      }
+
+      for (const tone of tones) {
+        if (tone !== bestParam.tone) {
+          possibleCombinations.push({
+            ...bestParam,
+            tone,
+            predictedConversionRate: 0,
+          });
+        }
+      }
+
+      for (const personality of personalities) {
+        if (personality !== bestParam.personality) {
+          possibleCombinations.push({
+            ...bestParam,
+            personality,
+            predictedConversionRate: 0,
+          });
+        }
+      }
+    }
+
+    // Add some random combinations for diversity
+    for (let i = 0; i < 20; i++) {
+      possibleCombinations.push({
+        copywritingStyle:
+          copywritingStyles[
+            Math.floor(Math.random() * copywritingStyles.length)
+          ],
+        writingStyle:
+          writingStyles[Math.floor(Math.random() * writingStyles.length)],
+        tone: tones[Math.floor(Math.random() * tones.length)],
+        personality:
+          personalities[Math.floor(Math.random() * personalities.length)],
+        predictedConversionRate: 0,
+      });
+    }
+
+    // Predict conversion rates for all possible combinations
+    for (const combination of possibleCombinations) {
+      combination.predictedConversionRate =
+        this.emailOptimizationAgent.predictConversionRate({
+          copywritingStyle: combination.copywritingStyle,
+          writingStyle: combination.writingStyle,
+          tone: combination.tone,
+          personality: combination.personality,
+        });
+    }
+
+    // Sort by predicted conversion rate
+    possibleCombinations.sort(
+      (a, b) => b.predictedConversionRate - a.predictedConversionRate
+    );
+
+    // Add exploitation combinations (best predicted performing)
     for (let i = 0; i < exploitationCount; i++) {
-      if (i < bestParameters.length) {
+      if (i < possibleCombinations.length) {
         combinations.push({
-          copywritingStyle: bestParameters[i].copywritingStyle,
-          writingStyle: bestParameters[i].writingStyle,
-          tone: bestParameters[i].tone,
-          personality: bestParameters[i].personality,
+          copywritingStyle: possibleCombinations[i].copywritingStyle,
+          writingStyle: possibleCombinations[i].writingStyle,
+          tone: possibleCombinations[i].tone,
+          personality: possibleCombinations[i].personality,
         });
       } else {
-        // If we need more combinations than we have best parameters,
-        // reuse them in order
+        // If we need more combinations than we have predictions,
+        // use the best parameters from previous rounds
         const index = i % bestParameters.length;
         combinations.push({
           copywritingStyle: bestParameters[index].copywritingStyle,

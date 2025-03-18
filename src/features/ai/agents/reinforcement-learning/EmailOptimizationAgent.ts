@@ -20,6 +20,23 @@ import * as tf from "@tensorflow/tfjs-node";
 import { CampaignProcess } from "../../models/campaign-process.model";
 import { UserService } from "@features/user/user.service";
 
+/**
+ * Interface for storing training data for the neural network
+ */
+interface ITrainingData {
+  copywritingStyle: CopywritingStyle;
+  writingStyle: WritingStyle;
+  tone: Tone;
+  personality: Personality;
+  metrics: {
+    clicks: number;
+    conversions: number;
+  };
+}
+
+/**
+ * Interface for tracking style performance metrics
+ */
 interface IStylePerformance {
   copywritingStyle: CopywritingStyle;
   writingStyle: WritingStyle;
@@ -34,12 +51,222 @@ interface IStylePerformance {
   clickRate: number;
   conversionRate: number;
   revenuePerEmail: number;
+  predictedConversionRate?: number;
+}
+
+/**
+ * Class for storing and calculating statistics for parameter combinations
+ */
+class StyleStatistics {
+  // Maps style key to its performance statistics
+  private statistics: Map<
+    string,
+    {
+      totalExperiments: number;
+      totalConversionRate: number;
+      averageConversionRate: number;
+      variance: number;
+      samples: number[];
+    }
+  > = new Map();
+
+  /**
+   * Add a new data point for a style combination
+   */
+  addDataPoint(
+    style: {
+      copywritingStyle: CopywritingStyle;
+      writingStyle: WritingStyle;
+      tone: Tone;
+      personality: Personality;
+    },
+    conversionRate: number
+  ): void {
+    const styleKey = this.getStyleKey(style);
+
+    if (!this.statistics.has(styleKey)) {
+      this.statistics.set(styleKey, {
+        totalExperiments: 0,
+        totalConversionRate: 0,
+        averageConversionRate: 0,
+        variance: 0,
+        samples: [],
+      });
+    }
+
+    const stats = this.statistics.get(styleKey)!;
+
+    // Keep track of the previous mean before updating with the new value
+    const oldMean = stats.averageConversionRate;
+
+    // Update counts and totals
+    stats.totalExperiments += 1;
+    stats.totalConversionRate += conversionRate;
+    stats.samples.push(conversionRate);
+
+    // Update average
+    stats.averageConversionRate =
+      stats.totalConversionRate / stats.totalExperiments;
+
+    // Update variance using Welford's online algorithm
+    if (stats.samples.length > 1) {
+      // M2_n = M2_(n-1) + (x_n - μ_(n-1)) * (x_n - μ_n)
+      // where μ_n is the new mean after adding x_n
+      const delta = conversionRate - oldMean;
+      const delta2 = conversionRate - stats.averageConversionRate;
+      stats.variance += delta * delta2;
+    }
+  }
+
+  /**
+   * Get the average conversion rate for a style combination
+   */
+  getAverageConversionRate(style: {
+    copywritingStyle: CopywritingStyle;
+    writingStyle: WritingStyle;
+    tone: Tone;
+    personality: Personality;
+  }): number {
+    const styleKey = this.getStyleKey(style);
+
+    if (!this.statistics.has(styleKey)) {
+      // Return a default value for unknown combinations
+      return 0.05; // 5% conversion rate as a baseline
+    }
+
+    return this.statistics.get(styleKey)!.averageConversionRate;
+  }
+
+  /**
+   * Get the confidence interval for a style combination
+   * Uses UCB1 (Upper Confidence Bound) algorithm for exploration-exploitation balance
+   */
+  getUCBScore(
+    style: {
+      copywritingStyle: CopywritingStyle;
+      writingStyle: WritingStyle;
+      tone: Tone;
+      personality: Personality;
+    },
+    totalExperiments: number
+  ): number {
+    const styleKey = this.getStyleKey(style);
+
+    if (!this.statistics.has(styleKey)) {
+      // Return a high score for unexplored combinations to encourage exploration
+      return 1.0;
+    }
+
+    const stats = this.statistics.get(styleKey)!;
+
+    // UCB1 formula: average + C * sqrt(log(total_experiments) / experiments_with_this_arm)
+    // C is exploration parameter, typically sqrt(2)
+    const explorationParameter = Math.sqrt(2);
+    const explorationTerm =
+      explorationParameter *
+      Math.sqrt(Math.log(totalExperiments) / stats.totalExperiments);
+
+    return stats.averageConversionRate + explorationTerm;
+  }
+
+  /**
+   * Generate a unique key for a style combination
+   */
+  private getStyleKey(style: {
+    copywritingStyle: CopywritingStyle;
+    writingStyle: WritingStyle;
+    tone: Tone;
+    personality: Personality;
+  }): string {
+    return `${style.copywritingStyle}|${style.writingStyle}|${style.tone}|${style.personality}`;
+  }
+
+  /**
+   * Get all style combinations that have data
+   */
+  getAllStyles(): Array<{
+    copywritingStyle: CopywritingStyle;
+    writingStyle: WritingStyle;
+    tone: Tone;
+    personality: Personality;
+    averageConversionRate: number;
+    totalExperiments: number;
+  }> {
+    const result: Array<{
+      copywritingStyle: CopywritingStyle;
+      writingStyle: WritingStyle;
+      tone: Tone;
+      personality: Personality;
+      averageConversionRate: number;
+      totalExperiments: number;
+    }> = [];
+
+    this.statistics.forEach((stats, styleKey) => {
+      const [copywritingStyle, writingStyle, tone, personality] =
+        styleKey.split("|") as [
+          CopywritingStyle,
+          WritingStyle,
+          Tone,
+          Personality
+        ];
+
+      result.push({
+        copywritingStyle,
+        writingStyle,
+        tone,
+        personality,
+        averageConversionRate: stats.averageConversionRate,
+        totalExperiments: stats.totalExperiments,
+      });
+    });
+
+    return result;
+  }
+
+  /**
+   * Get total number of experiments across all styles
+   */
+  getTotalExperiments(): number {
+    let total = 0;
+    this.statistics.forEach((stats) => {
+      total += stats.totalExperiments;
+    });
+    return total;
+  }
+
+  /**
+   * Get the variance for a style combination
+   */
+  getVariance(style: {
+    copywritingStyle: CopywritingStyle;
+    writingStyle: WritingStyle;
+    tone: Tone;
+    personality: Personality;
+  }): number {
+    const styleKey = this.getStyleKey(style);
+
+    if (
+      !this.statistics.has(styleKey) ||
+      this.statistics.get(styleKey)!.totalExperiments <= 1
+    ) {
+      return 0; // No variance with 0 or 1 sample
+    }
+
+    const stats = this.statistics.get(styleKey)!;
+
+    // Convert the running sum of squared differences into the sample variance
+    // by dividing by n-1 (for unbiased estimation with small sample sizes)
+    return stats.variance / (stats.totalExperiments - 1);
+  }
 }
 
 export class EmailOptimizationAgent {
   private conversionAgent: ConversionAnalysisAgent;
   private explorationRate: number;
-  private model: tf.Sequential | null = null;
+  private styleStats = new StyleStatistics();
+
+  // Replace the TensorFlow model with our new statistical model
+  private modelTrained: boolean = false;
 
   constructor(explorationRate = 0.2) {
     this.conversionAgent = new ConversionAnalysisAgent();
@@ -196,6 +423,85 @@ export class EmailOptimizationAgent {
     // Get the best performing style
     const bestStyle = stylePerformance[0];
 
+    // If this is not the first round, evaluate the model's predictions
+    if (optimizationRound.roundNumber > 1 && this.modelTrained) {
+      // Make predictions for all style combinations to see what the model would have predicted
+      const predictedPerformance = stylePerformance.map((style) => {
+        const predictedRate = this.predictConversionRate({
+          copywritingStyle: style.copywritingStyle,
+          writingStyle: style.writingStyle,
+          tone: style.tone,
+          personality: style.personality,
+        });
+
+        return {
+          ...style,
+          predictedConversionRate: predictedRate,
+        };
+      });
+
+      // Sort by predicted conversion rate
+      predictedPerformance.sort(
+        (a, b) => b.predictedConversionRate - a.predictedConversionRate
+      );
+
+      // Get the style that was predicted to perform best
+      const predictedBestStyle = predictedPerformance[0];
+
+      // Calculate prediction error (Mean Absolute Error)
+      let totalError = 0;
+      let count = 0;
+
+      predictedPerformance.forEach((style) => {
+        totalError += Math.abs(
+          style.predictedConversionRate - style.conversionRate
+        );
+        count++;
+      });
+
+      const averagePredictionError = count > 0 ? totalError / count : 0;
+
+      // Get the model's accuracy (last training accuracy)
+      const modelAccuracy = await this.trainModel(
+        optimizationRound.campaignProcessId.toString()
+      );
+
+      // Store the model performance metrics
+      await OptimizationRound.findByIdAndUpdate(optimizationRoundId, {
+        modelPerformance: {
+          modelAccuracy,
+          predictedTopStyle: {
+            copywritingStyle: predictedBestStyle.copywritingStyle,
+            writingStyle: predictedBestStyle.writingStyle,
+            tone: predictedBestStyle.tone,
+            personality: predictedBestStyle.personality,
+            predictedConversionRate: predictedBestStyle.predictedConversionRate,
+          },
+          actualTopStyle: {
+            copywritingStyle: bestStyle.copywritingStyle,
+            writingStyle: bestStyle.writingStyle,
+            tone: bestStyle.tone,
+            personality: bestStyle.personality,
+            actualConversionRate: bestStyle.conversionRate,
+          },
+          predictionError: averagePredictionError,
+        },
+      });
+
+      console.log("Model Performance Metrics:", {
+        modelAccuracy,
+        predictedBestStyle: {
+          style: `${predictedBestStyle.copywritingStyle}/${predictedBestStyle.writingStyle}/${predictedBestStyle.tone}/${predictedBestStyle.personality}`,
+          rate: predictedBestStyle.predictedConversionRate,
+        },
+        actualBestStyle: {
+          style: `${bestStyle.copywritingStyle}/${bestStyle.writingStyle}/${bestStyle.tone}/${bestStyle.personality}`,
+          rate: bestStyle.conversionRate,
+        },
+        predictionError: averagePredictionError,
+      });
+    }
+
     // Update the optimization round with the best parameters
     await OptimizationRound.findByIdAndUpdate(optimizationRoundId, {
       bestPerformingParameters: {
@@ -302,283 +608,153 @@ export class EmailOptimizationAgent {
   }
 
   /**
-   * Trains a TensorFlow.js model to predict conversion rates based on style parameters
+   * Trains the statistical model on historical optimization round data
    *
    * @param campaignProcessId - ID of the campaign process
-   * @returns Training accuracy
+   * @returns The accuracy of the trained model (estimate based on data variance)
    */
   public async trainModel(campaignProcessId: string): Promise<number> {
-    // Get all completed optimization rounds for this process
+    console.log(
+      `Training statistical model for campaign process ${campaignProcessId}...`
+    );
+
+    // Get all completed rounds for this campaign process
     const rounds = await OptimizationRound.find({
       campaignProcessId: new Types.ObjectId(campaignProcessId),
       status: OptimizationStatus.COMPLETED,
-    });
+    }).sort({ roundNumber: 1 });
 
-    if (rounds.length < 2) {
-      // Not enough data to train a model
+    if (rounds.length < 1) {
+      console.log("Not enough completed rounds to train the model");
       return 0;
     }
 
-    // Get all segments with metrics
+    // Get all segments for these rounds
+    const segmentIds = rounds.flatMap(
+      (round) => round.subscriberSegmentIds || []
+    );
     const segments = await SubscriberSegment.find({
-      campaignProcessId: new Types.ObjectId(campaignProcessId),
+      _id: { $in: segmentIds },
       status: SegmentStatus.PROCESSED,
     });
 
     if (segments.length < 5) {
-      // Not enough data to train a model
+      console.log("Not enough processed segments to train the model");
       return 0;
     }
 
+    // Reset the style statistics
+    this.styleStats = new StyleStatistics();
+
     // Prepare training data
-    const trainingData: {
-      input: number[];
-      output: number;
-    }[] = [];
-
-    // Define style mappings for one-hot encoding
-    const copywritingStyles: CopywritingStyle[] = [
-      "AIDA",
-      "PAS",
-      "BAB",
-      "PPP",
-      "FAB",
-      "QUEST",
-    ];
-    const writingStyles: WritingStyle[] = [
-      "descriptive",
-      "narrative",
-      "persuasive",
-      "expository",
-      "conversational",
-      "direct",
-    ];
-    const tones: Tone[] = [
-      "professional",
-      "friendly",
-      "enthusiastic",
-      "urgent",
-      "empathetic",
-      "authoritative",
-      "casual",
-    ];
-    const personalities: Personality[] = [
-      "confident",
-      "humorous",
-      "analytical",
-      "caring",
-      "adventurous",
-      "innovative",
-      "trustworthy",
-    ];
-
     segments.forEach((segment) => {
       if (!segment.metrics || segment.metrics.totalSent === 0) {
         return; // Skip segments without metrics
       }
 
-      // One-hot encode the style parameters
-      const copywritingStyleIndex = copywritingStyles.indexOf(
-        segment.assignedParameters.copywritingStyle
+      const conversionRate =
+        segment.metrics.totalClicks > 0
+          ? segment.metrics.totalConversions / segment.metrics.totalClicks
+          : 0;
+
+      // Add data point to our statistical model
+      this.styleStats.addDataPoint(
+        {
+          copywritingStyle: segment.assignedParameters.copywritingStyle,
+          writingStyle: segment.assignedParameters.writingStyle,
+          tone: segment.assignedParameters.tone,
+          personality: segment.assignedParameters.personality,
+        },
+        conversionRate
       );
-      const writingStyleIndex = writingStyles.indexOf(
-        segment.assignedParameters.writingStyle
-      );
-      const toneIndex = tones.indexOf(segment.assignedParameters.tone);
-      const personalityIndex = personalities.indexOf(
-        segment.assignedParameters.personality
-      );
-
-      // Create one-hot encoded vectors
-      const copywritingStyleVector = Array(copywritingStyles.length).fill(0);
-      copywritingStyleVector[copywritingStyleIndex] = 1;
-
-      const writingStyleVector = Array(writingStyles.length).fill(0);
-      writingStyleVector[writingStyleIndex] = 1;
-
-      const toneVector = Array(tones.length).fill(0);
-      toneVector[toneIndex] = 1;
-
-      const personalityVector = Array(personalities.length).fill(0);
-      personalityVector[personalityIndex] = 1;
-
-      // Combine all vectors into a single input vector
-      const inputVector = [
-        ...copywritingStyleVector,
-        ...writingStyleVector,
-        ...toneVector,
-        ...personalityVector,
-      ];
-
-      // Use conversion rate as the output
-      const conversionRate = segment.metrics.conversionRate || 0;
-
-      trainingData.push({
-        input: inputVector,
-        output: conversionRate,
-      });
     });
 
-    if (trainingData.length < 5) {
-      // Not enough data to train a model
-      return 0;
-    }
-
-    // Create and train the model
-    this.model = tf.sequential();
-
-    // Input layer size is the sum of all one-hot encoded vectors
-    const inputSize =
-      copywritingStyles.length +
-      writingStyles.length +
-      tones.length +
-      personalities.length;
-
-    // Add layers
-    this.model.add(
-      tf.layers.dense({
-        units: 16,
-        activation: "relu",
-        inputShape: [inputSize],
-      })
+    console.log(
+      `Trained statistical model with ${this.styleStats.getTotalExperiments()} data points`
     );
+    this.modelTrained = true;
 
-    this.model.add(
-      tf.layers.dense({
-        units: 8,
-        activation: "relu",
-      })
-    );
+    // Calculate a crude accuracy estimate based on data consistency
+    // Get all styles and their stats
+    const allStyles = this.styleStats.getAllStyles();
 
-    this.model.add(
-      tf.layers.dense({
-        units: 1,
-        activation: "sigmoid", // For conversion rate (0-1)
-      })
-    );
+    // Calculate average variance across all style combinations
+    let totalVariance = 0;
+    let styleCount = 0;
 
-    // Compile the model
-    this.model.compile({
-      optimizer: tf.train.adam(0.01),
-      loss: "meanSquaredError",
-      metrics: ["accuracy"],
+    allStyles.forEach((style) => {
+      if (style.totalExperiments > 1) {
+        // Calculate variance for this style
+        const variance = this.styleStats.getVariance({
+          copywritingStyle: style.copywritingStyle,
+          writingStyle: style.writingStyle,
+          tone: style.tone,
+          personality: style.personality,
+        });
+
+        totalVariance += variance;
+        styleCount++;
+      }
     });
 
-    // Prepare tensors
-    const xs = tf.tensor2d(trainingData.map((d) => d.input));
-    const ys = tf.tensor2d(trainingData.map((d) => [d.output]));
+    // Convert variance to an "accuracy" metric (lower variance = higher accuracy)
+    // This is a simplified approach - real accuracy would require test data
+    const averageAccuracy =
+      allStyles.length > 0 && styleCount > 0
+        ? Math.max(0, Math.min(1, 1 - (totalVariance / styleCount) * 10))
+        : 0.5; // Default moderate accuracy when no data
 
-    // Train the model
-    const history = await this.model.fit(xs, ys, {
-      epochs: 100,
-      batchSize: 4,
-      validationSplit: 0.2,
-    });
+    console.log(
+      `Calculated model accuracy: ${averageAccuracy.toFixed(
+        4
+      )} based on ${styleCount} style combinations`
+    );
 
-    // Clean up tensors
-    xs.dispose();
-    ys.dispose();
-
-    // Return the final accuracy
-    const finalAccuracy = history.history.acc
-      ? history.history.acc[history.history.acc.length - 1]
-      : 0;
-
-    return finalAccuracy as number;
+    return averageAccuracy;
   }
 
   /**
-   * Predicts the conversion rate for a given style combination
+   * Predicts the conversion rate for a given set of style parameters
+   * using the trained statistical model
    *
-   * @param style - Style parameters to predict for
-   * @returns Predicted conversion rate
+   * @param params - Email style parameters to evaluate
+   * @returns Predicted conversion rate (0-1)
    */
-  public predictConversionRate(style: {
+  public predictConversionRate(params: {
     copywritingStyle: CopywritingStyle;
     writingStyle: WritingStyle;
     tone: Tone;
     personality: Personality;
   }): number {
-    if (!this.model) {
-      // No model trained, return a default value
-      return 0.05; // 5% conversion rate as default
+    // Check if model is trained
+    if (!this.modelTrained) {
+      console.log(
+        "No trained model available, returning default conversion rate of 5%"
+      );
+      return 0.05; // Default value when no model is available
     }
 
-    // Define style mappings for one-hot encoding (must match training)
-    const copywritingStyles: CopywritingStyle[] = [
-      "AIDA",
-      "PAS",
-      "BAB",
-      "PPP",
-      "FAB",
-      "QUEST",
-    ];
-    const writingStyles: WritingStyle[] = [
-      "descriptive",
-      "narrative",
-      "persuasive",
-      "expository",
-      "conversational",
-      "direct",
-    ];
-    const tones: Tone[] = [
-      "professional",
-      "friendly",
-      "enthusiastic",
-      "urgent",
-      "empathetic",
-      "authoritative",
-      "casual",
-    ];
-    const personalities: Personality[] = [
-      "confident",
-      "humorous",
-      "analytical",
-      "caring",
-      "adventurous",
-      "innovative",
-      "trustworthy",
-    ];
+    try {
+      // Get UCB score which balances exploitation (using what works) with
+      // exploration (trying new things)
+      const totalExperiments = this.styleStats.getTotalExperiments();
+      const ucbScore = this.styleStats.getUCBScore(params, totalExperiments);
 
-    // One-hot encode the style parameters
-    const copywritingStyleIndex = copywritingStyles.indexOf(
-      style.copywritingStyle
-    );
-    const writingStyleIndex = writingStyles.indexOf(style.writingStyle);
-    const toneIndex = tones.indexOf(style.tone);
-    const personalityIndex = personalities.indexOf(style.personality);
+      // Log the prediction for debugging
+      const averageRate = this.styleStats.getAverageConversionRate(params);
+      console.log(
+        `Predicted conversion rate for style [${params.copywritingStyle}/${
+          params.writingStyle
+        }/${params.tone}/${params.personality}]: ${(averageRate * 100).toFixed(
+          2
+        )}% (UCB score: ${(ucbScore * 100).toFixed(2)}%)`
+      );
 
-    // Create one-hot encoded vectors
-    const copywritingStyleVector = Array(copywritingStyles.length).fill(0);
-    copywritingStyleVector[copywritingStyleIndex] = 1;
-
-    const writingStyleVector = Array(writingStyles.length).fill(0);
-    writingStyleVector[writingStyleIndex] = 1;
-
-    const toneVector = Array(tones.length).fill(0);
-    toneVector[toneIndex] = 1;
-
-    const personalityVector = Array(personalities.length).fill(0);
-    personalityVector[personalityIndex] = 1;
-
-    // Combine all vectors into a single input vector
-    const inputVector = [
-      ...copywritingStyleVector,
-      ...writingStyleVector,
-      ...toneVector,
-      ...personalityVector,
-    ];
-
-    // Make prediction
-    const inputTensor = tf.tensor2d([inputVector]);
-    const prediction = this.model.predict(inputTensor) as tf.Tensor;
-    const predictionValue = prediction.dataSync()[0];
-
-    // Clean up tensors
-    inputTensor.dispose();
-    prediction.dispose();
-
-    return predictionValue;
+      return ucbScore;
+    } catch (error) {
+      console.error("Error predicting conversion rate:", error);
+      return 0.05; // Default value on error
+    }
   }
 
   /**

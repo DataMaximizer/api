@@ -30,6 +30,24 @@ export interface IOptimizationRound extends Document {
     conversionRate: number;
     clickRate: number;
   };
+  modelPerformance?: {
+    modelAccuracy: number;
+    predictedTopStyle: {
+      copywritingStyle: CopywritingStyle;
+      writingStyle: WritingStyle;
+      tone: Tone;
+      personality: Personality;
+      predictedConversionRate: number;
+    };
+    actualTopStyle: {
+      copywritingStyle: CopywritingStyle;
+      writingStyle: WritingStyle;
+      tone: Tone;
+      personality: Personality;
+      actualConversionRate: number;
+    };
+    predictionError: number;
+  };
   campaignIds: Types.ObjectId[];
   metrics: {
     totalSent: number;
@@ -103,6 +121,94 @@ const optimizationRoundSchema = new Schema<IOptimizationRound>(
       },
       conversionRate: Number,
       clickRate: Number,
+    },
+    modelPerformance: {
+      modelAccuracy: Number,
+      predictedTopStyle: {
+        copywritingStyle: {
+          type: String,
+          enum: ["AIDA", "PAS", "BAB", "PPP", "FAB", "QUEST"],
+        },
+        writingStyle: {
+          type: String,
+          enum: [
+            "descriptive",
+            "narrative",
+            "persuasive",
+            "expository",
+            "conversational",
+            "direct",
+          ],
+        },
+        tone: {
+          type: String,
+          enum: [
+            "professional",
+            "friendly",
+            "enthusiastic",
+            "urgent",
+            "empathetic",
+            "authoritative",
+            "casual",
+          ],
+        },
+        personality: {
+          type: String,
+          enum: [
+            "confident",
+            "humorous",
+            "analytical",
+            "caring",
+            "adventurous",
+            "innovative",
+            "trustworthy",
+          ],
+        },
+        predictedConversionRate: Number,
+      },
+      actualTopStyle: {
+        copywritingStyle: {
+          type: String,
+          enum: ["AIDA", "PAS", "BAB", "PPP", "FAB", "QUEST"],
+        },
+        writingStyle: {
+          type: String,
+          enum: [
+            "descriptive",
+            "narrative",
+            "persuasive",
+            "expository",
+            "conversational",
+            "direct",
+          ],
+        },
+        tone: {
+          type: String,
+          enum: [
+            "professional",
+            "friendly",
+            "enthusiastic",
+            "urgent",
+            "empathetic",
+            "authoritative",
+            "casual",
+          ],
+        },
+        personality: {
+          type: String,
+          enum: [
+            "confident",
+            "humorous",
+            "analytical",
+            "caring",
+            "adventurous",
+            "innovative",
+            "trustworthy",
+          ],
+        },
+        actualConversionRate: Number,
+      },
+      predictionError: Number,
     },
     campaignIds: [{ type: Schema.Types.ObjectId, ref: "Campaign" }],
     metrics: {

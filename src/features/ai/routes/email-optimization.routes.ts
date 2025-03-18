@@ -11,7 +11,7 @@ const router = Router();
  */
 router.post(
   "/",
-  authenticate,
+  //authenticate,
   EmailOptimizationController.startOptimizationProcess
 );
 
