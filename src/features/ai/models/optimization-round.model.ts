@@ -20,6 +20,7 @@ export interface IOptimizationRound extends Document {
   status: OptimizationStatus;
   startDate: Date;
   endDate?: Date;
+  subscriberIds: Types.ObjectId[];
   subscriberSegmentIds: Types.ObjectId[];
   offerIds: Types.ObjectId[];
   bestPerformingParameters?: {
@@ -77,7 +78,10 @@ const optimizationRoundSchema = new Schema<IOptimizationRound>(
     },
     startDate: { type: Date, default: Date.now },
     endDate: { type: Date },
-    subscriberSegmentIds: [{ type: Schema.Types.ObjectId, ref: "Subscriber" }],
+    subscriberIds: [{ type: Schema.Types.ObjectId, ref: "Subscriber" }],
+    subscriberSegmentIds: [
+      { type: Schema.Types.ObjectId, ref: "SubscriberSegment" },
+    ],
     offerIds: [{ type: Schema.Types.ObjectId, ref: "AffiliateOffer" }],
     bestPerformingParameters: {
       copywritingStyle: {

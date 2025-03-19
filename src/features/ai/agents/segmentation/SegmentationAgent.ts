@@ -27,8 +27,10 @@ export interface ISegmentationConfig {
 export class SegmentationAgent {
   private emailOptimizationAgent: EmailOptimizationAgent;
 
-  constructor() {
-    this.emailOptimizationAgent = new EmailOptimizationAgent();
+  constructor(emailOptimizationAgent?: EmailOptimizationAgent) {
+    // Use the provided instance or create a new one if not provided
+    this.emailOptimizationAgent =
+      emailOptimizationAgent || new EmailOptimizationAgent();
   }
 
   /**
@@ -264,6 +266,9 @@ export class SegmentationAgent {
       personality: Personality;
     }>
   > {
+    console.log(
+      `Generating optimized parameter combinations for round ${currentRoundNumber}`
+    );
     // Get previous rounds
     const previousRounds = await OptimizationRound.find({
       campaignProcessId: new Types.ObjectId(campaignProcessId),
@@ -272,6 +277,9 @@ export class SegmentationAgent {
 
     if (!previousRounds.length) {
       // Fallback to initial combinations if no previous rounds
+      console.log(
+        `No previous rounds found, using initial parameter combinations`
+      );
       return this.generateInitialParameterCombinations(count);
     }
 
@@ -408,7 +416,13 @@ export class SegmentationAgent {
     }
 
     // Predict conversion rates for all possible combinations
+    console.log(
+      `Predicting conversion rates for ${possibleCombinations.length} possible parameter combinations`
+    );
     for (const combination of possibleCombinations) {
+      console.log(
+        `Predicting conversion rate for ${combination.copywritingStyle}/${combination.writingStyle}/${combination.tone}/${combination.personality}`
+      );
       combination.predictedConversionRate =
         this.emailOptimizationAgent.predictConversionRate({
           copywritingStyle: combination.copywritingStyle,

@@ -22,6 +22,8 @@ import {
   CampaignType,
   CampaignStatus,
 } from "@features/campaign/models/campaign.model";
+import { SmtpService } from "@features/email/smtp/smtp.service";
+import { User } from "@features/user/models/user.model";
 
 export interface IOptimizationConfig {
   userId: string;
@@ -43,9 +45,11 @@ export class EmailOptimizationOrchestrator {
   private optimizationAgent: EmailOptimizationAgent;
 
   constructor() {
-    this.segmentationAgent = new SegmentationAgent();
-    this.writingStyleAgent = new WritingStyleOptimizationAgent();
+    // Create the optimization agent first
     this.optimizationAgent = new EmailOptimizationAgent();
+    // Pass the optimization agent to the segmentation agent
+    this.segmentationAgent = new SegmentationAgent(this.optimizationAgent);
+    this.writingStyleAgent = new WritingStyleOptimizationAgent();
   }
 
   /**
@@ -131,8 +135,12 @@ export class EmailOptimizationOrchestrator {
           : undefined;
 
       // For testing with short delays, use this instead:
-      // const scheduledStartTime = i === 0 ? new Date() : new Date(Date.now() + i * 60 * 1000); // 1 minute between rounds
-      // const nextRoundTime = i < config.numberOfRounds - 1 ? new Date(Date.now() + (i + 1) * 60 * 1000) : undefined;
+      // const scheduledStartTime =
+      //   i === 0 ? new Date() : new Date(Date.now() + i * 60 * 1000); // 1 minute between rounds
+      // const nextRoundTime =
+      //   i < config.numberOfRounds - 1
+      //     ? new Date(Date.now() + (i + 1) * 60 * 1000)
+      //     : undefined;
 
       const round = await OptimizationRound.create({
         userId: new Types.ObjectId(config.userId),
@@ -140,9 +148,10 @@ export class EmailOptimizationOrchestrator {
         roundNumber: i + 1,
         status: OptimizationStatus.PENDING,
         startDate: scheduledStartTime,
-        subscriberSegmentIds: roundSubscriberIds.map(
+        subscriberIds: roundSubscriberIds.map(
           (id: string) => new Types.ObjectId(id)
         ),
+        subscriberSegmentIds: [],
         offerIds: config.offerIds.map((id: string) => new Types.ObjectId(id)),
         nextRoundScheduledFor: nextRoundTime,
       });
@@ -157,7 +166,14 @@ export class EmailOptimizationOrchestrator {
     }
 
     // Start the first round immediately
-    await this.processRound(roundIds[0], config);
+    // await this.processRound(roundIds[0], config);
+    // await this.processRound(roundIds[1], config);
+    // await this.processRound(roundIds[2], config);
+    // await this.processRound(roundIds[3], config);
+    // await this.processRound(roundIds[4], config);
+    // await this.processRound(roundIds[5], config);
+    // await this.processRound(roundIds[6], config);
+    // await this.processRound(roundIds[7], config);
 
     // Schedule subsequent rounds based on configured intervals
     for (let i = 1; i < roundIds.length; i++) {
@@ -225,8 +241,14 @@ export class EmailOptimizationOrchestrator {
       });
 
       // Get subscriber IDs for this round
-      const subscriberIds = round.subscriberSegmentIds.map((id) =>
-        id.toString()
+      const subscriberIds = round.subscriberIds.map((id) => id.toString());
+
+      if (subscriberIds.length === 0) {
+        throw new Error("No subscribers found for this round");
+      }
+
+      console.log(
+        `Processing round ${round.roundNumber} with ${subscriberIds.length} subscribers`
       );
 
       // For rounds after the first, train the model before creating segments
@@ -247,6 +269,15 @@ export class EmailOptimizationOrchestrator {
         config.segmentationConfig
       );
 
+      console.log(
+        `Created ${segmentIds.length} segments for round ${round.roundNumber}`
+      );
+
+      // Update the round with created segment IDs
+      await OptimizationRound.findByIdAndUpdate(roundId, {
+        subscriberSegmentIds: segmentIds.map((id) => new Types.ObjectId(id)),
+      });
+
       // Process each segment
       for (const segmentId of segmentIds) {
         await this.processSegment(segmentId, config);
@@ -256,7 +287,7 @@ export class EmailOptimizationOrchestrator {
       console.log(
         `Waiting for metrics collection before analyzing round ${round.roundNumber}...`
       );
-      await new Promise((resolve) => setTimeout(resolve, 60 * 60 * 1000)); // 1 hour
+      //await new Promise((resolve) => setTimeout(resolve, 60 * 60 * 1000)); // 1 hour
 
       // For testing with mock metrics, use a shorter wait time:
       // console.log(`Waiting 10 seconds before collecting metrics for round ${round.roundNumber}...`);
@@ -280,6 +311,12 @@ export class EmailOptimizationOrchestrator {
       if (round.roundNumber >= config.numberOfRounds) {
         await this.optimizationAgent.checkProcessCompletion(
           round.campaignProcessId.toString()
+        );
+
+        // Send completion notification email
+        await this.sendOptimizationCompletionEmail(
+          round.campaignProcessId.toString(),
+          config
         );
       }
     } catch (error) {
@@ -325,16 +362,33 @@ export class EmailOptimizationOrchestrator {
         segment.assignedParameters
       );
 
-      // Send emails using the WritingStyleOptimizationAgent
-      const emailResults = await this.writingStyleAgent.startRandomCampaign(
+      // Get subscriber IDs from the segment
+      const subscriberIds = segment.subscriberIds.map((id) => id.toString());
+
+      if (subscriberIds.length === 0) {
+        throw new Error("No subscribers found in segment");
+      }
+
+      // Get subscriber list for audience description
+      const subscriberList = await SubscriberList.findById(
+        config.subscriberListId
+      );
+      const audienceDescription =
+        subscriberList?.description || "General audience";
+
+      console.log(`Using audience description: ${audienceDescription}`);
+
+      // Send emails using the WritingStyleOptimizationAgent with the segment's subscribers and parameters
+      const emailResults = await this.writingStyleAgent.startCampaignForSegment(
         offerIds,
-        config.subscriberListId,
+        subscriberIds,
         config.smtpProviderId,
         config.userId,
-        1.0, // Use 100% of the subscribers in this segment
         config.senderName,
         config.senderEmail,
-        config.aiProvider
+        config.aiProvider,
+        segment.assignedParameters,
+        audienceDescription
       );
 
       // Collect campaign IDs
@@ -353,12 +407,19 @@ export class EmailOptimizationOrchestrator {
         status: SegmentStatus.PROCESSED,
       });
 
-      /* MOCK IMPLEMENTATION - COMMENTED OUT FOR LATER USE
+      // --------
+
+      /*MOCK IMPLEMENTATION - COMMENTED OUT FOR LATER USE
       // Log offer IDs from the round
-      console.log(`Available offer IDs for round ${round._id}:`, round.offerIds);
+      console.log(
+        `Available offer IDs for round ${round._id}:`,
+        round.offerIds
+      );
 
       if (!round.offerIds || round.offerIds.length === 0) {
-        throw new Error("No offer IDs found for this round. At least one offer ID is required.");
+        throw new Error(
+          "No offer IDs found for this round. At least one offer ID is required."
+        );
       }
 
       // Choose a valid offer ID
@@ -368,7 +429,9 @@ export class EmailOptimizationOrchestrator {
       } else if (config.offerIds && config.offerIds.length > 0) {
         // Fallback to config offerIds
         offerId = new Types.ObjectId(config.offerIds[0]);
-        console.log(`No offer IDs in round, using fallback from config: ${offerId}`);
+        console.log(
+          `No offer IDs in round, using fallback from config: ${offerId}`
+        );
       } else {
         throw new Error("No offer IDs available for campaign creation");
       }
@@ -382,84 +445,115 @@ export class EmailOptimizationOrchestrator {
         totalOpens: 0,
         totalClicks: 0,
         totalConversions: 0,
-        totalRevenue: 0
+        totalRevenue: 0,
       };
-      
+
       // Adjust metrics based on copywriting style
       const copywritingMultiplier = (() => {
-        switch(segment.assignedParameters.copywritingStyle) {
-          case "AIDA": return 1.2;  // AIDA performs well
-          case "PAS": return 1.15;  // Problem-Agitate-Solution also good
-          case "BAB": return 1.1;   // Before-After-Bridge
-          case "FAB": return 1.05;  // Features-Advantages-Benefits
-          case "QUEST": return 1.0; // QUEST framework
-          default: return 1.0;
+        switch (segment.assignedParameters.copywritingStyle) {
+          case "AIDA":
+            return 1.2; // AIDA performs well
+          case "PAS":
+            return 1.15; // Problem-Agitate-Solution also good
+          case "BAB":
+            return 1.1; // Before-After-Bridge
+          case "FAB":
+            return 1.05; // Features-Advantages-Benefits
+          case "QUEST":
+            return 1.0; // QUEST framework
+          default:
+            return 1.0;
         }
       })();
-      
+
       // Adjust metrics based on writing style
       const writingStyleMultiplier = (() => {
-        switch(segment.assignedParameters.writingStyle) {
-          case "conversational": return 1.25; // Conversational performs best
-          case "persuasive": return 1.2;      // Persuasive is strong
-          case "direct": return 1.15;         // Direct is effective
-          case "descriptive": return 1.0;     // Descriptive is average
-          case "narrative": return 1.05;      // Narrative is slightly above average
-          default: return 1.0;
+        switch (segment.assignedParameters.writingStyle) {
+          case "conversational":
+            return 1.25; // Conversational performs best
+          case "persuasive":
+            return 1.2; // Persuasive is strong
+          case "direct":
+            return 1.15; // Direct is effective
+          case "descriptive":
+            return 1.0; // Descriptive is average
+          case "narrative":
+            return 1.05; // Narrative is slightly above average
+          default:
+            return 1.0;
         }
       })();
-      
+
       // Adjust metrics based on tone
       const toneMultiplier = (() => {
-        switch(segment.assignedParameters.tone) {
-          case "friendly": return 1.2;       // Friendly performs well
-          case "enthusiastic": return 1.15;  // Enthusiasm works
-          case "professional": return 1.1;   // Professional is solid
-          case "urgent": return 1.05;        // Urgency can help
-          case "empathetic": return 1.25;    // Empathy performs best
-          default: return 1.0;
+        switch (segment.assignedParameters.tone) {
+          case "friendly":
+            return 1.2; // Friendly performs well
+          case "enthusiastic":
+            return 1.15; // Enthusiasm works
+          case "professional":
+            return 1.1; // Professional is solid
+          case "urgent":
+            return 1.05; // Urgency can help
+          case "empathetic":
+            return 1.25; // Empathy performs best
+          default:
+            return 1.0;
         }
       })();
-      
+
       // Adjust metrics based on personality
       const personalityMultiplier = (() => {
-        switch(segment.assignedParameters.personality) {
-          case "confident": return 1.2;      // Confidence performs well
-          case "trustworthy": return 1.25;   // Trustworthiness is best
-          case "caring": return 1.15;        // Caring works well
-          case "humorous": return 1.1;       // Humor can work
-          case "innovative": return 1.05;    // Innovation is decent
-          default: return 1.0;
+        switch (segment.assignedParameters.personality) {
+          case "confident":
+            return 1.2; // Confidence performs well
+          case "trustworthy":
+            return 1.25; // Trustworthiness is best
+          case "caring":
+            return 1.15; // Caring works well
+          case "humorous":
+            return 1.1; // Humor can work
+          case "innovative":
+            return 1.05; // Innovation is decent
+          default:
+            return 1.0;
         }
       })();
-      
+
       // Add some randomization (±15%) to make it more realistic
-      const randomFactor = 0.85 + (Math.random() * 0.3);
-      
+      const randomFactor = 0.85 + Math.random() * 0.3;
+
       // Calculate combined multiplier with randomization
-      const combinedMultiplier = 
-        copywritingMultiplier * 
-        writingStyleMultiplier * 
-        toneMultiplier * 
-        personalityMultiplier * 
+      const combinedMultiplier =
+        copywritingMultiplier *
+        writingStyleMultiplier *
+        toneMultiplier *
+        personalityMultiplier *
         randomFactor;
-      
+
       // Calculate open rate (40-80%) based on multiplier
       const openRate = Math.min(0.8, Math.max(0.4, 0.4 * combinedMultiplier));
       baseMetrics.totalOpens = Math.floor(baseMetrics.totalSent * openRate);
-      
+
       // Calculate click rate (10-40% of opens) based on multiplier
       const clickRate = Math.min(0.4, Math.max(0.1, 0.1 * combinedMultiplier));
       baseMetrics.totalClicks = Math.floor(baseMetrics.totalOpens * clickRate);
-      
+
       // Calculate conversion rate (5-25% of clicks) based on multiplier
-      const conversionRate = Math.min(0.25, Math.max(0.05, 0.05 * combinedMultiplier));
-      baseMetrics.totalConversions = Math.floor(baseMetrics.totalClicks * conversionRate);
-      
+      const conversionRate = Math.min(
+        0.25,
+        Math.max(0.05, 0.05 * combinedMultiplier)
+      );
+      baseMetrics.totalConversions = Math.floor(
+        baseMetrics.totalClicks * conversionRate
+      );
+
       // Calculate average revenue per conversion ($20-100)
-      const avgRevenue = Math.floor(20 + (80 * Math.random() * combinedMultiplier));
+      const avgRevenue = Math.floor(
+        20 + 80 * Math.random() * combinedMultiplier
+      );
       baseMetrics.totalRevenue = baseMetrics.totalConversions * avgRevenue;
-      
+
       console.log(`Generated mock metrics for segment ${segmentId}:`, {
         parameters: segment.assignedParameters,
         metrics: baseMetrics,
@@ -469,13 +563,13 @@ export class EmailOptimizationOrchestrator {
           tone: toneMultiplier,
           personality: personalityMultiplier,
           random: randomFactor,
-          combined: combinedMultiplier
+          combined: combinedMultiplier,
         },
         rates: {
           openRate: openRate.toFixed(2),
           clickRate: clickRate.toFixed(2),
-          conversionRate: conversionRate.toFixed(2)
-        }
+          conversionRate: conversionRate.toFixed(2),
+        },
       });
 
       // Create mock campaign with these metrics
@@ -494,7 +588,7 @@ export class EmailOptimizationOrchestrator {
         segmentId: new Types.ObjectId(segmentId),
         status: CampaignStatus.COMPLETED, // Using the enum
         sentAt: new Date(),
-        createdAt: new Date()
+        createdAt: new Date(),
       });
 
       // Update segment with campaign ID and metrics
@@ -509,8 +603,9 @@ export class EmailOptimizationOrchestrator {
         status: SegmentStatus.PROCESSED,
       });
 
-      console.log(`Segment ${segmentId} processed with mock campaign ${campaign._id}`);
-      */
+      console.log(
+        `Segment ${segmentId} processed with mock campaign ${campaign._id}`
+      );*/
     } catch (error) {
       console.error(`Error processing segment ${segmentId}:`, error);
 
@@ -572,5 +667,117 @@ export class EmailOptimizationOrchestrator {
       totalRounds: rounds.length,
       bestParameters,
     };
+  }
+
+  /**
+   * Sends a notification email when the optimization process is complete
+   *
+   * @param processId - The ID of the process that completed
+   * @param config - The optimization configuration
+   */
+  private async sendOptimizationCompletionEmail(
+    processId: string,
+    config: IOptimizationConfig
+  ): Promise<void> {
+    try {
+      // Get the process details
+      const process = await CampaignProcess.findById(processId);
+      if (!process || process.status !== "completed") {
+        return;
+      }
+
+      // Get the user
+      const user = await User.findById(config.userId);
+      if (!user || !user.email) {
+        console.error(
+          "Cannot send completion email: User not found or has no email"
+        );
+        return;
+      }
+
+      // Get the best parameters from the process results
+      const bestParameters = process.result?.bestParameters;
+      if (!bestParameters) {
+        console.error("No best parameters found in the process results");
+        return;
+      }
+
+      // Get the subscriber list
+      const subscriberList = await SubscriberList.findById(
+        config.subscriberListId
+      );
+      const listName = subscriberList?.name || "Unnamed list";
+
+      // Format the results
+      const bestParametersHtml = `
+        <table border="1" cellpadding="5" style="border-collapse: collapse; width: 100%;">
+          <tr style="background-color: #f2f2f2;">
+            <th>Parameter</th>
+            <th>Best Value</th>
+          </tr>
+          <tr>
+            <td>Copywriting Style</td>
+            <td>${bestParameters.copywritingStyle}</td>
+          </tr>
+          <tr>
+            <td>Writing Style</td>
+            <td>${bestParameters.writingStyle}</td>
+          </tr>
+          <tr>
+            <td>Tone</td>
+            <td>${bestParameters.tone}</td>
+          </tr>
+          <tr>
+            <td>Personality</td>
+            <td>${bestParameters.personality}</td>
+          </tr>
+          <tr>
+            <td>Conversion Rate</td>
+            <td>${(bestParameters.conversionRate * 100).toFixed(2)}%</td>
+          </tr>
+          <tr>
+            <td>Click Rate</td>
+            <td>${(bestParameters.clickRate * 100).toFixed(2)}%</td>
+          </tr>
+        </table>
+      `;
+
+      // Construct email content
+      const subject = `Email Optimization Complete: Results for ${listName}`;
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #2c3e50;">Email Optimization Process Complete</h2>
+          <p>Your email optimization process for list "${listName}" has been completed successfully.</p>
+          
+          <h3 style="color: #3498db;">Best Performing Parameters</h3>
+          <p>Based on the analysis of ${config.numberOfRounds} optimization rounds, here are the best performing parameters:</p>
+          ${bestParametersHtml}
+          
+          <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #28a745;">
+            <p style="margin: 0;"><strong>Recommendation:</strong> For future campaigns targeting this list, consider using these parameters to maximize your email performance.</p>
+          </div>
+          
+          <p style="margin-top: 20px;">You can view the detailed results in your dashboard.</p>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #777;">
+            <p>This is an automated notification from Inbox Engine.</p>
+          </div>
+        </div>
+      `;
+
+      // Send email using SmtpService
+      await SmtpService.sendEmail({
+        providerId: config.smtpProviderId,
+        to: user.email,
+        subject,
+        html: htmlContent,
+        senderName: config.senderName,
+        senderEmail: config.senderEmail,
+      });
+
+      console.log(`Optimization completion email sent to ${user.email}`);
+    } catch (error) {
+      console.error("Error sending optimization completion email:", error);
+    }
   }
 }

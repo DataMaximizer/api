@@ -16,23 +16,8 @@ import {
   Tone,
   Personality,
 } from "../offer-selection/OfferSelectionAgent";
-import * as tf from "@tensorflow/tfjs-node";
 import { CampaignProcess } from "../../models/campaign-process.model";
 import { UserService } from "@features/user/user.service";
-
-/**
- * Interface for storing training data for the neural network
- */
-interface ITrainingData {
-  copywritingStyle: CopywritingStyle;
-  writingStyle: WritingStyle;
-  tone: Tone;
-  personality: Personality;
-  metrics: {
-    clicks: number;
-    conversions: number;
-  };
-}
 
 /**
  * Interface for tracking style performance metrics
@@ -55,23 +40,31 @@ interface IStylePerformance {
 }
 
 /**
- * Class for storing and calculating statistics for parameter combinations
+ * Class for storing and calculating Bayesian statistics for parameter combinations
+ * Uses Beta distribution as conjugate prior for Bernoulli trials (conversion events)
  */
-class StyleStatistics {
-  // Maps style key to its performance statistics
+class BayesianStyleStatistics {
+  // Maps style key to its Bayesian parameters
   private statistics: Map<
     string,
     {
-      totalExperiments: number;
-      totalConversionRate: number;
-      averageConversionRate: number;
-      variance: number;
-      samples: number[];
+      // Beta distribution parameters
+      alpha: number; // successes + prior
+      beta: number; // failures + prior
+      totalTrials: number; // total number of trials
+      samples: number[]; // raw conversion rates for diagnostic purposes
     }
   > = new Map();
 
+  // Default prior parameters - slightly optimistic but uninformative
+  private readonly DEFAULT_ALPHA = 1; // Prior pseudo-successes
+  private readonly DEFAULT_BETA = 19; // Prior pseudo-failures (5% prior mean)
+
   /**
    * Add a new data point for a style combination
+   * @param style The email style parameters
+   * @param conversionRate The observed conversion rate (0-1)
+   * @param trials The number of trials (clicks) this observation is based on
    */
   addDataPoint(
     style: {
@@ -80,48 +73,40 @@ class StyleStatistics {
       tone: Tone;
       personality: Personality;
     },
-    conversionRate: number
+    conversionRate: number,
+    trials: number
   ): void {
     const styleKey = this.getStyleKey(style);
 
+    // Initialize if this is the first observation
     if (!this.statistics.has(styleKey)) {
       this.statistics.set(styleKey, {
-        totalExperiments: 0,
-        totalConversionRate: 0,
-        averageConversionRate: 0,
-        variance: 0,
+        alpha: this.DEFAULT_ALPHA,
+        beta: this.DEFAULT_BETA,
+        totalTrials: 0,
         samples: [],
       });
     }
 
     const stats = this.statistics.get(styleKey)!;
 
-    // Keep track of the previous mean before updating with the new value
-    const oldMean = stats.averageConversionRate;
-
-    // Update counts and totals
-    stats.totalExperiments += 1;
-    stats.totalConversionRate += conversionRate;
+    // Store the raw sample for diagnostic purposes
     stats.samples.push(conversionRate);
 
-    // Update average
-    stats.averageConversionRate =
-      stats.totalConversionRate / stats.totalExperiments;
+    // Calculate successes and failures from the conversion rate and trials
+    const successes = conversionRate * trials;
+    const failures = trials - successes;
 
-    // Update variance using Welford's online algorithm
-    if (stats.samples.length > 1) {
-      // M2_n = M2_(n-1) + (x_n - μ_(n-1)) * (x_n - μ_n)
-      // where μ_n is the new mean after adding x_n
-      const delta = conversionRate - oldMean;
-      const delta2 = conversionRate - stats.averageConversionRate;
-      stats.variance += delta * delta2;
-    }
+    // Update Beta distribution parameters
+    stats.alpha += successes;
+    stats.beta += failures;
+    stats.totalTrials += trials;
   }
 
   /**
-   * Get the average conversion rate for a style combination
+   * Get the expected (mean) conversion rate for a style combination
    */
-  getAverageConversionRate(style: {
+  getMeanConversionRate(style: {
     copywritingStyle: CopywritingStyle;
     writingStyle: WritingStyle;
     tone: Tone;
@@ -130,43 +115,83 @@ class StyleStatistics {
     const styleKey = this.getStyleKey(style);
 
     if (!this.statistics.has(styleKey)) {
-      // Return a default value for unknown combinations
-      return 0.05; // 5% conversion rate as a baseline
+      // Return prior mean for unknown combinations
+      return this.DEFAULT_ALPHA / (this.DEFAULT_ALPHA + this.DEFAULT_BETA);
     }
 
-    return this.statistics.get(styleKey)!.averageConversionRate;
+    const stats = this.statistics.get(styleKey)!;
+    // Mean of Beta distribution is alpha / (alpha + beta)
+    return stats.alpha / (stats.alpha + stats.beta);
   }
 
   /**
-   * Get the confidence interval for a style combination
-   * Uses UCB1 (Upper Confidence Bound) algorithm for exploration-exploitation balance
+   * Get the 95% credible interval for the conversion rate
    */
-  getUCBScore(
-    style: {
-      copywritingStyle: CopywritingStyle;
-      writingStyle: WritingStyle;
-      tone: Tone;
-      personality: Personality;
-    },
-    totalExperiments: number
-  ): number {
+  getCredibleInterval(style: {
+    copywritingStyle: CopywritingStyle;
+    writingStyle: WritingStyle;
+    tone: Tone;
+    personality: Personality;
+  }): { lower: number; upper: number } {
     const styleKey = this.getStyleKey(style);
 
     if (!this.statistics.has(styleKey)) {
-      // Return a high score for unexplored combinations to encourage exploration
-      return 1.0;
+      // Return wide interval for unknown combinations
+      return { lower: 0.01, upper: 0.15 };
     }
 
     const stats = this.statistics.get(styleKey)!;
 
-    // UCB1 formula: average + C * sqrt(log(total_experiments) / experiments_with_this_arm)
-    // C is exploration parameter, typically sqrt(2)
-    const explorationParameter = Math.sqrt(2);
-    const explorationTerm =
-      explorationParameter *
-      Math.sqrt(Math.log(totalExperiments) / stats.totalExperiments);
+    // We'd normally use a proper quantile function for Beta distribution here
+    // But for simplicity, we'll use a normal approximation which is reasonable
+    // when alpha and beta are not too small
+    const mean = stats.alpha / (stats.alpha + stats.beta);
+    const variance =
+      (stats.alpha * stats.beta) /
+      (Math.pow(stats.alpha + stats.beta, 2) * (stats.alpha + stats.beta + 1));
+    const stdDev = Math.sqrt(variance);
 
-    return stats.averageConversionRate + explorationTerm;
+    // 95% credible interval (approximately)
+    return {
+      lower: Math.max(0, mean - 1.96 * stdDev),
+      upper: Math.min(1, mean + 1.96 * stdDev),
+    };
+  }
+
+  /**
+   * Get Thompson Sampling score using a simplified approach
+   * Balance between exploitation and exploration based on uncertainty
+   */
+  getThompsonSample(style: {
+    copywritingStyle: CopywritingStyle;
+    writingStyle: WritingStyle;
+    tone: Tone;
+    personality: Personality;
+  }): number {
+    const styleKey = this.getStyleKey(style);
+
+    if (!this.statistics.has(styleKey)) {
+      // For unknown combinations, return a random value centered around prior mean
+      const priorMean =
+        this.DEFAULT_ALPHA / (this.DEFAULT_ALPHA + this.DEFAULT_BETA);
+      return Math.max(0, Math.min(1, priorMean + (Math.random() - 0.5) * 0.2));
+    }
+
+    const stats = this.statistics.get(styleKey)!;
+    const mean = stats.alpha / (stats.alpha + stats.beta);
+
+    // Calculate standard deviation
+    const variance =
+      (stats.alpha * stats.beta) /
+      (Math.pow(stats.alpha + stats.beta, 2) * (stats.alpha + stats.beta + 1));
+    const stdDev = Math.sqrt(variance);
+
+    // Sample from approximate normal distribution with mean and stdDev
+    // This approximates a sample from the Beta distribution
+    const randomOffset = (Math.random() * 2 - 1) * stdDev * 2;
+
+    // Clamp to valid range [0, 1]
+    return Math.max(0, Math.min(1, mean + randomOffset));
   }
 
   /**
@@ -189,16 +214,18 @@ class StyleStatistics {
     writingStyle: WritingStyle;
     tone: Tone;
     personality: Personality;
-    averageConversionRate: number;
-    totalExperiments: number;
+    meanConversionRate: number;
+    credibleInterval: { lower: number; upper: number };
+    totalTrials: number;
   }> {
     const result: Array<{
       copywritingStyle: CopywritingStyle;
       writingStyle: WritingStyle;
       tone: Tone;
       personality: Personality;
-      averageConversionRate: number;
-      totalExperiments: number;
+      meanConversionRate: number;
+      credibleInterval: { lower: number; upper: number };
+      totalTrials: number;
     }> = [];
 
     this.statistics.forEach((stats, styleKey) => {
@@ -210,13 +237,24 @@ class StyleStatistics {
           Personality
         ];
 
+      const meanConversionRate = stats.alpha / (stats.alpha + stats.beta);
+      const variance =
+        (stats.alpha * stats.beta) /
+        (Math.pow(stats.alpha + stats.beta, 2) *
+          (stats.alpha + stats.beta + 1));
+      const stdDev = Math.sqrt(variance);
+
       result.push({
         copywritingStyle,
         writingStyle,
         tone,
         personality,
-        averageConversionRate: stats.averageConversionRate,
-        totalExperiments: stats.totalExperiments,
+        meanConversionRate,
+        credibleInterval: {
+          lower: Math.max(0, meanConversionRate - 1.96 * stdDev),
+          upper: Math.min(1, meanConversionRate + 1.96 * stdDev),
+        },
+        totalTrials: stats.totalTrials,
       });
     });
 
@@ -224,58 +262,38 @@ class StyleStatistics {
   }
 
   /**
-   * Get total number of experiments across all styles
+   * Get total number of trials across all styles
    */
-  getTotalExperiments(): number {
+  getTotalTrials(): number {
     let total = 0;
     this.statistics.forEach((stats) => {
-      total += stats.totalExperiments;
+      total += stats.totalTrials;
     });
     return total;
-  }
-
-  /**
-   * Get the variance for a style combination
-   */
-  getVariance(style: {
-    copywritingStyle: CopywritingStyle;
-    writingStyle: WritingStyle;
-    tone: Tone;
-    personality: Personality;
-  }): number {
-    const styleKey = this.getStyleKey(style);
-
-    if (
-      !this.statistics.has(styleKey) ||
-      this.statistics.get(styleKey)!.totalExperiments <= 1
-    ) {
-      return 0; // No variance with 0 or 1 sample
-    }
-
-    const stats = this.statistics.get(styleKey)!;
-
-    // Convert the running sum of squared differences into the sample variance
-    // by dividing by n-1 (for unbiased estimation with small sample sizes)
-    return stats.variance / (stats.totalExperiments - 1);
   }
 }
 
 export class EmailOptimizationAgent {
   private conversionAgent: ConversionAnalysisAgent;
   private explorationRate: number;
-  private styleStats = new StyleStatistics();
+  private styleStats = new BayesianStyleStatistics();
 
   // Replace the TensorFlow model with our new statistical model
   private modelTrained: boolean = false;
+  private instanceId: string;
 
   constructor(explorationRate = 0.2) {
     this.conversionAgent = new ConversionAnalysisAgent();
     this.explorationRate = explorationRate;
+    this.instanceId = Math.random().toString(36).substring(2, 9);
+    console.log(
+      `Created EmailOptimizationAgent instance with ID: ${this.instanceId}`
+    );
   }
 
   /**
    * Analyzes the performance of a completed optimization round and determines
-   * the best performing parameters for the next round
+   * the best performing parameters for the next round using Bayesian statistics
    *
    * @param optimizationRoundId - ID of the completed optimization round
    * @returns The best performing parameters and metrics
@@ -423,9 +441,9 @@ export class EmailOptimizationAgent {
     // Get the best performing style
     const bestStyle = stylePerformance[0];
 
-    // If this is not the first round, evaluate the model's predictions
+    // If this is not the first round and model is trained, evaluate the model's predictions
     if (optimizationRound.roundNumber > 1 && this.modelTrained) {
-      // Make predictions for all style combinations to see what the model would have predicted
+      // Make Bayesian predictions for all style combinations to see what the model would have predicted
       const predictedPerformance = stylePerformance.map((style) => {
         const predictedRate = this.predictConversionRate({
           copywritingStyle: style.copywritingStyle,
@@ -442,7 +460,7 @@ export class EmailOptimizationAgent {
 
       // Sort by predicted conversion rate
       predictedPerformance.sort(
-        (a, b) => b.predictedConversionRate - a.predictedConversionRate
+        (a, b) => b.predictedConversionRate! - a.predictedConversionRate!
       );
 
       // Get the style that was predicted to perform best
@@ -454,14 +472,14 @@ export class EmailOptimizationAgent {
 
       predictedPerformance.forEach((style) => {
         totalError += Math.abs(
-          style.predictedConversionRate - style.conversionRate
+          style.predictedConversionRate! - style.conversionRate
         );
         count++;
       });
 
       const averagePredictionError = count > 0 ? totalError / count : 0;
 
-      // Get the model's accuracy (last training accuracy)
+      // Get the model's accuracy from training
       const modelAccuracy = await this.trainModel(
         optimizationRound.campaignProcessId.toString()
       );
@@ -488,7 +506,8 @@ export class EmailOptimizationAgent {
         },
       });
 
-      console.log("Model Performance Metrics:", {
+      // Log Bayesian model performance metrics
+      console.log("Bayesian Model Performance Metrics:", {
         modelAccuracy,
         predictedBestStyle: {
           style: `${predictedBestStyle.copywritingStyle}/${predictedBestStyle.writingStyle}/${predictedBestStyle.tone}/${predictedBestStyle.personality}`,
@@ -499,7 +518,30 @@ export class EmailOptimizationAgent {
           rate: bestStyle.conversionRate,
         },
         predictionError: averagePredictionError,
+        predictionSuccessRate:
+          predictedBestStyle.copywritingStyle === bestStyle.copywritingStyle &&
+          predictedBestStyle.writingStyle === bestStyle.writingStyle &&
+          predictedBestStyle.tone === bestStyle.tone &&
+          predictedBestStyle.personality === bestStyle.personality
+            ? "Correctly predicted best style"
+            : "Did not predict best style correctly",
       });
+
+      // Get credible intervals for the top styles
+      const bestStyleCredibleInterval = this.styleStats.getCredibleInterval({
+        copywritingStyle: bestStyle.copywritingStyle,
+        writingStyle: bestStyle.writingStyle,
+        tone: bestStyle.tone,
+        personality: bestStyle.personality,
+      });
+
+      console.log(
+        `Best style 95% credible interval: [${(
+          bestStyleCredibleInterval.lower * 100
+        ).toFixed(2)}% - ${(bestStyleCredibleInterval.upper * 100).toFixed(
+          2
+        )}%]`
+      );
     }
 
     // Update the optimization round with the best parameters
@@ -512,9 +554,59 @@ export class EmailOptimizationAgent {
         conversionRate: bestStyle.conversionRate,
         clickRate: bestStyle.clickRate,
       },
+      // Add aggregated metrics from all segments in the round
+      metrics: {
+        totalSent: segments.reduce(
+          (sum, segment) => sum + (segment.metrics?.totalSent || 0),
+          0
+        ),
+        totalOpens: segments.reduce(
+          (sum, segment) => sum + (segment.metrics?.totalOpens || 0),
+          0
+        ),
+        totalClicks: segments.reduce(
+          (sum, segment) => sum + (segment.metrics?.totalClicks || 0),
+          0
+        ),
+        totalConversions: segments.reduce(
+          (sum, segment) => sum + (segment.metrics?.totalConversions || 0),
+          0
+        ),
+        totalRevenue: segments.reduce(
+          (sum, segment) => sum + (segment.metrics?.totalRevenue || 0),
+          0
+        ),
+      },
       status: OptimizationStatus.COMPLETED,
       endDate: new Date(),
     });
+
+    // Log the aggregated metrics for the round
+    console.log(
+      `Aggregated metrics for round ${optimizationRound.roundNumber}:`,
+      {
+        totalSent: segments.reduce(
+          (sum, segment) => sum + (segment.metrics?.totalSent || 0),
+          0
+        ),
+        totalOpens: segments.reduce(
+          (sum, segment) => sum + (segment.metrics?.totalOpens || 0),
+          0
+        ),
+        totalClicks: segments.reduce(
+          (sum, segment) => sum + (segment.metrics?.totalClicks || 0),
+          0
+        ),
+        totalConversions: segments.reduce(
+          (sum, segment) => sum + (segment.metrics?.totalConversions || 0),
+          0
+        ),
+        totalRevenue: segments.reduce(
+          (sum, segment) => sum + (segment.metrics?.totalRevenue || 0),
+          0
+        ),
+      }
+    );
 
     return {
       bestParameters: {
@@ -608,28 +700,30 @@ export class EmailOptimizationAgent {
   }
 
   /**
-   * Trains the statistical model on historical optimization round data
+   * Trains a Bayesian statistical model to predict conversion rates based on style parameters
    *
    * @param campaignProcessId - ID of the campaign process
-   * @returns The accuracy of the trained model (estimate based on data variance)
+   * @returns Training accuracy approximation
    */
   public async trainModel(campaignProcessId: string): Promise<number> {
     console.log(
-      `Training statistical model for campaign process ${campaignProcessId}...`
+      `[Agent: ${this.instanceId}] Training Bayesian model for campaign process ${campaignProcessId}...`
     );
 
-    // Get all completed rounds for this campaign process
+    // Get all completed optimization rounds for this process
     const rounds = await OptimizationRound.find({
       campaignProcessId: new Types.ObjectId(campaignProcessId),
       status: OptimizationStatus.COMPLETED,
     }).sort({ roundNumber: 1 });
 
     if (rounds.length < 1) {
-      console.log("Not enough completed rounds to train the model");
+      console.log(
+        `[Agent: ${this.instanceId}] Not enough completed rounds to train the model`
+      );
       return 0;
     }
 
-    // Get all segments for these rounds
+    // Get all segments with metrics
     const segmentIds = rounds.flatMap(
       (round) => round.subscriberSegmentIds || []
     );
@@ -644,20 +738,23 @@ export class EmailOptimizationAgent {
     }
 
     // Reset the style statistics
-    this.styleStats = new StyleStatistics();
+    this.styleStats = new BayesianStyleStatistics();
 
     // Prepare training data
+    let totalError = 0;
+    let totalPoints = 0;
+
+    // Process each segment's data
     segments.forEach((segment) => {
-      if (!segment.metrics || segment.metrics.totalSent === 0) {
-        return; // Skip segments without metrics
+      if (!segment.metrics || segment.metrics.totalClicks === 0) {
+        return; // Skip segments without metrics or clicks
       }
 
+      // Calculate conversion rate
       const conversionRate =
-        segment.metrics.totalClicks > 0
-          ? segment.metrics.totalConversions / segment.metrics.totalClicks
-          : 0;
+        segment.metrics.totalConversions / segment.metrics.totalClicks;
 
-      // Add data point to our statistical model
+      // Add data point to our Bayesian model
       this.styleStats.addDataPoint(
         {
           copywritingStyle: segment.assignedParameters.copywritingStyle,
@@ -665,57 +762,55 @@ export class EmailOptimizationAgent {
           tone: segment.assignedParameters.tone,
           personality: segment.assignedParameters.personality,
         },
-        conversionRate
+        conversionRate,
+        segment.metrics.totalClicks // Number of trials (clicks)
       );
+
+      // After adding the point, check the prediction accuracy
+      const predictedRate = this.styleStats.getMeanConversionRate({
+        copywritingStyle: segment.assignedParameters.copywritingStyle,
+        writingStyle: segment.assignedParameters.writingStyle,
+        tone: segment.assignedParameters.tone,
+        personality: segment.assignedParameters.personality,
+      });
+
+      // Calculate error (absolute difference)
+      const error = Math.abs(predictedRate - conversionRate);
+      totalError += error;
+      totalPoints++;
     });
 
+    // Calculate mean absolute error if we have data points
+    const meanAbsoluteError = totalPoints > 0 ? totalError / totalPoints : 0;
+
+    // Convert error to "accuracy" approximation (1 - normalized error)
+    // This is not a true accuracy but provides a metric comparable to the neural network
+    const accuracyApproximation = Math.max(0, 1 - meanAbsoluteError / 0.1); // Normalizing by 0.1
+
     console.log(
-      `Trained statistical model with ${this.styleStats.getTotalExperiments()} data points`
+      `[Agent: ${
+        this.instanceId
+      }] Trained Bayesian model with ${this.styleStats.getTotalTrials()} trials from ${totalPoints} segments`
     );
-    this.modelTrained = true;
-
-    // Calculate a crude accuracy estimate based on data consistency
-    // Get all styles and their stats
-    const allStyles = this.styleStats.getAllStyles();
-
-    // Calculate average variance across all style combinations
-    let totalVariance = 0;
-    let styleCount = 0;
-
-    allStyles.forEach((style) => {
-      if (style.totalExperiments > 1) {
-        // Calculate variance for this style
-        const variance = this.styleStats.getVariance({
-          copywritingStyle: style.copywritingStyle,
-          writingStyle: style.writingStyle,
-          tone: style.tone,
-          personality: style.personality,
-        });
-
-        totalVariance += variance;
-        styleCount++;
-      }
-    });
-
-    // Convert variance to an "accuracy" metric (lower variance = higher accuracy)
-    // This is a simplified approach - real accuracy would require test data
-    const averageAccuracy =
-      allStyles.length > 0 && styleCount > 0
-        ? Math.max(0, Math.min(1, 1 - (totalVariance / styleCount) * 10))
-        : 0.5; // Default moderate accuracy when no data
-
     console.log(
-      `Calculated model accuracy: ${averageAccuracy.toFixed(
+      `[Agent: ${
+        this.instanceId
+      }] Model performance - Mean Absolute Error: ${meanAbsoluteError.toFixed(
         4
-      )} based on ${styleCount} style combinations`
+      )}, Accuracy approximation: ${accuracyApproximation.toFixed(4)}`
     );
 
-    return averageAccuracy;
+    this.modelTrained = true;
+    console.log(
+      `[Agent: ${this.instanceId}] Model trained flag set to: ${this.modelTrained}`
+    );
+
+    return accuracyApproximation;
   }
 
   /**
    * Predicts the conversion rate for a given set of style parameters
-   * using the trained statistical model
+   * using the Bayesian model
    *
    * @param params - Email style parameters to evaluate
    * @returns Predicted conversion rate (0-1)
@@ -726,33 +821,40 @@ export class EmailOptimizationAgent {
     tone: Tone;
     personality: Personality;
   }): number {
-    // Check if model is trained
+    // If model isn't trained, return default value
     if (!this.modelTrained) {
       console.log(
-        "No trained model available, returning default conversion rate of 5%"
+        `[Agent: ${this.instanceId}] No trained model available, returning default conversion rate of 5%`
       );
       return 0.05; // Default value when no model is available
     }
 
     try {
-      // Get UCB score which balances exploitation (using what works) with
-      // exploration (trying new things)
-      const totalExperiments = this.styleStats.getTotalExperiments();
-      const ucbScore = this.styleStats.getUCBScore(params, totalExperiments);
+      // Get Thompson Sampling score which balances exploration/exploitation
+      const thompsonSample = this.styleStats.getThompsonSample(params);
 
-      // Log the prediction for debugging
-      const averageRate = this.styleStats.getAverageConversionRate(params);
+      // Get the mean prediction and credible interval for logging
+      const meanRate = this.styleStats.getMeanConversionRate(params);
+      const credibleInterval = this.styleStats.getCredibleInterval(params);
+
       console.log(
-        `Predicted conversion rate for style [${params.copywritingStyle}/${
-          params.writingStyle
-        }/${params.tone}/${params.personality}]: ${(averageRate * 100).toFixed(
-          2
-        )}% (UCB score: ${(ucbScore * 100).toFixed(2)}%)`
+        `[Agent: ${this.instanceId}] Bayesian prediction for style [${
+          params.copywritingStyle
+        }/${params.writingStyle}/${params.tone}/${params.personality}]:
+         Mean: ${(meanRate * 100).toFixed(2)}% 
+         95% Credible Interval: [${(credibleInterval.lower * 100).toFixed(
+           2
+         )}% - ${(credibleInterval.upper * 100).toFixed(2)}%]
+         Thompson Sampling: ${(thompsonSample * 100).toFixed(2)}%`
       );
 
-      return ucbScore;
+      // Return the Thompson Sampling result which naturally balances exploration vs exploitation
+      return thompsonSample;
     } catch (error) {
-      console.error("Error predicting conversion rate:", error);
+      console.error(
+        `[Agent: ${this.instanceId}] Error predicting conversion rate:`,
+        error
+      );
       return 0.05; // Default value on error
     }
   }
@@ -906,7 +1008,7 @@ export class EmailOptimizationAgent {
         
         <p>These parameters have been saved and will be used as the default for your future campaigns.</p>
         
-        <p>Thank you for using our Email Optimization service!</p>
+        <p>Thank you for using Inbox Engine!</p>
       `;
 
       // Send the email using nodemailer directly (since we removed EmailService)

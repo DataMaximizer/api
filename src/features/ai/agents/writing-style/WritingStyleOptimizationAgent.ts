@@ -13,7 +13,7 @@ import {
   CampaignStatus,
   ICampaign,
 } from "@/features/campaign/models/campaign.model";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import {
   CopywritingStyle,
   OfferSelectionAgent,
@@ -559,5 +559,270 @@ export class WritingStyleOptimizationAgent {
     }
 
     return toSend;
+  }
+
+  /**
+   * Creates campaigns for specific subscribers in a segment
+   * Randomly distributes the offers among subscribers so each subscriber gets one offer
+   *
+   * @param offerIds - Array of offer IDs to create campaigns for
+   * @param subscriberIds - Array of subscriber IDs in the segment
+   * @param smtpProviderId - SMTP provider ID
+   * @param userId - User ID
+   * @param senderName - Sender name
+   * @param senderEmail - Sender email
+   * @param aiProvider - AI provider (openai or claude)
+   * @param styleOptions - Writing style options
+   * @param audience - Target audience description
+   * @returns Array of campaign results
+   */
+  public async startCampaignForSegment(
+    offerIds: string[],
+    subscriberIds: string[],
+    smtpProviderId: string,
+    userId: string,
+    senderName: string,
+    senderEmail: string,
+    aiProvider: "openai" | "claude",
+    styleOptions: {
+      copywritingStyle: CopywritingStyle;
+      writingStyle: WritingStyle;
+      tone: Tone;
+      personality: Personality;
+    },
+    audience: string = "General audience"
+  ): Promise<
+    {
+      offerId: string;
+      offerName: string;
+      offerUrl: string;
+      campaignId: string;
+      campaignName: string;
+      subscriberId: string;
+      subject: string;
+      content: string;
+      senderName: string;
+      senderEmail: string;
+      aiProvider: "openai" | "claude";
+    }[][]
+  > {
+    if (!subscriberIds.length) {
+      throw new Error("No subscribers provided for campaign");
+    }
+
+    if (!offerIds.length) {
+      throw new Error("No offers provided for campaign");
+    }
+
+    // Get subscribers by IDs
+    const subscribers = await Subscriber.find({
+      _id: { $in: subscriberIds.map((id) => new Types.ObjectId(id)) },
+      status: "active",
+    });
+
+    if (!subscribers.length) {
+      throw new Error("No active subscribers found in the segment");
+    }
+
+    console.log(
+      `Creating campaigns for ${subscribers.length} subscribers with style:`,
+      styleOptions
+    );
+
+    // Get user website url
+    const user = await User.findById(userId);
+    const websiteUrl = user?.companyUrl;
+
+    if (!websiteUrl) {
+      throw new Error("User website url not found");
+    }
+
+    // Get API keys
+    const { openAiKey, claudeKey } = await UserService.getUserApiKeys(userId);
+
+    // Get the offers
+    const offers = await Promise.all(
+      offerIds.map(async (offerId) => {
+        const offer = await AffiliateOffer.findById(offerId);
+        if (!offer) {
+          throw new Error(`Offer with ID ${offerId} not found`);
+        }
+        return offer;
+      })
+    );
+
+    // Randomly distribute offers among subscribers - assign each subscriber one offer
+    const subscriberToOfferMap = new Map<string, (typeof offers)[0]>();
+
+    // Shuffle subscribers to ensure random distribution
+    const shuffledSubscribers = [...subscribers].sort(
+      () => Math.random() - 0.5
+    );
+
+    // Assign offers to subscribers in a round-robin fashion
+    shuffledSubscribers.forEach((subscriber, index) => {
+      const offerIndex = index % offers.length;
+      subscriberToOfferMap.set(subscriber.id, offers[offerIndex]);
+    });
+
+    console.log(
+      `Mapped ${subscriberToOfferMap.size} subscribers to ${offers.length} offers`
+    );
+
+    // Group subscribers by offer for efficient campaign creation
+    const offerToSubscribersMap = new Map<string, typeof subscribers>();
+
+    for (const [subscriberId, offer] of subscriberToOfferMap.entries()) {
+      if (!offerToSubscribersMap.has(offer.id)) {
+        offerToSubscribersMap.set(offer.id, []);
+      }
+
+      const subscriber = subscribers.find((s) => s.id === subscriberId);
+      if (subscriber) {
+        offerToSubscribersMap.get(offer.id)!.push(subscriber);
+      }
+    }
+
+    // Results array for each offer
+    const results: {
+      offerId: string;
+      offerName: string;
+      offerUrl: string;
+      campaignId: string;
+      campaignName: string;
+      subscriberId: string;
+      subject: string;
+      content: string;
+      senderName: string;
+      senderEmail: string;
+      aiProvider: "openai" | "claude";
+    }[][] = [];
+
+    // Process offers in batches to avoid rate limiting
+    const BATCH_SIZE = aiProvider === "claude" ? 3 : 5; // Smaller batch size for Claude
+    const offerEntries = Array.from(offerToSubscribersMap.entries());
+
+    for (let i = 0; i < offerEntries.length; i += BATCH_SIZE) {
+      const offerBatch = offerEntries.slice(i, i + BATCH_SIZE);
+
+      // Add a small delay between batches to avoid rate limiting
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+      }
+
+      const batchResults = await Promise.all(
+        offerBatch.map(async ([offerId, offerSubscribers]) => {
+          const offer = offers.find((o) => o.id === offerId);
+          if (!offer) {
+            throw new Error(
+              `Offer with ID ${offerId} not found in available offers`
+            );
+          }
+
+          // Skip if no subscribers for this offer
+          if (offerSubscribers.length === 0) {
+            return [];
+          }
+
+          // Generate email content using the provided style options
+          const emailContent = await this.generateEmailMarketing(
+            offerId,
+            aiProvider,
+            openAiKey,
+            claudeKey,
+            audience,
+            styleOptions
+          );
+
+          try {
+            // Parse the JSON content
+            const parsedContent = JSON.parse(emailContent);
+            const currentTimestamp = new Date().getTime();
+            const campaignName = `${styleOptions.copywritingStyle} - ${offer.name} - ${currentTimestamp}`;
+
+            // Create campaign
+            const campaign = await this.generateCampaign(
+              {
+                name: campaignName,
+                content: parsedContent.body,
+                subject: parsedContent.subject,
+                framework: styleOptions.copywritingStyle,
+                tone: styleOptions.tone,
+                writingStyle: styleOptions.writingStyle,
+                personality: styleOptions.personality,
+              },
+              userId,
+              offerId,
+              smtpProviderId
+            );
+
+            // Return data for each subscriber assigned to this offer
+            return offerSubscribers.map((subscriber) => ({
+              offerId,
+              offerName: offer.name,
+              offerUrl: offer.url,
+              campaignId: campaign.id,
+              campaignName,
+              subscriberId: subscriber.id,
+              subscriberEmail: subscriber.email,
+              subject: parsedContent.subject,
+              content: parsedContent.body,
+              senderName,
+              senderEmail,
+              aiProvider,
+              ...styleOptions,
+            }));
+          } catch (error: any) {
+            console.error(
+              `Error parsing email content for offer ${offerId}:`,
+              error
+            );
+            console.log("Raw email content:", emailContent);
+            throw new Error(
+              `Failed to parse content for offer ${offerId}: ${
+                error.message || "Unknown error"
+              }`
+            );
+          }
+        })
+      );
+
+      results.push(...batchResults.filter((result) => result.length > 0));
+    }
+
+    // Send emails in batches to avoid overwhelming the system
+    const SEND_BATCH_SIZE = 10;
+    const allEmails = results.flatMap((r) => r);
+
+    console.log(`Sending ${allEmails.length} emails to subscribers`);
+
+    for (let i = 0; i < allEmails.length; i += SEND_BATCH_SIZE) {
+      const batch = allEmails.slice(i, i + SEND_BATCH_SIZE);
+
+      await Promise.all(
+        batch.map((data) =>
+          CampaignService.sendCampaignEmail(
+            data.offerId,
+            data.subscriberId,
+            data.campaignId,
+            smtpProviderId,
+            data.content,
+            data.subject,
+            websiteUrl,
+            user?.address as IAddress,
+            user?.companyName as string,
+            data.senderName,
+            data.senderEmail
+          )
+        )
+      );
+
+      // Add a small delay between sending batches
+      if (i + SEND_BATCH_SIZE < allEmails.length) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+
+    return results;
   }
 }
