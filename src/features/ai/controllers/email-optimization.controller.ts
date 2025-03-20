@@ -7,6 +7,9 @@ import { logger } from "@config/logger";
 import { SegmentStatus } from "../models/subscriber-segment.model";
 import { OptimizationStatus } from "../models/optimization-round.model";
 import { CampaignProcess } from "../models/campaign-process.model";
+import { OptimizationRound } from "../models/optimization-round.model";
+import { SubscriberSegment } from "../models/subscriber-segment.model";
+import { Types } from "mongoose";
 
 export class EmailOptimizationController {
   /**
@@ -304,6 +307,133 @@ export class EmailOptimizationController {
       logger.error("Error getting optimization details:", error);
       res.status(500).json({
         error: "Failed to get optimization details",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Gets the optimization data in a hierarchical tree structure (process -> rounds -> segments)
+   *
+   * @param req - Express request object
+   * @param res - Express response object
+   */
+  public static async getOptimizationTree(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    try {
+      const userId = "67b3f3c782f65d3f5f459354";
+      if (!userId) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+
+      const { processId } = req.params;
+      if (!processId) {
+        res.status(400).json({ error: "Process ID is required" });
+        return;
+      }
+
+      // Fetch the campaign process with populated result fields
+      const process = await CampaignProcess.findOne({
+        _id: processId,
+        userId,
+      }).lean();
+
+      if (!process) {
+        res.status(404).json({ error: "Process not found" });
+        return;
+      }
+
+      // Fetch all rounds for this process
+      const rounds = await OptimizationRound.find({
+        campaignProcessId: new Types.ObjectId(processId),
+      })
+        .sort({ roundNumber: 1 })
+        .lean();
+
+      // Group segments by round ID for efficient association later
+      const roundIds = rounds.map((round) => round._id);
+
+      // Fetch all segments for these rounds
+      const segments = await SubscriberSegment.find({
+        optimizationRoundId: { $in: roundIds },
+      })
+        .sort({ createdAt: 1 })
+        .lean();
+
+      // Group segments by round ID
+      const segmentsByRound = segments.reduce<Record<string, any[]>>(
+        (acc, segment) => {
+          if (segment.optimizationRoundId) {
+            const roundId = segment.optimizationRoundId.toString();
+            if (!acc[roundId]) {
+              acc[roundId] = [];
+            }
+            acc[roundId].push(segment);
+          }
+          return acc;
+        },
+        {}
+      );
+
+      // Build the hierarchical data structure
+      const formattedRounds = rounds.map((round) => {
+        const roundId = round._id ? round._id.toString() : "";
+        const roundSegments = segmentsByRound[roundId] || [];
+
+        // Format segments for this round
+        const formattedSegments = roundSegments.map((segment) => ({
+          id: segment._id,
+          segmentNumber: segment.segmentNumber,
+          status: segment.status,
+          subscriberCount: segment.subscriberIds?.length || 0,
+          assignedParameters: segment.assignedParameters,
+          metrics: segment.metrics,
+          campaignIds: segment.campaignIds,
+          isControlGroup: segment.isControlGroup,
+          createdAt: segment.createdAt,
+          updatedAt: segment.updatedAt,
+        }));
+
+        // Return the formatted round with its segments
+        return {
+          id: round._id,
+          roundNumber: round.roundNumber,
+          status: round.status,
+          startDate: round.startDate,
+          endDate: round.endDate,
+          subscriberCount: round.subscriberIds?.length || 0,
+          bestPerformingParameters: round.bestPerformingParameters,
+          bestPerformingEmails: round.bestPerformingEmails,
+          modelPerformance: round.modelPerformance,
+          metrics: round.metrics,
+          emailsSent: round.emailsSent,
+          segments: formattedSegments,
+        };
+      });
+
+      // Format the final response with process at the top level
+      const result = {
+        id: process._id,
+        status: process.status,
+        result: process.result,
+        error: process.error,
+        notified: process.notified,
+        createdAt: process.createdAt,
+        updatedAt: process.updatedAt,
+        rounds: formattedRounds,
+      };
+
+      res.status(200).json({
+        success: true,
+        process: result,
+      });
+    } catch (error) {
+      logger.error("Error fetching optimization tree data:", error);
+      res.status(500).json({
+        error: "Failed to fetch optimization tree data",
         message: error instanceof Error ? error.message : String(error),
       });
     }

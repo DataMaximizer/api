@@ -10,6 +10,7 @@ export enum SegmentStatus {
   PENDING = "pending",
   PROCESSED = "processed",
   SKIPPED = "skipped",
+  FAILED = "failed",
 }
 
 export interface ISubscriberSegment extends Document {

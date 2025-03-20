@@ -292,11 +292,10 @@ export class EmailOptimizationAgent {
   }
 
   /**
-   * Analyzes the performance of a completed optimization round and determines
-   * the best performing parameters for the next round using Bayesian statistics
+   * Analyzes the performance of an optimization round
    *
-   * @param optimizationRoundId - ID of the completed optimization round
-   * @returns The best performing parameters and metrics
+   * @param optimizationRoundId - ID of the round to analyze
+   * @returns Best performing parameters and metrics
    */
   public async analyzeRoundPerformance(optimizationRoundId: string): Promise<{
     bestParameters: {
@@ -323,21 +322,22 @@ export class EmailOptimizationAgent {
     // Get all segments for this round
     const segments = await SubscriberSegment.find({
       optimizationRoundId: new Types.ObjectId(optimizationRoundId),
+      status: SegmentStatus.PROCESSED,
     });
 
     if (!segments.length) {
-      throw new Error("No segments found for this optimization round");
+      throw new Error("No processed segments found for this round");
     }
 
-    // Calculate performance for each style combination
+    // Track performance by style combination
     const stylePerformance: IStylePerformance[] = [];
 
     // Group segments by style combination
     const styleGroups = new Map<string, ISubscriberSegment[]>();
 
     segments.forEach((segment) => {
-      if (segment.status !== SegmentStatus.PROCESSED) {
-        return; // Skip segments that weren't processed
+      if (!segment.assignedParameters) {
+        return;
       }
 
       const styleKey = JSON.stringify({
@@ -440,6 +440,9 @@ export class EmailOptimizationAgent {
 
     // Get the best performing style
     const bestStyle = stylePerformance[0];
+
+    // Track best performing emails for each offer in this round
+    await this.trackBestPerformingEmails(optimizationRound);
 
     // If this is not the first round and model is trained, evaluate the model's predictions
     if (optimizationRound.roundNumber > 1 && this.modelTrained) {
@@ -544,7 +547,7 @@ export class EmailOptimizationAgent {
       );
     }
 
-    // Update the optimization round with the best parameters
+    // Update the round with the best performing parameters
     await OptimizationRound.findByIdAndUpdate(optimizationRoundId, {
       bestPerformingParameters: {
         copywritingStyle: bestStyle.copywritingStyle,
@@ -622,6 +625,306 @@ export class EmailOptimizationAgent {
         revenuePerEmail: bestStyle.revenuePerEmail,
       },
     };
+  }
+
+  /**
+   * Tracks the best performing emails for each offer in a specific round
+   *
+   * @param optimizationRound - The optimization round to analyze
+   */
+  private async trackBestPerformingEmails(
+    optimizationRound: any
+  ): Promise<void> {
+    try {
+      // Get all segments for this round
+      const segments = await SubscriberSegment.find({
+        optimizationRoundId: optimizationRound._id,
+        status: SegmentStatus.PROCESSED,
+      });
+
+      if (!segments.length) {
+        console.log("No processed segments found for tracking best emails");
+        return;
+      }
+
+      // Get all campaigns for these segments
+      const allCampaignIds = segments.flatMap((segment) =>
+        segment.campaignIds.map((id) => id.toString())
+      );
+
+      const campaigns = await Campaign.find({
+        _id: { $in: allCampaignIds },
+      });
+
+      if (!campaigns.length) {
+        console.log("No campaigns found for tracking best emails");
+        return;
+      }
+
+      // Group campaigns by offer ID to find the best for each offer
+      const campaignsByOffer = new Map<string, (typeof Campaign.prototype)[]>();
+
+      // Create a map of campaigns to their segments
+      const campaignToSegmentMap = new Map<string, ISubscriberSegment>();
+
+      // Populate the campaign to segment map
+      segments.forEach((segment) => {
+        segment.campaignIds.forEach((campaignId) => {
+          campaignToSegmentMap.set(campaignId.toString(), segment);
+        });
+      });
+
+      // Group campaigns by offer
+      campaigns.forEach((campaign) => {
+        if (!campaign.offerId) return;
+
+        const offerId = campaign.offerId.toString();
+        if (!campaignsByOffer.has(offerId)) {
+          campaignsByOffer.set(offerId, []);
+        }
+
+        campaignsByOffer.get(offerId)!.push(campaign);
+      });
+
+      // Track best emails by conversion rate and click rate for each offer
+      const bestEmailsByConversionRate: Array<{
+        offerId: Types.ObjectId;
+        offerName: string;
+        campaignId: Types.ObjectId;
+        subject: string;
+        content: string;
+        conversionRate: number;
+        styleParameters: {
+          copywritingStyle: CopywritingStyle;
+          writingStyle: WritingStyle;
+          tone: Tone;
+          personality: Personality;
+        };
+      }> = [];
+
+      const bestEmailsByClickRate: Array<{
+        offerId: Types.ObjectId;
+        offerName: string;
+        campaignId: Types.ObjectId;
+        subject: string;
+        content: string;
+        clickRate: number;
+        styleParameters: {
+          copywritingStyle: CopywritingStyle;
+          writingStyle: WritingStyle;
+          tone: Tone;
+          personality: Personality;
+        };
+      }> = [];
+
+      // Find best emails for each offer
+      for (const [offerId, offerCampaigns] of campaignsByOffer.entries()) {
+        // Get best by conversion rate
+        const bestByConversion = offerCampaigns
+          .filter(
+            (campaign) =>
+              campaign.metrics &&
+              campaign.metrics.totalClicks > 0 &&
+              campaign.metrics.totalSent > 0
+          )
+          .sort((a, b) => {
+            const aConversionRate =
+              a.metrics?.totalConversions! / a.metrics?.totalClicks!;
+            const bConversionRate =
+              b.metrics?.totalConversions! / b.metrics?.totalClicks!;
+            return bConversionRate - aConversionRate;
+          })[0];
+
+        // Get best by click rate
+        const bestByClick = offerCampaigns
+          .filter(
+            (campaign) => campaign.metrics && campaign.metrics.totalSent > 0
+          )
+          .sort((a, b) => {
+            const aClickRate = a.metrics?.totalClicks! / a.metrics?.totalSent!;
+            const bClickRate = b.metrics?.totalClicks! / b.metrics?.totalSent!;
+            return bClickRate - aClickRate;
+          })[0];
+
+        // Add to best by conversion rate if available
+        if (bestByConversion) {
+          const segment = campaignToSegmentMap.get(
+            bestByConversion._id.toString()
+          );
+
+          if (segment && segment.assignedParameters) {
+            bestEmailsByConversionRate.push({
+              offerId: new Types.ObjectId(offerId),
+              offerName: bestByConversion.name || "Unnamed Offer",
+              campaignId: bestByConversion._id,
+              subject: bestByConversion.subject || "",
+              content: bestByConversion.content || "",
+              conversionRate:
+                bestByConversion.metrics?.totalConversions! /
+                bestByConversion.metrics?.totalClicks!,
+              styleParameters: {
+                copywritingStyle: segment.assignedParameters.copywritingStyle,
+                writingStyle: segment.assignedParameters.writingStyle,
+                tone: segment.assignedParameters.tone,
+                personality: segment.assignedParameters.personality,
+              },
+            });
+          }
+        }
+
+        // Add to best by click rate if available
+        if (bestByClick) {
+          const segment = campaignToSegmentMap.get(bestByClick._id.toString());
+
+          if (segment && segment.assignedParameters) {
+            bestEmailsByClickRate.push({
+              offerId: new Types.ObjectId(offerId),
+              offerName: bestByClick.name || "Unnamed Offer",
+              campaignId: bestByClick._id,
+              subject: bestByClick.subject || "",
+              content: bestByClick.content || "",
+              clickRate:
+                bestByClick.metrics?.totalClicks! /
+                bestByClick.metrics?.totalSent!,
+              styleParameters: {
+                copywritingStyle: segment.assignedParameters.copywritingStyle,
+                writingStyle: segment.assignedParameters.writingStyle,
+                tone: segment.assignedParameters.tone,
+                personality: segment.assignedParameters.personality,
+              },
+            });
+          }
+        }
+      }
+
+      // Update the optimization round with the best emails
+      await OptimizationRound.findByIdAndUpdate(optimizationRound._id, {
+        bestPerformingEmails: {
+          byConversionRate: bestEmailsByConversionRate,
+          byClickRate: bestEmailsByClickRate,
+        },
+      });
+
+      // Log the number of best emails found
+      console.log(
+        `Tracked best performing emails for round ${optimizationRound.roundNumber}: ` +
+          `${bestEmailsByConversionRate.length} by conversion rate, ${bestEmailsByClickRate.length} by click rate`
+      );
+    } catch (error) {
+      console.error("Error tracking best performing emails:", error);
+    }
+  }
+
+  /**
+   * Checks and updates the global best performing emails at the process completion
+   *
+   * @param processId - The campaign process ID
+   */
+  private async updateBestEmailsForProcess(processId: string): Promise<void> {
+    try {
+      // Get all rounds for this process
+      const rounds = await OptimizationRound.find({
+        campaignProcessId: new Types.ObjectId(processId),
+        status: OptimizationStatus.COMPLETED,
+      }).sort({ roundNumber: 1 });
+
+      if (!rounds.length) {
+        console.log("No completed rounds found for updating best emails");
+        return;
+      }
+
+      // Maps to track best emails by offer ID
+      const bestByConversionRate = new Map<
+        string,
+        {
+          offerId: Types.ObjectId;
+          offerName: string;
+          campaignId: Types.ObjectId;
+          subject: string;
+          content: string;
+          conversionRate: number;
+          styleParameters: {
+            copywritingStyle: CopywritingStyle;
+            writingStyle: WritingStyle;
+            tone: Tone;
+            personality: Personality;
+          };
+        }
+      >();
+
+      const bestByClickRate = new Map<
+        string,
+        {
+          offerId: Types.ObjectId;
+          offerName: string;
+          campaignId: Types.ObjectId;
+          subject: string;
+          content: string;
+          clickRate: number;
+          styleParameters: {
+            copywritingStyle: CopywritingStyle;
+            writingStyle: WritingStyle;
+            tone: Tone;
+            personality: Personality;
+          };
+        }
+      >();
+
+      // Iterate through all rounds to find best emails
+      for (const round of rounds) {
+        if (!round.bestPerformingEmails) continue;
+
+        // Process best by conversion rate
+        if (round.bestPerformingEmails.byConversionRate) {
+          for (const email of round.bestPerformingEmails.byConversionRate) {
+            const offerId = email.offerId.toString();
+
+            // Replace if better or not yet tracked
+            if (
+              !bestByConversionRate.has(offerId) ||
+              bestByConversionRate.get(offerId)!.conversionRate <
+                email.conversionRate
+            ) {
+              bestByConversionRate.set(offerId, email);
+            }
+          }
+        }
+
+        // Process best by click rate
+        if (round.bestPerformingEmails.byClickRate) {
+          for (const email of round.bestPerformingEmails.byClickRate) {
+            const offerId = email.offerId.toString();
+
+            // Replace if better or not yet tracked
+            if (
+              !bestByClickRate.has(offerId) ||
+              bestByClickRate.get(offerId)!.clickRate < email.clickRate
+            ) {
+              bestByClickRate.set(offerId, email);
+            }
+          }
+        }
+      }
+
+      // Convert maps to arrays for update
+      const bestConversionEmails = Array.from(bestByConversionRate.values());
+      const bestClickEmails = Array.from(bestByClickRate.values());
+
+      // Update the campaign process with the best emails
+      await CampaignProcess.findByIdAndUpdate(processId, {
+        "result.bestPerformingEmails": {
+          byConversionRate: bestConversionEmails,
+          byClickRate: bestClickEmails,
+        },
+      });
+
+      console.log(
+        `Updated process ${processId} with best performing emails: ` +
+          `${bestConversionEmails.length} by conversion rate, ${bestClickEmails.length} by click rate`
+      );
+    } catch (error) {
+      console.error("Error updating best emails for process:", error);
+    }
   }
 
   /**
@@ -860,241 +1163,73 @@ export class EmailOptimizationAgent {
   }
 
   /**
-   * Checks if the optimization process is complete and notifies the user
+   * Checks if a campaign optimization process is complete and updates its status
    *
-   * @param campaignProcessId - ID of the campaign process
-   * @returns Whether the process is complete
+   * @param processId - ID of the campaign process
+   * @returns true if the process is completed
    */
-  public async checkProcessCompletion(
-    campaignProcessId: string
-  ): Promise<boolean> {
-    // Get the campaign process
-    const campaignProcess = await CampaignProcess.findById(campaignProcessId);
-    if (!campaignProcess) {
-      throw new Error("Campaign process not found");
-    }
-
+  public async checkProcessCompletion(processId: string): Promise<boolean> {
     // Get all optimization rounds for this process
     const rounds = await OptimizationRound.find({
-      campaignProcessId: new Types.ObjectId(campaignProcessId),
+      campaignProcessId: new Types.ObjectId(processId),
     });
 
-    // Check if all rounds are completed
-    const allCompleted = rounds.every(
+    // Check if all rounds are completed or failed
+    const allRoundsComplete = rounds.every(
       (round) =>
         round.status === OptimizationStatus.COMPLETED ||
         round.status === OptimizationStatus.FAILED
     );
 
-    if (allCompleted && !campaignProcess.notified) {
-      // Get the best performing parameters from all rounds
+    if (allRoundsComplete) {
+      // Calculate the best parameters across all rounds
       const completedRounds = rounds.filter(
-        (round) =>
-          round.status === OptimizationStatus.COMPLETED &&
-          round.bestPerformingParameters
+        (round) => round.status === OptimizationStatus.COMPLETED
       );
 
-      if (completedRounds.length > 0) {
-        // Sort by conversion rate
-        completedRounds.sort(
-          (a, b) =>
-            (b.bestPerformingParameters?.conversionRate || 0) -
-            (a.bestPerformingParameters?.conversionRate || 0)
-        );
-
-        // Get the overall best parameters
-        const bestRound = completedRounds[0];
-        const bestParameters = bestRound.bestPerformingParameters;
-
-        // Update the campaign process with the results
-        await CampaignProcess.findByIdAndUpdate(campaignProcessId, {
-          status: "completed",
-          result: {
-            bestParameters,
-            totalRounds: rounds.length,
-            completedRounds: completedRounds.length,
-            bestRoundNumber: bestRound.roundNumber,
-          },
-          notified: true,
-        });
-
-        // Send notification email to the user
-        await this.sendCompletionEmail(
-          campaignProcess.userId.toString(),
-          campaignProcessId,
-          bestParameters!,
-          rounds.length,
-          completedRounds.length
-        );
-      } else {
-        // No successful rounds
-        await CampaignProcess.findByIdAndUpdate(campaignProcessId, {
+      if (completedRounds.length === 0) {
+        // All rounds failed, update the process status to failed
+        await CampaignProcess.findByIdAndUpdate(processId, {
           status: "failed",
-          error: "No successful optimization rounds completed",
-          notified: true,
+          error: "All optimization rounds failed",
         });
 
-        // Send failure notification
-        await this.sendFailureEmail(
-          campaignProcess.userId.toString(),
-          campaignProcessId
-        );
+        return false;
       }
+
+      // Find the best parameters across all rounds
+      let bestRound = completedRounds[0];
+      let highestConversionRate = 0;
+
+      completedRounds.forEach((round) => {
+        if (
+          round.bestPerformingParameters &&
+          round.bestPerformingParameters.conversionRate > highestConversionRate
+        ) {
+          highestConversionRate = round.bestPerformingParameters.conversionRate;
+          bestRound = round;
+        }
+      });
+
+      // Update the campaign process with the best overall parameters
+      await CampaignProcess.findByIdAndUpdate(processId, {
+        status: "completed",
+        result: {
+          bestParameters: bestRound.bestPerformingParameters,
+        },
+      });
+
+      // Update the best performing emails across all rounds
+      await this.updateBestEmailsForProcess(processId);
+
+      console.log(
+        `Optimization process ${processId} completed with best parameters:`,
+        bestRound.bestPerformingParameters
+      );
 
       return true;
     }
 
-    return allCompleted;
-  }
-
-  /**
-   * Sends a completion email to the user
-   *
-   * @param userId - User ID
-   * @param campaignProcessId - Campaign process ID
-   * @param bestParameters - Best performing parameters
-   * @param totalRounds - Total number of rounds
-   * @param completedRounds - Number of completed rounds
-   */
-  private async sendCompletionEmail(
-    userId: string,
-    campaignProcessId: string,
-    bestParameters: {
-      copywritingStyle: CopywritingStyle;
-      writingStyle: WritingStyle;
-      tone: Tone;
-      personality: Personality;
-      conversionRate: number;
-      clickRate: number;
-    },
-    totalRounds: number,
-    completedRounds: number
-  ): Promise<void> {
-    try {
-      // Get user email
-      const user = await UserService.getUserById(userId);
-      if (!user || !user.email) {
-        console.error("User not found or has no email");
-        return;
-      }
-
-      // Format conversion rate and click rate as percentages
-      const conversionRatePercent = (
-        bestParameters.conversionRate * 100
-      ).toFixed(2);
-      const clickRatePercent = (bestParameters.clickRate * 100).toFixed(2);
-
-      // Prepare email content
-      const subject = "Email Optimization Process Completed";
-      const content = `
-        <h2>Email Optimization Process Completed</h2>
-        <p>Your email optimization process has been completed successfully.</p>
-        
-        <h3>Best Performing Parameters:</h3>
-        <ul>
-          <li><strong>Copywriting Framework:</strong> ${bestParameters.copywritingStyle}</li>
-          <li><strong>Writing Style:</strong> ${bestParameters.writingStyle}</li>
-          <li><strong>Tone:</strong> ${bestParameters.tone}</li>
-          <li><strong>Personality:</strong> ${bestParameters.personality}</li>
-        </ul>
-        
-        <h3>Performance Metrics:</h3>
-        <ul>
-          <li><strong>Conversion Rate:</strong> ${conversionRatePercent}%</li>
-          <li><strong>Click Rate:</strong> ${clickRatePercent}%</li>
-        </ul>
-        
-        <p>Completed ${completedRounds} out of ${totalRounds} optimization rounds.</p>
-        
-        <p>These parameters have been saved and will be used as the default for your future campaigns.</p>
-        
-        <p>Thank you for using Inbox Engine!</p>
-      `;
-
-      // Send the email using nodemailer directly (since we removed EmailService)
-      const nodemailer = require("nodemailer");
-      const smtpHost = process.env.SMTP_HOST || "smtp.example.com";
-      const smtpPort = parseInt(process.env.SMTP_PORT || "587", 10);
-      const smtpUser = process.env.SMTP_USER || "user@example.com";
-      const smtpPass = process.env.SMTP_PASS || "password";
-      const defaultFrom = process.env.SMTP_FROM || "noreply@example.com";
-
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
-
-      await transporter.sendMail({
-        from: defaultFrom,
-        to: user.email,
-        subject,
-        html: content,
-      });
-    } catch (error) {
-      console.error("Error sending completion email:", error);
-    }
-  }
-
-  /**
-   * Sends a failure email to the user
-   *
-   * @param userId - User ID
-   * @param campaignProcessId - Campaign process ID
-   */
-  private async sendFailureEmail(
-    userId: string,
-    campaignProcessId: string
-  ): Promise<void> {
-    try {
-      // Get user email
-      const user = await UserService.getUserById(userId);
-      if (!user || !user.email) {
-        console.error("User not found or has no email");
-        return;
-      }
-
-      // Prepare email content
-      const subject = "Email Optimization Process Failed";
-      const content = `
-        <h2>Email Optimization Process Failed</h2>
-        <p>Unfortunately, your email optimization process could not be completed successfully.</p>
-        
-        <p>This could be due to insufficient data or technical issues. Please try again with a larger subscriber segment or contact support if the issue persists.</p>
-        
-        <p>Thank you for using our Email Optimization service!</p>
-      `;
-
-      // Send the email using nodemailer directly
-      const nodemailer = require("nodemailer");
-      const smtpHost = process.env.SMTP_HOST || "smtp.example.com";
-      const smtpPort = parseInt(process.env.SMTP_PORT || "587", 10);
-      const smtpUser = process.env.SMTP_USER || "user@example.com";
-      const smtpPass = process.env.SMTP_PASS || "password";
-      const defaultFrom = process.env.SMTP_FROM || "noreply@example.com";
-
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
-
-      await transporter.sendMail({
-        from: defaultFrom,
-        to: user.email,
-        subject,
-        html: content,
-      });
-    } catch (error) {
-      console.error("Error sending failure email:", error);
-    }
+    return false;
   }
 }

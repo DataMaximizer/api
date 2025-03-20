@@ -107,72 +107,72 @@ export class CampaignService {
     }
   }
 
-  static async generateEmailVariants(
-    campaignId: string,
-    productInfo: any,
-    numberOfVariants: number = 2,
-    openaiApiKey: string,
-    anthropicApiKey: string
-  ): Promise<ICampaignVariant[]> {
-    try {
-      const variants: ICampaignVariant[] = [];
+  // static async generateEmailVariants(
+  //   campaignId: string,
+  //   productInfo: any,
+  //   numberOfVariants: number = 2,
+  //   openaiApiKey: string,
+  //   anthropicApiKey: string
+  // ): Promise<ICampaignVariant[]> {
+  //   try {
+  //     const variants: ICampaignVariant[] = [];
 
-      for (let i = 0; i < numberOfVariants; i++) {
-        const framework =
-          COPYWRITING_FRAMEWORKS[
-            Math.floor(Math.random() * COPYWRITING_FRAMEWORKS.length)
-          ];
-        const tone =
-          WRITING_TONES[Math.floor(Math.random() * WRITING_TONES.length)];
-        const personality =
-          PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)];
-        const writingStyle =
-          WRITING_STYLES[Math.floor(Math.random() * WRITING_STYLES.length)];
+  //     for (let i = 0; i < numberOfVariants; i++) {
+  //       const framework =
+  //         COPYWRITING_FRAMEWORKS[
+  //           Math.floor(Math.random() * COPYWRITING_FRAMEWORKS.length)
+  //         ];
+  //       const tone =
+  //         WRITING_TONES[Math.floor(Math.random() * WRITING_TONES.length)];
+  //       const personality =
+  //         PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)];
+  //       const writingStyle =
+  //         WRITING_STYLES[Math.floor(Math.random() * WRITING_STYLES.length)];
 
-        const content = await this.generateEmailContent(
-          productInfo,
-          framework,
-          tone,
-          personality,
-          writingStyle,
-          undefined,
-          false,
-          "openai",
-          openaiApiKey,
-          anthropicApiKey
-        );
-        const subject = await this.generateEmailSubject(
-          content,
-          "openai",
-          openaiApiKey,
-          anthropicApiKey
-        );
+  //       const content = await this.generateEmailContent(
+  //         productInfo,
+  //         framework,
+  //         tone,
+  //         personality,
+  //         writingStyle,
+  //         undefined,
+  //         false,
+  //         "openai",
+  //         openaiApiKey,
+  //         anthropicApiKey
+  //       );
+  //       const subject = await this.generateEmailSubject(
+  //         content,
+  //         "openai",
+  //         openaiApiKey,
+  //         anthropicApiKey
+  //       );
 
-        variants.push({
-          subject,
-          content,
-          tone,
-          personality,
-          writingStyle,
-          metrics: {
-            opens: 0,
-            clicks: 0,
-            conversions: 0,
-            revenue: 0,
-          },
-        } as ICampaignVariant);
-      }
+  //       variants.push({
+  //         subject,
+  //         content,
+  //         tone,
+  //         personality,
+  //         writingStyle,
+  //         metrics: {
+  //           opens: 0,
+  //           clicks: 0,
+  //           conversions: 0,
+  //           revenue: 0,
+  //         },
+  //       } as ICampaignVariant);
+  //     }
 
-      await Campaign.findByIdAndUpdate(campaignId, {
-        $push: { variants: { $each: variants } },
-      });
+  //     await Campaign.findByIdAndUpdate(campaignId, {
+  //       $push: { variants: { $each: variants } },
+  //     });
 
-      return variants;
-    } catch (error) {
-      logger.error("Error generating email variants:", error);
-      throw error;
-    }
-  }
+  //     return variants;
+  //   } catch (error) {
+  //     logger.error("Error generating email variants:", error);
+  //     throw error;
+  //   }
+  // }
 
   private static generateEmailPrompt(
     productInfo: any,
@@ -212,7 +212,12 @@ export class CampaignService {
     aiProvider: "openai" | "claude" = "openai",
     openaiApiKey?: string,
     anthropicApiKey?: string
-  ): Promise<string> {
+  ): Promise<{
+    content: string;
+    generatedPrompt: string;
+    aiProvider: string;
+    aiModel: string;
+  }> {
     if (aiProvider === "openai" && !openaiApiKey) {
       throw new Error("OpenAI API key is required");
     }
@@ -231,8 +236,26 @@ export class CampaignService {
     );
 
     return aiProvider === "openai"
-      ? this.generateOpenAIEmailContent(prompt, jsonResponse, openaiApiKey)
-      : this.generateClaudeEmailContent(prompt, jsonResponse, anthropicApiKey);
+      ? {
+          content: await this.generateOpenAIEmailContent(
+            prompt,
+            jsonResponse,
+            openaiApiKey
+          ),
+          generatedPrompt: prompt,
+          aiProvider: "openai",
+          aiModel: "gpt-4o-mini",
+        }
+      : {
+          content: await this.generateClaudeEmailContent(
+            prompt,
+            jsonResponse,
+            anthropicApiKey
+          ),
+          generatedPrompt: prompt,
+          aiProvider: "claude",
+          aiModel: "claude-3-7-sonnet-latest",
+        };
   }
 
   private static async generateOpenAIEmailContent(

@@ -226,7 +226,12 @@ export class WritingStyleOptimizationAgent {
       tone: Tone;
       personality: Personality;
     }
-  ): Promise<string> {
+  ): Promise<{
+    content: string;
+    generatedPrompt: string;
+    aiProvider: string;
+    aiModel: string;
+  }> {
     // Fetch the offer from the AffiliateOffer model.
     const offer = await AffiliateOffer.findById(offerId);
     if (!offer) throw new Error("Offer not found");
@@ -260,7 +265,12 @@ export class WritingStyleOptimizationAgent {
     Keep in mind that the JSON response will be parsed into a JavaScript object, so make sure to escape any special characters.
     `;
 
-    const emailContent = await CampaignService.generateEmailContent(
+    const {
+      content,
+      generatedPrompt,
+      aiProvider: aiProviderFromService,
+      aiModel: aiModelFromService,
+    } = await CampaignService.generateEmailContent(
       offer.productInfo,
       styleOptions.copywritingStyle,
       styleOptions.tone,
@@ -273,7 +283,12 @@ export class WritingStyleOptimizationAgent {
       anthropicApiKey
     );
 
-    return emailContent;
+    return {
+      content,
+      generatedPrompt,
+      aiProvider: aiProviderFromService,
+      aiModel: aiModelFromService,
+    };
   }
 
   public async generateCampaign(
@@ -286,7 +301,11 @@ export class WritingStyleOptimizationAgent {
       | "tone"
       | "writingStyle"
       | "personality"
-    >,
+    > & {
+      generatedPrompt?: string;
+      aiProvider?: string;
+      aiModel?: string;
+    },
     userId: string,
     offerId: string,
     smtpProviderId: string
@@ -480,7 +499,7 @@ export class WritingStyleOptimizationAgent {
               subscriberList.description,
               group.style
             );
-            const parsedContent = JSON.parse(emailContent);
+            const parsedContent = JSON.parse(emailContent.content);
             const currentTimestamp = new Date().getTime();
             const campaignName = `Random Test - ${offer.name} - ${currentTimestamp}`;
 
@@ -604,6 +623,8 @@ export class WritingStyleOptimizationAgent {
       senderName: string;
       senderEmail: string;
       aiProvider: "openai" | "claude";
+      generatedPrompt?: string;
+      aiModel?: string;
     }[][]
   > {
     if (!subscriberIds.length) {
@@ -696,6 +717,8 @@ export class WritingStyleOptimizationAgent {
       senderName: string;
       senderEmail: string;
       aiProvider: "openai" | "claude";
+      generatedPrompt?: string;
+      aiModel?: string;
     }[][] = [];
 
     // Process offers in batches to avoid rate limiting
@@ -725,7 +748,7 @@ export class WritingStyleOptimizationAgent {
           }
 
           // Generate email content using the provided style options
-          const emailContent = await this.generateEmailMarketing(
+          const emailResult = await this.generateEmailMarketing(
             offerId,
             aiProvider,
             openAiKey,
@@ -736,7 +759,7 @@ export class WritingStyleOptimizationAgent {
 
           try {
             // Parse the JSON content
-            const parsedContent = JSON.parse(emailContent);
+            const parsedContent = JSON.parse(emailResult.content);
             const currentTimestamp = new Date().getTime();
             const campaignName = `${styleOptions.copywritingStyle} - ${offer.name} - ${currentTimestamp}`;
 
@@ -750,6 +773,9 @@ export class WritingStyleOptimizationAgent {
                 tone: styleOptions.tone,
                 writingStyle: styleOptions.writingStyle,
                 personality: styleOptions.personality,
+                generatedPrompt: emailResult.generatedPrompt,
+                aiProvider: emailResult.aiProvider,
+                aiModel: emailResult.aiModel,
               },
               userId,
               offerId,
@@ -770,6 +796,8 @@ export class WritingStyleOptimizationAgent {
               senderName,
               senderEmail,
               aiProvider,
+              generatedPrompt: emailResult.generatedPrompt,
+              aiModel: emailResult.aiModel,
               ...styleOptions,
             }));
           } catch (error: any) {
@@ -777,9 +805,8 @@ export class WritingStyleOptimizationAgent {
               `Error parsing email content for offer ${offerId}:`,
               error
             );
-            console.log("Raw email content:", emailContent);
             throw new Error(
-              `Failed to parse content for offer ${offerId}: ${
+              `Failed to process content for offer ${offerId}: ${
                 error.message || "Unknown error"
               }`
             );

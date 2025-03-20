@@ -48,4 +48,15 @@ router.get(
   EmailOptimizationController.getOptimizationDetails
 );
 
+/**
+ * @route GET /api/ai/email-optimization/tree/:processId
+ * @desc Get hierarchical tree structure of optimization data (process -> rounds -> segments)
+ * @access Private
+ */
+router.get(
+  "/tree/:processId",
+  //authenticate,
+  EmailOptimizationController.getOptimizationTree
+);
+
 export default router;
