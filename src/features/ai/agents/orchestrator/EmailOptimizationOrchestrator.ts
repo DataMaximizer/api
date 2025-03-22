@@ -16,12 +16,6 @@ import {
 } from "../../models/subscriber-segment.model";
 import { Subscriber } from "@features/subscriber/models/subscriber.model";
 import { SubscriberList } from "@features/subscriber/models/subscriber-list.model";
-import { UserService } from "@features/user/user.service";
-import {
-  Campaign,
-  CampaignType,
-  CampaignStatus,
-} from "@features/campaign/models/campaign.model";
 import { SmtpService } from "@features/email/smtp/smtp.service";
 import { User } from "@features/user/models/user.model";
 
@@ -36,7 +30,9 @@ export interface IOptimizationConfig {
   senderName: string;
   senderEmail: string;
   aiProvider: "openai" | "claude";
-  roundInterval: number; // Time in minutes between rounds
+  roundInterval: number; // Time between rounds in minutes (e.g., 1440 = 24 hours)
+  campaignName?: string; // Optional campaign name
+  waitTimeForMetrics?: number; // Time to wait for metrics collection in minutes (e.g., 60 = 1 hour)
 }
 
 export class EmailOptimizationOrchestrator {
@@ -64,6 +60,9 @@ export class EmailOptimizationOrchestrator {
     // Create a campaign process to track the overall process
     const campaignProcess = await CampaignProcess.create({
       userId: new Types.ObjectId(config.userId),
+      name:
+        config.campaignName ||
+        `Email Optimization for List ${config.subscriberListId}`,
       status: "pending",
     });
 
@@ -165,15 +164,11 @@ export class EmailOptimizationOrchestrator {
       );
     }
 
-    // Start the first round immediately
-    // await this.processRound(roundIds[0], config);
-    // await this.processRound(roundIds[1], config);
-    // await this.processRound(roundIds[2], config);
-    // await this.processRound(roundIds[3], config);
-    // await this.processRound(roundIds[4], config);
-    // await this.processRound(roundIds[5], config);
-    // await this.processRound(roundIds[6], config);
-    // await this.processRound(roundIds[7], config);
+    // Start the first round immediately but don't await it
+    console.log("Starting the first optimization round asynchronously...");
+    this.processRound(roundIds[0], config).catch((err) => {
+      console.error(`Error processing first round:`, err);
+    });
 
     // Schedule subsequent rounds based on configured intervals
     for (let i = 1; i < roundIds.length; i++) {
@@ -268,11 +263,14 @@ export class EmailOptimizationOrchestrator {
         await this.processSegment(segmentId, config);
       }
 
-      // Wait for a reasonable time for metrics to be collected
+      // Wait for metrics to be collected based on configured wait time
       console.log(
-        `Waiting for metrics collection before analyzing round ${round.roundNumber}...`
+        `Waiting for metrics collection before analyzing round ${
+          round.roundNumber
+        }... (${config.waitTimeForMetrics || 60} minutes)`
       );
-      await new Promise((resolve) => setTimeout(resolve, 60 * 60 * 1000)); // 1 hour
+      const waitTimeInMs = (config.waitTimeForMetrics || 60) * 60 * 1000; // Convert minutes to milliseconds
+      await new Promise((resolve) => setTimeout(resolve, waitTimeInMs));
 
       // Update metrics for each segment
       for (const segmentId of segmentIds) {
@@ -923,7 +921,7 @@ export class EmailOptimizationOrchestrator {
           <p style="margin-top: 20px;">You can view the detailed results in your dashboard.</p>
           
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #777;">
-            <p>This is an automated notification from your IANternet optimization system.</p>
+            <p>This is an automated notification from Inbox Engine.</p>
           </div>
         </div>
       `;
@@ -934,7 +932,7 @@ export class EmailOptimizationOrchestrator {
         to: user.email,
         subject,
         html: htmlContent,
-        senderName: "IANternet Optimization",
+        senderName: "Inbox Engine",
         senderEmail: config.senderEmail,
       });
 

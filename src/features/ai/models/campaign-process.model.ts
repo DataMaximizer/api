@@ -8,6 +8,7 @@ import {
 
 export interface ICampaignProcess extends Document {
   userId: string;
+  name: string;
   status: "pending" | "processing" | "completed" | "failed";
   result?: {
     bestParameters?: {
@@ -61,6 +62,10 @@ const campaignProcessSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+    name: {
+      type: String,
+      default: "Email Optimization Process",
     },
     status: {
       type: String,

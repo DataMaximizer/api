@@ -23,7 +23,7 @@ export class EmailOptimizationController {
     res: Response
   ): Promise<void> {
     try {
-      const userId = "67b3f3c782f65d3f5f459354";
+      const userId = req.user?.id;
       if (!userId) {
         res.status(401).json({ error: "Unauthorized" });
         return;
@@ -40,6 +40,8 @@ export class EmailOptimizationController {
         senderEmail,
         aiProvider,
         roundInterval,
+        campaignName,
+        waitTimeForMetrics,
       } = req.body;
 
       // Validate required fields
@@ -60,6 +62,45 @@ export class EmailOptimizationController {
         return;
       }
 
+      // Default roundInterval value
+      const defaultRoundInterval = 1440; // 24 hours in minutes
+      const finalRoundInterval = roundInterval
+        ? Number(roundInterval)
+        : defaultRoundInterval;
+
+      // Validate roundInterval is a positive number
+      if (isNaN(finalRoundInterval) || finalRoundInterval <= 0) {
+        res.status(400).json({
+          error: "Invalid roundInterval",
+          message: "roundInterval must be a positive number of minutes",
+        });
+        return;
+      }
+
+      // Validate and set waitTimeForMetrics
+      const defaultWaitTime = 60; // Default to 1 hour in minutes
+      let finalWaitTimeForMetrics = waitTimeForMetrics
+        ? Number(waitTimeForMetrics)
+        : defaultWaitTime;
+
+      // Validate waitTimeForMetrics is a positive number
+      if (isNaN(finalWaitTimeForMetrics) || finalWaitTimeForMetrics <= 0) {
+        res.status(400).json({
+          error: "Invalid waitTimeForMetrics",
+          message: "waitTimeForMetrics must be a positive number of minutes",
+        });
+        return;
+      }
+
+      // Ensure waitTimeForMetrics is not greater than roundInterval
+      if (finalWaitTimeForMetrics > finalRoundInterval) {
+        res.status(400).json({
+          error: "waitTimeForMetrics cannot be greater than roundInterval",
+          message: `Wait time for metrics (${finalWaitTimeForMetrics} minutes) exceeds round interval (${finalRoundInterval} minutes)`,
+        });
+        return;
+      }
+
       // Create configuration object
       const config: IOptimizationConfig = {
         userId,
@@ -70,7 +111,7 @@ export class EmailOptimizationController {
         segmentationConfig: segmentationConfig || {
           numberOfSegments: 5,
           segmentSize: 20,
-          includeControlGroup: true,
+          includeControlGroup: false,
           controlGroupSize: 10,
           explorationRate: 0.3,
         },
@@ -78,8 +119,16 @@ export class EmailOptimizationController {
         senderName,
         senderEmail,
         aiProvider: aiProvider || "openai",
-        roundInterval: roundInterval || 1440, // Default to 24 hours (1440 minutes)
+        roundInterval: finalRoundInterval,
+        campaignName:
+          campaignName ||
+          `Optimization Process - ${new Date().toLocaleDateString()}`,
+        waitTimeForMetrics: finalWaitTimeForMetrics,
       };
+
+      console.log("Optimization config", config);
+
+      throw new Error("Test error");
 
       // Start the optimization process
       const orchestrator = new EmailOptimizationOrchestrator();
@@ -175,6 +224,7 @@ export class EmailOptimizationController {
       // Format the response
       const formattedProcesses = processes.map((process) => ({
         id: process._id,
+        name: process.name,
         status: process.status,
         createdAt: process.createdAt,
         updatedAt: process.updatedAt,
@@ -287,6 +337,7 @@ export class EmailOptimizationController {
         success: true,
         process: {
           id: process._id,
+          name: process.name,
           status: process.status,
           createdAt: process.createdAt,
           updatedAt: process.updatedAt,
@@ -323,7 +374,7 @@ export class EmailOptimizationController {
     res: Response
   ): Promise<void> {
     try {
-      const userId = "67b3f3c782f65d3f5f459354";
+      const userId = "67b0f80f0963391c944aad66";
       if (!userId) {
         res.status(401).json({ error: "Unauthorized" });
         return;
