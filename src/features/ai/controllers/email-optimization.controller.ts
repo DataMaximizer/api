@@ -128,8 +128,6 @@ export class EmailOptimizationController {
 
       console.log("Optimization config", config);
 
-      throw new Error("Test error");
-
       // Start the optimization process
       const orchestrator = new EmailOptimizationOrchestrator();
       const processId = await orchestrator.startOptimizationProcess(config);
