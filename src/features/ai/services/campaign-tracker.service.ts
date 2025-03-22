@@ -28,11 +28,15 @@ export class CampaignTrackerService {
     return CampaignTrackerService.instance;
   }
 
-  async createCampaign(userId: string): Promise<ICampaignProcess> {
+  async createCampaign(
+    userId: string,
+    aiProvider: "openai" | "claude"
+  ): Promise<ICampaignProcess> {
     try {
       const campaignProcess = new CampaignProcess({
         userId,
         status: "pending",
+        aiProvider,
       });
       return await campaignProcess.save();
     } catch (error) {

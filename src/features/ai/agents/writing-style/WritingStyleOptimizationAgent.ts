@@ -25,6 +25,7 @@ import { BlockedEmail } from "@/features/subscriber/models/blocked-email.model";
 import { IAddress, User } from "@/features/user/models/user.model";
 import { UserService } from "@/features/user/user.service";
 import { SubscriberList } from "@/features/subscriber/models/subscriber-list.model";
+import { CampaignProcess } from "../../models/campaign-process.model";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -308,7 +309,8 @@ export class WritingStyleOptimizationAgent {
     },
     userId: string,
     offerId: string,
-    smtpProviderId: string
+    smtpProviderId: string,
+    campaignProcessId: string
   ) {
     const campaign = await Campaign.create({
       name: campaignData.name,
@@ -323,6 +325,7 @@ export class WritingStyleOptimizationAgent {
       personality: campaignData.personality,
       writingStyle: campaignData.writingStyle,
       smtpProviderId: new Types.ObjectId(smtpProviderId),
+      campaignProcessId: new Types.ObjectId(campaignProcessId),
       metrics: {
         totalSent: 0,
         totalOpens: 0,
@@ -351,7 +354,8 @@ export class WritingStyleOptimizationAgent {
     selectionPercentage: number = 0.2,
     senderName: string,
     senderEmail: string,
-    aiProvider: "openai" | "claude"
+    aiProvider: "openai" | "claude",
+    campaignProcessId: string
   ): Promise<
     {
       offerId: string;
@@ -516,7 +520,8 @@ export class WritingStyleOptimizationAgent {
               },
               userId,
               offerId,
-              smtpProviderId
+              smtpProviderId,
+              campaignProcessId
             );
 
             // Return data for each subscriber in this style group
@@ -535,6 +540,7 @@ export class WritingStyleOptimizationAgent {
               senderName,
               senderEmail,
               aiProvider,
+              prompt: emailContent.prompt,
               ...group.style,
             }));
           })

@@ -67,6 +67,11 @@ const campaignProcessSchema = new Schema(
       type: String,
       default: "Email Optimization Process",
     },
+    aiProvider: {
+      type: String,
+      enum: ["openai", "claude"],
+      required: true,
+    },
     status: {
       type: String,
       enum: ["pending", "processing", "completed", "failed"],

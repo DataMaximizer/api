@@ -49,10 +49,6 @@ export class AffiliateService {
 
     const offer = new AffiliateOffer(enhancedOfferData);
 
-    if (offer.tags && offer.tags.length > 3) {
-      offer.tags = offer.tags.slice(0, 3);
-    }
-
     if (offerData.parameters) {
       offer.parameters = offerData.parameters.map((param) => ({
         type: param.type,
