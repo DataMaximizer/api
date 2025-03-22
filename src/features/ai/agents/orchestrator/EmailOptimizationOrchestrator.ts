@@ -64,6 +64,7 @@ export class EmailOptimizationOrchestrator {
         config.campaignName ||
         `Email Optimization for List ${config.subscriberListId}`,
       status: "pending",
+      aiProvider: config.aiProvider,
     });
 
     // Get subscribers from the list

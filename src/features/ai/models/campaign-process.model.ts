@@ -10,6 +10,7 @@ export interface ICampaignProcess extends Document {
   userId: string;
   name: string;
   status: "pending" | "processing" | "completed" | "failed";
+  aiProvider: "openai" | "claude";
   result?: {
     bestParameters?: {
       copywritingStyle: CopywritingStyle;
