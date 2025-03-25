@@ -11,6 +11,10 @@ export interface ICampaignProcess extends Document {
   name: string;
   status: "pending" | "processing" | "completed" | "failed";
   aiProvider: "openai" | "claude";
+  smtpProviderId?: string; // SMTP provider ID for sending emails
+  senderName?: string; // Name to display as the sender
+  senderEmail?: string; // Email address to use as sender
+  configuration?: any; // Store the complete configuration
   result?: {
     bestParameters?: {
       copywritingStyle: CopywritingStyle;
@@ -72,6 +76,19 @@ const campaignProcessSchema = new Schema(
       type: String,
       enum: ["openai", "claude"],
       required: true,
+    },
+    smtpProviderId: {
+      type: Schema.Types.ObjectId,
+      ref: "SmtpProvider",
+    },
+    senderName: {
+      type: String,
+    },
+    senderEmail: {
+      type: String,
+    },
+    configuration: {
+      type: Schema.Types.Mixed, // Store any object
     },
     status: {
       type: String,

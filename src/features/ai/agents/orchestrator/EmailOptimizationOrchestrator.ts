@@ -65,6 +65,10 @@ export class EmailOptimizationOrchestrator {
         `Email Optimization for List ${config.subscriberListId}`,
       status: "pending",
       aiProvider: config.aiProvider,
+      smtpProviderId: new Types.ObjectId(config.smtpProviderId),
+      senderName: config.senderName,
+      senderEmail: config.senderEmail,
+      configuration: config, // Store the complete configuration
     });
 
     // Get subscribers from the list
@@ -171,25 +175,11 @@ export class EmailOptimizationOrchestrator {
       console.error(`Error processing first round:`, err);
     });
 
-    // Schedule subsequent rounds based on configured intervals
-    for (let i = 1; i < roundIds.length; i++) {
-      const roundDelay = i * config.roundInterval * 60 * 1000; // Convert minutes to milliseconds
-      const roundIndex = i; // Capture the current value of i for the closure
-      const roundNumber = i + 1;
-
-      console.log(
-        `Scheduling round ${roundNumber} to start in ${
-          roundDelay / (60 * 1000)
-        } minutes...`
-      );
-
-      setTimeout(async () => {
-        console.log(`Starting round ${roundNumber} now`);
-        await this.processRound(roundIds[roundIndex], config).catch((err) => {
-          console.error(`Error processing round ${roundNumber}:`, err);
-        });
-      }, roundDelay);
-    }
+    // The remaining rounds will be automatically processed by the ScheduledTaskService
+    // based on their scheduled startDate, which was set when creating the rounds
+    console.log(
+      "Subsequent rounds will be processed by the scheduled task service based on their start dates"
+    );
 
     // Update campaign process status
     await CampaignProcess.findByIdAndUpdate(campaignProcess._id, {
@@ -205,7 +195,7 @@ export class EmailOptimizationOrchestrator {
    * @param roundId - ID of the round to process
    * @param config - Configuration for the optimization process
    */
-  private async processRound(
+  public async processRound(
     roundId: string,
     config: IOptimizationConfig
   ): Promise<void> {
@@ -264,18 +254,61 @@ export class EmailOptimizationOrchestrator {
         await this.processSegment(segmentId, config);
       }
 
-      // Wait for metrics to be collected based on configured wait time
-      console.log(
-        `Waiting for metrics collection before analyzing round ${
-          round.roundNumber
-        }... (${config.waitTimeForMetrics || 60} minutes)`
+      const waitTimeInMinutes = config.waitTimeForMetrics || 60; // Default to 1 hour
+      const metricsAnalysisTime = new Date();
+      metricsAnalysisTime.setMinutes(
+        metricsAnalysisTime.getMinutes() + waitTimeInMinutes
       );
-      const waitTimeInMs = (config.waitTimeForMetrics || 60) * 60 * 1000; // Convert minutes to milliseconds
-      await new Promise((resolve) => setTimeout(resolve, waitTimeInMs));
+
+      console.log(
+        `Scheduling metrics analysis for round ${
+          round.roundNumber
+        } at ${metricsAnalysisTime.toISOString()}`
+      );
+
+      // Update the round with the scheduled analysis time
+      await OptimizationRound.findByIdAndUpdate(roundId, {
+        metricsAnalysisTime: metricsAnalysisTime,
+        // Set the status to indicate the round is waiting for metrics
+        status: OptimizationStatus.WAITING_FOR_METRICS,
+      });
+    } catch (error) {
+      console.error(`Error processing round ${roundId}:`, error);
+
+      // Update round status to failed
+      await OptimizationRound.findByIdAndUpdate(roundId, {
+        status: OptimizationStatus.FAILED,
+      });
+    }
+  }
+
+  /**
+   * Analyzes the results of an optimization round once metrics have been collected
+   *
+   * @param roundId - ID of the round to analyze
+   * @param config - Configuration for the optimization process
+   */
+  public async analyzeRoundResults(
+    roundId: string,
+    config: IOptimizationConfig
+  ): Promise<void> {
+    try {
+      // Get the optimization round
+      const round = await OptimizationRound.findById(roundId);
+      if (!round) {
+        throw new Error("Optimization round not found");
+      }
+
+      console.log(`Starting analysis for round ${round.roundNumber}`);
+
+      // Update round status to analyzing
+      await OptimizationRound.findByIdAndUpdate(roundId, {
+        status: OptimizationStatus.ANALYZING,
+      });
 
       // Update metrics for each segment
-      for (const segmentId of segmentIds) {
-        await this.optimizationAgent.updateSegmentMetrics(segmentId);
+      for (const segmentId of round.subscriberSegmentIds) {
+        await this.optimizationAgent.updateSegmentMetrics(segmentId.toString());
       }
 
       // Analyze round performance
@@ -285,6 +318,12 @@ export class EmailOptimizationOrchestrator {
       console.log(`Round ${round.roundNumber} analysis:`, {
         bestParameters: analysis.bestParameters,
         metrics: analysis.metrics,
+      });
+
+      // Mark the round as completed
+      await OptimizationRound.findByIdAndUpdate(roundId, {
+        status: OptimizationStatus.COMPLETED,
+        endDate: new Date(),
       });
 
       // If this is the last round, check if the process is complete
@@ -300,7 +339,7 @@ export class EmailOptimizationOrchestrator {
         );
       }
     } catch (error) {
-      console.error(`Error processing round ${roundId}:`, error);
+      console.error(`Error analyzing round ${roundId}:`, error);
 
       // Update round status to failed
       await OptimizationRound.findByIdAndUpdate(roundId, {

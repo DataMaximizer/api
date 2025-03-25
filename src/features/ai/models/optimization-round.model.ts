@@ -9,6 +9,8 @@ import {
 export enum OptimizationStatus {
   PENDING = "pending",
   IN_PROGRESS = "in_progress",
+  WAITING_FOR_METRICS = "waiting_for_metrics",
+  ANALYZING = "analyzing",
   COMPLETED = "completed",
   FAILED = "failed",
 }
@@ -20,6 +22,7 @@ export interface IOptimizationRound extends Document {
   status: OptimizationStatus;
   startDate: Date;
   endDate?: Date;
+  metricsAnalysisTime?: Date;
   subscriberIds: Types.ObjectId[];
   subscriberSegmentIds: Types.ObjectId[];
   offerIds: Types.ObjectId[];
@@ -124,6 +127,7 @@ const optimizationRoundSchema = new Schema<IOptimizationRound>(
     },
     startDate: { type: Date, default: Date.now },
     endDate: { type: Date },
+    metricsAnalysisTime: { type: Date },
     subscriberIds: [{ type: Schema.Types.ObjectId, ref: "Subscriber" }],
     subscriberSegmentIds: [
       { type: Schema.Types.ObjectId, ref: "SubscriberSegment" },

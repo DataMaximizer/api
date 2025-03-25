@@ -28,6 +28,7 @@ import {
 } from "./routes";
 
 import { SchedulerService } from "@features/shared/services/scheduler.service";
+import { scheduledTaskService } from "@features/ai/services/scheduled-task.service";
 import swaggerJSDoc from "swagger-jsdoc";
 import { CacheService } from "@core/services/cache.service";
 import { userRouter } from "./features/user/user.routes";
@@ -134,6 +135,10 @@ const startServer = async (): Promise<void> => {
     //await CacheService.initialize();
 
     SchedulerService.initializeScheduledTasks();
+
+    // Initialize the email optimization scheduled task service
+    scheduledTaskService.initialize();
+    logger.info("Email optimization scheduled task service initialized");
 
     app.listen(port, () => {
       logger.info(`Server running on port ${port}`);
