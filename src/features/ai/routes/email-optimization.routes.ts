@@ -55,7 +55,7 @@ router.get(
  */
 router.get(
   "/tree/:processId",
-  //authenticate,
+  authenticate,
   EmailOptimizationController.getOptimizationTree
 );
 
