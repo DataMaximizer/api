@@ -953,10 +953,6 @@ export class EmailOptimizationAgent {
       _id: { $in: segment.campaignIds },
     });
 
-    if (!campaigns.length) {
-      throw new Error("No campaigns found for this segment");
-    }
-
     // Aggregate metrics from all campaigns
     const metrics = {
       totalSent: 0,

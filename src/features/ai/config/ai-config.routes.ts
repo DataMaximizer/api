@@ -35,10 +35,6 @@ router.post("/agents/conversion-analysis", authenticate, (req, res) =>
   AIConfigController.runConversionAnalysis(req, res)
 );
 
-router.post("/agents/start-campaign", authenticate, (req, res) =>
-  AIConfigController.startCampaign(req, res)
-);
-
 router.get("/agents/campaigns", authenticate, (req, res) =>
   AIConfigController.getUserCampaigns(req, res)
 );

@@ -101,6 +101,7 @@ const campaignSchema = new Schema<ICampaign>(
     framework: { type: String },
     tone: { type: String },
     writingStyle: { type: String },
+    personality: { type: String },
     smtpProviderId: { type: Schema.Types.ObjectId, ref: "SmtpProvider" },
     schedule: {
       startDate: { type: Date },

@@ -219,17 +219,54 @@ export class EmailOptimizationController {
         userId,
       }).sort({ createdAt: -1 });
 
+      // Get process IDs to find associated rounds
+      const processIds = processes.map((process) => process._id);
+
+      // Find all rounds for these processes to check their status
+      const rounds = await OptimizationRound.find({
+        campaignProcessId: { $in: processIds },
+      });
+
+      // Group rounds by process ID for easier lookup
+      const roundsByProcess = rounds.reduce<Record<string, typeof rounds>>(
+        (acc, round) => {
+          const processId = round.campaignProcessId.toString();
+          if (!acc[processId]) {
+            acc[processId] = [];
+          }
+          acc[processId].push(round);
+          return acc;
+        },
+        {}
+      );
+
       // Format the response
-      const formattedProcesses = processes.map((process) => ({
-        id: process._id,
-        name: process.name,
-        status: process.status,
-        createdAt: process.createdAt,
-        updatedAt: process.updatedAt,
-        result: process.result,
-        error: process.error,
-        aiProvider: process.aiProvider,
-      }));
+      const formattedProcesses = processes.map((process) => {
+        const processId = process.id;
+        const processRounds = roundsByProcess[processId] || [];
+
+        // Check if any round is in WAITING_FOR_METRICS status
+        const hasWaitingForMetricsRound = processRounds.some(
+          (round) => round.status === OptimizationStatus.WAITING_FOR_METRICS
+        );
+
+        // Override the status if necessary
+        let displayStatus = process.status;
+        if (hasWaitingForMetricsRound && process.status === "processing") {
+          displayStatus = "waiting_for_metrics" as const;
+        }
+
+        return {
+          id: process._id,
+          name: process.name,
+          status: displayStatus,
+          createdAt: process.createdAt,
+          updatedAt: process.updatedAt,
+          result: process.result,
+          error: process.error,
+          aiProvider: process.aiProvider,
+        };
+      });
 
       res.status(200).json({
         success: true,

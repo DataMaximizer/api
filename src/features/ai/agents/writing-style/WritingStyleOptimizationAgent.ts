@@ -339,254 +339,6 @@ export class WritingStyleOptimizationAgent {
   }
 
   /**
-   * Starts a campaign with random writing styles for a subset of subscribers.
-   *
-   * @param offerIds - Array of offer IDs to distribute
-   * @param subscriberListId - ID of the subscriber list
-   * @param smtpProviderId - ID of the SMTP provider
-   * @returns Promise<void>
-   */
-  public async startRandomCampaign(
-    offerIds: string[],
-    subscriberListId: string,
-    smtpProviderId: string,
-    userId: string,
-    selectionPercentage: number = 0.2,
-    senderName: string,
-    senderEmail: string,
-    aiProvider: "openai" | "claude",
-    campaignProcessId: string
-  ): Promise<
-    {
-      offerId: string;
-      offerName: string;
-      offerUrl: string;
-      campaignId: string;
-      campaignName: string;
-      subscriberId: string;
-      subject: string;
-      content: string;
-      senderName: string;
-      senderEmail: string;
-      aiProvider: "openai" | "claude";
-    }[][]
-  > {
-    const subscriberList = await SubscriberList.findById(subscriberListId);
-    if (!subscriberList) {
-      throw new Error("Subscriber list not found");
-    }
-
-    // Get all active subscribers from the list
-    const subscribers = await Subscriber.find({
-      lists: { $in: [new Types.ObjectId(subscriberListId)] },
-      status: "active",
-    });
-
-    if (!subscribers.length) {
-      throw new Error("No active subscribers found in the list");
-    }
-
-    // Get blocked emails for this user
-    const blockedEmails = await BlockedEmail.find({
-      userId: new Types.ObjectId(userId),
-    }).distinct("email");
-    const blockedEmailSet = new Set(
-      blockedEmails.map((email) => email.toLowerCase())
-    );
-
-    // Filter out subscribers with blocked emails
-    const validSubscribers = subscribers.filter(
-      (sub) => !blockedEmailSet.has(sub.email.toLowerCase())
-    );
-
-    if (!validSubscribers.length) {
-      throw new Error(
-        "No valid subscribers found after filtering blocked emails"
-      );
-    }
-
-    // Get user website url
-    const user = await User.findById(userId);
-    const websiteUrl = user?.companyUrl;
-
-    if (!websiteUrl) {
-      throw new Error("User website url not found");
-    }
-
-    const { openAiKey, claudeKey } = await UserService.getUserApiKeys(userId);
-
-    // Extract subscriber IDs from filtered list
-    const subscriberIds = validSubscribers.map((sub) => sub.id);
-
-    // Initialize OfferSelectionAgent
-    const offerSelectionAgent = new OfferSelectionAgent();
-
-    // Get distribution of subscribers to offers with their writing styles
-    const distribution =
-      await offerSelectionAgent.distributeOffersToSubscribers(
-        subscriberIds,
-        offerIds,
-        selectionPercentage
-      );
-
-    let toSend = [];
-
-    // Process each offer and its assigned subscribers
-    for (const [offerId, assignments] of distribution) {
-      // Get the offer details
-      const offer = await AffiliateOffer.findById(offerId);
-      if (!offer) {
-        console.error(`Offer ${offerId} not found, skipping...`);
-        continue;
-      }
-
-      // Group assignments by style combination
-      const styleGroups = new Map<
-        string,
-        {
-          style: {
-            writingStyle: WritingStyle;
-            copywritingStyle: CopywritingStyle;
-            tone: Tone;
-            personality: Personality;
-          };
-          subscribers: string[];
-        }
-      >();
-
-      assignments.forEach((assignment) => {
-        const styleKey = JSON.stringify({
-          writingStyle: assignment.writingStyle,
-          copywritingStyle: assignment.copywritingStyle,
-          tone: assignment.tone,
-          personality: assignment.personality,
-        });
-
-        if (!styleGroups.has(styleKey)) {
-          styleGroups.set(styleKey, {
-            style: {
-              writingStyle: assignment.writingStyle,
-              copywritingStyle: assignment.copywritingStyle,
-              tone: assignment.tone,
-              personality: assignment.personality,
-            },
-            subscribers: [],
-          });
-        }
-
-        styleGroups.get(styleKey)!.subscribers.push(assignment.subscriberId);
-      });
-
-      // Process each style group
-      const emailData = [];
-
-      // Process style groups in batches to avoid rate limiting
-      const styleGroupEntries = Array.from(styleGroups.entries());
-      const BATCH_SIZE = aiProvider === "claude" ? 3 : 5; // Smaller batch size for Claude
-
-      for (let i = 0; i < styleGroupEntries.length; i += BATCH_SIZE) {
-        const batch = styleGroupEntries.slice(i, i + BATCH_SIZE);
-
-        // Add a small delay between batches to avoid rate limiting
-        if (i > 0) {
-          await new Promise((resolve) => setTimeout(resolve, 10000));
-        }
-
-        const batchResults = await Promise.all(
-          batch.map(async ([_, group]) => {
-            // Generate email content once per style combination
-            const emailContent = await this.generateEmailMarketing(
-              offerId,
-              aiProvider,
-              openAiKey,
-              claudeKey,
-              subscriberList.description,
-              group.style
-            );
-            const parsedContent = JSON.parse(emailContent.content);
-            const currentTimestamp = new Date().getTime();
-            const campaignName = `Random Test - ${offer.name} - ${currentTimestamp}`;
-
-            // Create one campaign per style combination
-            const campaign = await this.generateCampaign(
-              {
-                name: campaignName,
-                content: parsedContent.body,
-                subject: parsedContent.subject,
-                framework: group.style.copywritingStyle,
-                tone: group.style.tone,
-                writingStyle: group.style.writingStyle,
-                personality: group.style.personality,
-              },
-              userId,
-              offerId,
-              smtpProviderId,
-              campaignProcessId
-            );
-
-            // Return data for each subscriber in this style group
-            return group.subscribers.map((subscriberId) => ({
-              offerId,
-              offerName: offer.name,
-              offerUrl: offer.url,
-              campaignId: campaign.id,
-              campaignName,
-              subscriberId,
-              subscriberEmail: validSubscribers.find(
-                (sub) => sub.id === subscriberId
-              )?.email,
-              subject: parsedContent.subject,
-              content: parsedContent.body,
-              senderName,
-              senderEmail,
-              aiProvider,
-              prompt: emailContent.prompt,
-              ...group.style,
-            }));
-          })
-        );
-
-        emailData.push(...batchResults);
-      }
-
-      toSend.push(emailData.flat());
-    }
-
-    // Send emails in batches to avoid overwhelming the system
-    const SEND_BATCH_SIZE = 10;
-    const allEmails = toSend.flatMap((d) => d);
-
-    for (let i = 0; i < allEmails.length; i += SEND_BATCH_SIZE) {
-      const batch = allEmails.slice(i, i + SEND_BATCH_SIZE);
-
-      await Promise.all(
-        batch.map((data) =>
-          CampaignService.sendCampaignEmail(
-            data.offerId,
-            data.subscriberId,
-            data.campaignId,
-            smtpProviderId,
-            data.content,
-            data.subject,
-            websiteUrl,
-            user?.address as IAddress,
-            user?.companyName as string,
-            data.senderName,
-            data.senderEmail
-          )
-        )
-      );
-
-      // Add a small delay between sending batches
-      if (i + SEND_BATCH_SIZE < allEmails.length) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-    }
-
-    return toSend;
-  }
-
-  /**
    * Creates campaigns for specific subscribers in a segment
    * Randomly distributes the offers among subscribers so each subscriber gets one offer
    *
@@ -615,7 +367,8 @@ export class WritingStyleOptimizationAgent {
       tone: Tone;
       personality: Personality;
     },
-    audience: string = "General audience"
+    audience: string = "General audience",
+    campaignProcessId: string
   ): Promise<
     {
       offerId: string;
@@ -785,7 +538,8 @@ export class WritingStyleOptimizationAgent {
               },
               userId,
               offerId,
-              smtpProviderId
+              smtpProviderId,
+              campaignProcessId
             );
 
             // Return data for each subscriber assigned to this offer
@@ -808,14 +562,82 @@ export class WritingStyleOptimizationAgent {
             }));
           } catch (error: any) {
             console.error(
-              `Error parsing email content for offer ${offerId}:`,
+              `Error parsing email content for offer ${offerId} with ${aiProvider}:`,
               error
             );
-            throw new Error(
-              `Failed to process content for offer ${offerId}: ${
-                error.message || "Unknown error"
-              }`
-            );
+
+            // Try with fallback AI provider
+            try {
+              console.log(
+                `Attempting fallback with ${
+                  aiProvider === "openai" ? "claude" : "openai"
+                } for offer ${offerId}`
+              );
+
+              const fallbackProvider =
+                aiProvider === "openai"
+                  ? ("claude" as const)
+                  : ("openai" as const);
+              const fallbackEmailResult = await this.generateEmailMarketing(
+                offerId,
+                fallbackProvider,
+                openAiKey,
+                claudeKey,
+                audience,
+                styleOptions
+              );
+
+              // Parse the fallback content
+              const parsedContent = JSON.parse(fallbackEmailResult.content);
+              const currentTimestamp = new Date().getTime();
+              const campaignName = `${styleOptions.copywritingStyle} - ${offer.name} - ${currentTimestamp} (Fallback)`;
+
+              // Create campaign with fallback content
+              const campaign = await this.generateCampaign(
+                {
+                  name: campaignName,
+                  content: parsedContent.body,
+                  subject: parsedContent.subject,
+                  framework: styleOptions.copywritingStyle,
+                  tone: styleOptions.tone,
+                  writingStyle: styleOptions.writingStyle,
+                  personality: styleOptions.personality,
+                  generatedPrompt: fallbackEmailResult.generatedPrompt,
+                  aiProvider: fallbackEmailResult.aiProvider,
+                  aiModel: fallbackEmailResult.aiModel,
+                },
+                userId,
+                offerId,
+                smtpProviderId,
+                campaignProcessId
+              );
+
+              // Return data using the fallback provider's content
+              return offerSubscribers.map((subscriber) => ({
+                offerId,
+                offerName: offer.name,
+                offerUrl: offer.url,
+                campaignId: campaign.id,
+                campaignName,
+                subscriberId: subscriber.id,
+                subscriberEmail: subscriber.email,
+                subject: parsedContent.subject,
+                content: parsedContent.body,
+                senderName,
+                senderEmail,
+                aiProvider: fallbackProvider,
+                generatedPrompt: fallbackEmailResult.generatedPrompt,
+                aiModel: fallbackEmailResult.aiModel,
+                ...styleOptions,
+              }));
+            } catch (fallbackError: any) {
+              console.error(
+                `Fallback AI provider also failed for offer ${offerId}. Original error: ${error.message}, Fallback error: ${fallbackError.message}`
+              );
+              throw new Error(
+                `Both AI providers failed to generate content for offer ${offerId}. Please check your API keys and try again.`
+              );
+            }
           }
         })
       );

@@ -9,7 +9,12 @@ import {
 export interface ICampaignProcess extends Document {
   userId: string;
   name: string;
-  status: "pending" | "processing" | "completed" | "failed";
+  status:
+    | "pending"
+    | "processing"
+    | "completed"
+    | "failed"
+    | "waiting_for_metrics";
   aiProvider: "openai" | "claude";
   smtpProviderId?: string; // SMTP provider ID for sending emails
   senderName?: string; // Name to display as the sender

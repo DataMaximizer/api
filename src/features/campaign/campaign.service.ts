@@ -15,6 +15,7 @@ import { Subscriber } from "../subscriber/models/subscriber.model";
 import { IAddress } from "../user/models/user.model";
 import { Anthropic } from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources";
+import { CampaignProcess } from "../ai/models/campaign-process.model";
 
 const COPYWRITING_FRAMEWORKS = [
   "PAS (Problem-Agitate-Solution)",
@@ -617,6 +618,7 @@ export class CampaignService {
   /**
    * Get campaign reports grouped by campaignProcessId
    * Sums metrics (sent, opens, clicks, conversions, revenue) for each group
+   * @returns Array of campaign process reports with metrics and child campaigns
    */
   static async getCampaignReports(userId: string) {
     try {
@@ -625,6 +627,25 @@ export class CampaignService {
         userId,
         campaignProcessId: { $exists: true, $ne: null },
       }).lean();
+
+      // Get all campaign process IDs
+      const campaignProcessIds = campaigns
+        .map((campaign) => campaign.campaignProcessId)
+        .filter(Boolean);
+
+      // Fetch all campaign processes to get their names
+      const campaignProcesses = await CampaignProcess.find({
+        _id: { $in: campaignProcessIds },
+      }).lean();
+
+      // Create a map of campaign process IDs to their names for quick lookup
+      const campaignProcessMap = new Map();
+      for (const process of campaignProcesses) {
+        campaignProcessMap.set(process._id.toString(), {
+          name: process.name,
+          createdAt: process.createdAt,
+        });
+      }
 
       // Get all campaign IDs to query for unsubscribes
       const campaignIds = campaigns.map((campaign) => campaign._id);
@@ -679,6 +700,8 @@ export class CampaignService {
         if (!reportMap.has(campaignProcessId)) {
           reportMap.set(campaignProcessId, {
             campaignProcessId,
+            campaignProcessName:
+              campaignProcessMap.get(campaignProcessId)?.name || "Unknown",
             campaignCount: 0,
             metrics: {
               totalSent: 0,
@@ -688,6 +711,8 @@ export class CampaignService {
               totalRevenue: 0,
               totalUnsubscribes: 0,
             },
+            createdAt:
+              campaignProcessMap.get(campaignProcessId)?.createdAt || "",
             children: [], // Array to store all campaigns belonging to this process
           });
         }

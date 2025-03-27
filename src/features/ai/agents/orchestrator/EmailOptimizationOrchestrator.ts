@@ -408,7 +408,8 @@ export class EmailOptimizationOrchestrator {
             config.senderEmail,
             config.aiProvider,
             segment.assignedParameters,
-            audienceDescription
+            audienceDescription,
+            round.campaignProcessId.toString()
           );
 
         // Collect campaign IDs
@@ -469,11 +470,7 @@ export class EmailOptimizationOrchestrator {
 
         return;
       } catch (error) {
-        console.log(
-          "Error using real implementation, falling back to mock:",
-          error
-        );
-        // If real implementation fails, continue with mock implementation
+        console.log("Error: ", error);
       }
 
       // -------- MOCK IMPLEMENTATION BELOW - FALLBACK --------
