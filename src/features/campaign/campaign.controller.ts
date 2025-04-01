@@ -444,4 +444,24 @@ export class CampaignController {
       next(error);
     }
   }
+
+  static async generatePrompt(req: Request, res: Response, next: NextFunction) {
+    try {
+      const prompt = await CampaignService.generateEmailPrompt(
+        req.body.productInfo,
+        req.body.framework,
+        req.body.tone,
+        req.body.personality,
+        req.body.writingStyle,
+        req.body.targetAudience
+      );
+
+      res.status(200).json({
+        success: true,
+        data: prompt,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

@@ -82,4 +82,6 @@ router.post(
   CampaignController.sendEmail
 );
 
+router.post("/generatePrompt", authenticate, CampaignController.generatePrompt);
+
 export default router;

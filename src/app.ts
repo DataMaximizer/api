@@ -25,6 +25,7 @@ import {
   aiConfigRoutes,
   redirectRoutes,
   analyticsRoutes,
+  promptRoutes,
 } from "./routes";
 
 import { SchedulerService } from "@features/shared/services/scheduler.service";
@@ -111,6 +112,7 @@ app.use("/api/ai", aiConfigRoutes);
 app.use("/api/networks", networkRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/ai/email-optimization", emailOptimizationRoutes);
+app.use("/api/prompts", promptRoutes);
 
 app.get(
   "/api/admin/dashboard",

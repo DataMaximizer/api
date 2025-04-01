@@ -16,6 +16,7 @@ import { IAddress } from "../user/models/user.model";
 import { Anthropic } from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources";
 import { CampaignProcess } from "../ai/models/campaign-process.model";
+import { PromptService } from "../prompt/prompt.service";
 
 const COPYWRITING_FRAMEWORKS = [
   "PAS (Problem-Agitate-Solution)",
@@ -175,31 +176,34 @@ export class CampaignService {
   //   }
   // }
 
-  private static generateEmailPrompt(
+  public static async generateEmailPrompt(
     productInfo: any,
     framework: string,
     tone: string,
     personality: string,
     writingStyle: string,
-    extraInstructions?: string
-  ): string {
-    return `
-      Write a persuasive, engaging marketing email using the ${framework} framework to maximize open and click-through rates.
-      Product Information: ${JSON.stringify(productInfo)}
-      Tone: ${tone}
-      Personality: ${personality}
-      Writing Style: ${writingStyle}
-      ${
-        extraInstructions ? `Additional Instructions: ${extraInstructions}` : ""
-      }
-      
-      Requirements:
-      1. Follow the ${framework} structure strictly
-      2. Maintain the specified tone and personality throughout
-      3. Include a clear call to action
-      4. Keep it concise and engaging
-      5. Focus on benefits and value proposition
-    `;
+    targetAudience: string
+  ): Promise<string> {
+    const prompt = await PromptService.getFirstPrompt();
+    if (!prompt) {
+      throw new Error("No prompt found");
+    }
+
+    const promptText = prompt.text;
+    const promptVariables = {
+      productInfo: JSON.stringify(productInfo),
+      framework,
+      tone,
+      personality,
+      writingStyle,
+      targetAudience,
+    };
+
+    return promptText.replace(
+      /\{\{([^}]+)\}\}/g,
+      (match, p1) =>
+        promptVariables[p1 as keyof typeof promptVariables] || match
+    );
   }
 
   public static async generateEmailContent(
@@ -208,7 +212,7 @@ export class CampaignService {
     tone: string,
     personality: string,
     writingStyle: string,
-    extraInstructions?: string,
+    targetAudience: string,
     jsonResponse?: boolean,
     aiProvider: "openai" | "claude" = "openai",
     openaiApiKey?: string,
@@ -227,13 +231,13 @@ export class CampaignService {
       throw new Error("Anthropic API key is required");
     }
 
-    const prompt = this.generateEmailPrompt(
+    const prompt = await this.generateEmailPrompt(
       productInfo,
       framework,
       tone,
       personality,
       writingStyle,
-      extraInstructions
+      targetAudience
     );
 
     return aiProvider === "openai"
@@ -259,7 +263,7 @@ export class CampaignService {
         };
   }
 
-  private static async generateOpenAIEmailContent(
+  public static async generateOpenAIEmailContent(
     prompt: string,
     jsonResponse?: boolean,
     openaiApiKey?: string
@@ -289,7 +293,7 @@ export class CampaignService {
     return completion.choices[0].message?.content || "";
   }
 
-  private static async generateClaudeEmailContent(
+  public static async generateClaudeEmailContent(
     prompt: string,
     jsonResponse?: boolean,
     anthropicApiKey?: string

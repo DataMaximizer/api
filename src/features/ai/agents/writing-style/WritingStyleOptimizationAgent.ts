@@ -208,90 +208,6 @@ export class WritingStyleOptimizationAgent {
     return matchingStyle || "Short & Direct";
   }
 
-  /**
-   * Uses GPT to write a marketing email.
-   * @param offerId - The ID of the affiliate offer.
-   * @param subscriberId - The subscriber's ID.
-   * @param styleOptions - Optional style configurations
-   * @returns The generated email content.
-   */
-  public async generateEmailMarketing(
-    offerId: string,
-    aiProvider: "openai" | "claude",
-    openaiApiKey: string,
-    anthropicApiKey: string,
-    targetAudience: string,
-    styleOptions: {
-      writingStyle: WritingStyle;
-      copywritingStyle: CopywritingStyle;
-      tone: Tone;
-      personality: Personality;
-    }
-  ): Promise<{
-    content: string;
-    generatedPrompt: string;
-    aiProvider: string;
-    aiModel: string;
-  }> {
-    // Fetch the offer from the AffiliateOffer model.
-    const offer = await AffiliateOffer.findById(offerId);
-    if (!offer) throw new Error("Offer not found");
-
-    // Pass along the personalization message as extra instructions
-    const extraRules = `
-    - Do NOT use placeholders like [Name] or anything similar to refer to the subscriber.
-    - The email must sound **human, authentic, and engaging**, not robotic or overly promotional.
-    - You MUST include the offer URL, which should be inserted as {offer_url} inside the <a> href attribute.
-    - Ensure **1-3 contextual links** to {offer_url} are placed naturally **within the body text**, not at the end.
-    - Use **plain text links**, NOT buttons.
-    - Keep the email **concise and skimmable**
-    — Use **short paragraphs** and **line breaks** where needed.
-    - Use **bold formatting (<b>) sparingly** to highlight key action words, but avoid overuse.
-    - Avoid spam-triggering words like *free*, *guaranteed*, *once-in-a-lifetime*, *risk-free*, etc.
-    - DO NOT include telephone numbers or any contact details—only the offer URL.
-    - DO NOT segment the email by explicitly labeling the framework steps (e.g., "Problem," "Agitate," "Solution").
-    - The **tone should be conversational, engaging, and confident**—avoid sounding overly salesy or pushy.
-    - **Ensure a Flesch Reading Ease score of 80+ (8th-grade reading level)** to maximize engagement and comprehension.
-    - Use **active voice**, avoid excessive adverbs, and write in **plain English**.
-    - Focus on the **benefits and value proposition** rather than just features.
-    - If relevant, **incorporate storytelling or curiosity-building hooks** to draw the reader in.
-    - DO NOT add an email signature at the end, this is VERY important. Avoid ending with "The [Company Name] Team" or anything similar.
-    - The email will be sent to a target audience described as the following. Keep this in mind when writing the email and make sure to tailor it to the audience.
-    - Target audience: ${targetAudience}
-    
-    Your response MUST be in **valid JSON format** with the following keys:
-    - subject: A compelling subject line based on the product description, Tone, Writing Style, and Personality.
-    - body: The body of the email in **HTML format, compliant with email clients (escaped if necessary).**
-
-    Keep in mind that the JSON response will be parsed into a JavaScript object, so make sure to escape any special characters.
-    `;
-
-    const {
-      content,
-      generatedPrompt,
-      aiProvider: aiProviderFromService,
-      aiModel: aiModelFromService,
-    } = await CampaignService.generateEmailContent(
-      offer.productInfo,
-      styleOptions.copywritingStyle,
-      styleOptions.tone,
-      styleOptions.personality,
-      styleOptions.writingStyle,
-      extraRules,
-      true,
-      aiProvider,
-      openaiApiKey,
-      anthropicApiKey
-    );
-
-    return {
-      content,
-      generatedPrompt,
-      aiProvider: aiProviderFromService,
-      aiModel: aiModelFromService,
-    };
-  }
-
   public async generateCampaign(
     campaignData: Pick<
       ICampaign,
@@ -507,13 +423,17 @@ export class WritingStyleOptimizationAgent {
           }
 
           // Generate email content using the provided style options
-          const emailResult = await this.generateEmailMarketing(
-            offerId,
+          const emailResult = await CampaignService.generateEmailContent(
+            offer,
+            styleOptions.copywritingStyle,
+            styleOptions.tone,
+            styleOptions.personality,
+            styleOptions.writingStyle,
+            audience,
+            true,
             aiProvider,
             openAiKey,
-            claudeKey,
-            audience,
-            styleOptions
+            claudeKey
           );
 
           try {
@@ -578,14 +498,19 @@ export class WritingStyleOptimizationAgent {
                 aiProvider === "openai"
                   ? ("claude" as const)
                   : ("openai" as const);
-              const fallbackEmailResult = await this.generateEmailMarketing(
-                offerId,
-                fallbackProvider,
-                openAiKey,
-                claudeKey,
-                audience,
-                styleOptions
-              );
+              const fallbackEmailResult =
+                await CampaignService.generateEmailContent(
+                  offer,
+                  styleOptions.copywritingStyle,
+                  styleOptions.tone,
+                  styleOptions.personality,
+                  styleOptions.writingStyle,
+                  audience,
+                  true,
+                  fallbackProvider,
+                  openAiKey,
+                  claudeKey
+                );
 
               // Parse the fallback content
               const parsedContent = JSON.parse(fallbackEmailResult.content);

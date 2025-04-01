@@ -15,6 +15,7 @@ import smsRoutes from "@features/sms/sms-routes";
 import aiConfigRoutes from "@features/ai/config/ai-config.routes";
 import redirectRoutes from "@features/tracking/redirect.route";
 import analyticsRoutes from "@features/analytics/analytics.routes";
+import promptRoutes from "@features/prompt/prompt.routes";
 
 export {
   authRoutes,
@@ -34,4 +35,5 @@ export {
   aiConfigRoutes,
   redirectRoutes,
   analyticsRoutes,
+  promptRoutes,
 };
