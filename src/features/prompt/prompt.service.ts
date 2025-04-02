@@ -3,6 +3,8 @@ import { CampaignService } from "../campaign/campaign.service";
 import { AffiliateOffer } from "../affiliate/models/affiliate-offer.model";
 import { SubscriberList } from "../subscriber/models/subscriber-list.model";
 import { UserService } from "../user/user.service";
+import { EmailTemplateService } from "../email/templates/email-template.service";
+import { SmtpService } from "../email/smtp/smtp.service";
 export class PromptService {
   /**
    * Get the first prompt from the database, sorted by creation date
@@ -134,13 +136,19 @@ export class PromptService {
       throw new Error("Subscriber list not found");
     }
 
+    const user = await UserService.getUserById(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
     const prompt = await CampaignService.generateEmailPrompt(
       offer,
       styleOptions.copywritingStyle,
       styleOptions.tone,
       styleOptions.personality,
       styleOptions.writingStyle,
-      subscriberList.description
+      subscriberList.description,
+      user.name
     );
 
     const keys = await UserService.getUserApiKeys(userId);
@@ -157,8 +165,26 @@ export class PromptService {
       keys.claudeKey
     );
 
-    const openAIContent = JSON.parse(openAIResult);
-    const claudeContent = JSON.parse(claudeResult);
+    let openAIContent = {
+      subject: "",
+      body: "",
+    };
+    let claudeContent = {
+      subject: "",
+      body: "",
+    };
+
+    try {
+      openAIContent = JSON.parse(openAIResult);
+    } catch (error) {
+      throw new Error("Error parsing OpenAI content");
+    }
+
+    try {
+      claudeContent = JSON.parse(claudeResult);
+    } catch (error) {
+      throw new Error("Error parsing Claude content");
+    }
 
     return {
       openAI: {
@@ -170,6 +196,60 @@ export class PromptService {
         content: claudeContent.body,
       },
       prompt,
+    };
+  }
+
+  static async sendPromptEmail(
+    userId: string,
+    offerId: string,
+    smtpProviderId: string,
+    email: string,
+    emailContent: string,
+    emailSubject: string
+  ) {
+    const offer = await AffiliateOffer.findById(offerId);
+    if (!offer) {
+      throw new Error("Offer not found");
+    }
+
+    const user = await UserService.getUserById(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (!user.address) {
+      throw new Error("User address not found");
+    }
+
+    const replacedContent = emailContent
+      .replace(/{offer_url}/g, offer.url)
+      .replace(/{subscriberName}/g, user.name || "");
+
+    const replacedSubject = emailSubject.replace(
+      /{subscriberName}/g,
+      user.name || ""
+    );
+
+    const emailWithUnsubscribe = EmailTemplateService.addUnsubscribeToTemplate(
+      replacedContent,
+      "",
+      user.companyUrl,
+      user.address,
+      user.companyName
+    );
+
+    await SmtpService.sendEmail({
+      providerId: smtpProviderId,
+      to: email,
+      subject: replacedSubject,
+      html: emailWithUnsubscribe,
+      senderName: "Stellar Soulmate",
+      senderEmail: "info@stellarsoulmate.com",
+    });
+
+    return {
+      success: true,
+      message: "Email sent successfully",
     };
   }
 }

@@ -18,5 +18,11 @@ router.delete(
 );
 
 router.post("/test", authenticate, authorizeAdmin, PromptController.testPrompt);
+router.post(
+  "/send-email",
+  authenticate,
+  authorizeAdmin,
+  PromptController.sendPromptEmail
+);
 
 export default router;

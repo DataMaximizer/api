@@ -109,4 +109,34 @@ export class PromptController {
       res.status(500).json({ message: "Error testing prompt", error });
     }
   }
+
+  static async sendPromptEmail(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { offerId, emailContent, emailSubject, smtpProviderId, email } =
+        req.body;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+      }
+
+      const result = await PromptService.sendPromptEmail(
+        userId,
+        offerId,
+        smtpProviderId,
+        email,
+        emailContent,
+        emailSubject
+      );
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: "Error sending prompt email", error });
+    }
+  }
 }

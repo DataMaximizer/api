@@ -182,7 +182,8 @@ export class CampaignService {
     tone: string,
     personality: string,
     writingStyle: string,
-    targetAudience: string
+    targetAudience: string,
+    subscriberName: string
   ): Promise<string> {
     const prompt = await PromptService.getFirstPrompt();
     if (!prompt) {
@@ -197,6 +198,7 @@ export class CampaignService {
       personality,
       writingStyle,
       targetAudience,
+      subscriberName,
     };
 
     return promptText.replace(
@@ -213,6 +215,7 @@ export class CampaignService {
     personality: string,
     writingStyle: string,
     targetAudience: string,
+    subscriberName: string,
     jsonResponse?: boolean,
     aiProvider: "openai" | "claude" = "openai",
     openaiApiKey?: string,
@@ -237,7 +240,8 @@ export class CampaignService {
       tone,
       personality,
       writingStyle,
-      targetAudience
+      targetAudience,
+      subscriberName
     );
 
     return aiProvider === "openai"
@@ -471,10 +475,10 @@ export class CampaignService {
       offerUrl = offerUrl.replace("{clickId}", click._id as string);
       const replacedContent = emailContent
         .replace(/{offer_url}/g, offerUrl)
-        .replace(/{subscriber_name}/g, subscriber.data?.name || "");
+        .replace(/{subscriberName}/g, subscriber.data?.name || "");
 
       const replacedSubject = subject.replace(
-        /{subscriber_name}/g,
+        /{subscriberName}/g,
         subscriber.data?.name || ""
       );
 
