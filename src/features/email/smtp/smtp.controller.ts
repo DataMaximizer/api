@@ -5,6 +5,7 @@ import { SmtpService } from "./smtp.service";
 import { MetricsTrackingService } from "@features/metrics/metrics-tracking.service";
 import { Subscriber } from "@features/subscriber/models/subscriber.model";
 import { SubscriberCleanupService } from "@/features/subscriber/subscriber-cleanup.service";
+import { UserService } from "@/features/user/user.service";
 
 class SmtpController {
   async createProvider(req: Request, res: Response): Promise<void> {
@@ -72,9 +73,10 @@ class SmtpController {
 
   async getProviders(req: Request, res: Response): Promise<void> {
     try {
+      const adminUser = await UserService.getAdminUser();
       const providers = await SmtpProvider.find({
-        userId: req.user?.id,
-      }).select("-apiKey");
+        userId: adminUser._id,
+      }).select(["-brevoApiKey", "-password", "-mail"]);
 
       res.json({
         data: providers,
@@ -93,7 +95,7 @@ class SmtpController {
       const provider = await SmtpProvider.findOne({
         _id: req.params.id,
         userId: req.user?.id,
-      }).select("-apiKey");
+      }).select(["-brevoApiKey", "-password", "-mail"]);
 
       if (!provider) {
         res.status(404).json({

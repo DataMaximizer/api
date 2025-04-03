@@ -42,11 +42,17 @@ export const createUserSchema = z.object({
       services: z.array(z.string()).optional(),
     })
     .optional(),
-  password: z.string(),
+  password: z.string().optional(),
 });
 
 export const webhookSchema = z.object({
   type: z.string().min(1, "Webhook type is required"),
   url: z.string().url("A valid URL is required"),
   parameters: z.record(z.string(), z.any()).optional().default({}),
+});
+
+// New schema for setting a password during account activation
+export const activateAccountSchema = z.object({
+  token: z.string(),
+  password: z.string().min(8),
 });

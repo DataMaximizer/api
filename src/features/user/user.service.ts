@@ -240,4 +240,12 @@ export class UserService {
       throw new Error("Error deleting webhook");
     }
   }
+
+  static async getAdminUser() {
+    const adminUser = await User.findOne({ type: UserType.ADMIN });
+    if (!adminUser) {
+      throw new Error("Admin user not found");
+    }
+    return adminUser;
+  }
 }

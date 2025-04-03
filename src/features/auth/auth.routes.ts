@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { AuthController } from "@features/auth/auth.controller";
 import { validateRequest } from "@core/middlewares/validation.middleware";
-import { createUserSchema } from "@core/utils/validators/validations/user.validation";
+import {
+  createUserSchema,
+  activateAccountSchema,
+} from "@core/utils/validators/validations/user.validation";
 import { authenticate } from "@core/middlewares/auth.middleware";
 import { AuthService } from "@features/auth/auth.service";
 
@@ -14,7 +17,7 @@ const router = Router();
  *     tags:
  *       - Authentication
  *     summary: Register a new user
- *     description: Create a new user account
+ *     description: Create a new user account and receive activation email
  *     requestBody:
  *       required: true
  *       content:
@@ -23,7 +26,7 @@ const router = Router();
  *             $ref: '#/components/schemas/User'
  *     responses:
  *       201:
- *         description: User successfully registered
+ *         description: User successfully registered, activation email sent
  *         content:
  *           application/json:
  *             schema:
@@ -31,7 +34,7 @@ const router = Router();
  *               properties:
  *                 user:
  *                   $ref: '#/components/schemas/User'
- *                 token:
+ *                 message:
  *                   type: string
  *       400:
  *         description: Invalid input
@@ -43,7 +46,58 @@ const router = Router();
 router.post(
   "/register",
   validateRequest(createUserSchema),
-  AuthController.register,
+  AuthController.register
+);
+
+/**
+ * @openapi
+ * /api/auth/activate:
+ *   post:
+ *     tags:
+ *       - Authentication
+ *     summary: Activate account
+ *     description: Activate account with token received via email and set password
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - password
+ *             properties:
+ *               token:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *     responses:
+ *       200:
+ *         description: Account successfully activated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *                 token:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Invalid token or password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post(
+  "/activate",
+  validateRequest(activateAccountSchema),
+  AuthController.activateAccount
 );
 
 /**

@@ -62,6 +62,7 @@ export interface IUser extends Document {
   companyName: string;
   companyUrl: string;
   password: string;
+  isActive: boolean;
   deletedAt?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
   softDelete(): Promise<IUser>;
@@ -163,6 +164,10 @@ const userSchema = new Schema<IUser>(
     },
     password: {
       type: String,
+    },
+    isActive: {
+      type: Boolean,
+      default: false,
     },
     deletedAt: {
       type: Date,
