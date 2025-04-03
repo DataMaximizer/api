@@ -73,9 +73,8 @@ class SmtpController {
 
   async getProviders(req: Request, res: Response): Promise<void> {
     try {
-      const adminUser = await UserService.getAdminUser();
       const providers = await SmtpProvider.find({
-        userId: adminUser._id,
+        userId: req.user?.id,
       }).select(["-brevoApiKey", "-password", "-mail"]);
 
       res.json({
