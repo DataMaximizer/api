@@ -963,14 +963,19 @@ export class EmailOptimizationOrchestrator {
         </div>
       `;
 
+      const adminProvider = await SmtpService.getAdminProvider();
+      if (!adminProvider) {
+        throw new Error("Admin provider not found");
+      }
+
       // Send email using SmtpService
       await SmtpService.sendEmail({
-        providerId: config.smtpProviderId,
+        providerId: adminProvider._id,
         to: user.email,
         subject,
         html: htmlContent,
         senderName: "Inbox Engine",
-        senderEmail: config.senderEmail,
+        senderEmail: adminProvider.fromEmail,
       });
 
       console.log(`Optimization completion email sent to ${user.email}`);

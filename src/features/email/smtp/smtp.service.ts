@@ -7,6 +7,7 @@ import {
   TransactionalEmailsApi,
   TransactionalEmailsApiApiKeys,
 } from "@getbrevo/brevo";
+import { User, UserType } from "@/features/user/models/user.model";
 
 type BrevoSenderIp = {
   ip: string;
@@ -477,6 +478,22 @@ export class SmtpService {
 
     // Default to soft bounce
     return "soft";
+  }
+
+  public static async getAdminProvider() {
+    const adminUser = await User.findOne({
+      type: UserType.ADMIN,
+    });
+
+    if (!adminUser) {
+      throw new Error("Admin user not found");
+    }
+
+    const provider = await SmtpProvider.findOne({
+      userId: adminUser._id,
+    });
+
+    return provider;
   }
 }
 

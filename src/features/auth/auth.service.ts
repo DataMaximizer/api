@@ -188,13 +188,18 @@ export class AuthService {
         </div>
       `;
 
+      const adminProvider = await SmtpService.getAdminProvider();
+      if (!adminProvider) {
+        throw new Error("Admin provider not found");
+      }
+
       await SmtpService.sendEmail({
-        providerId: smtpProvider._id.toString(),
+        providerId: adminProvider._id.toString(),
         to: user.email,
         subject: "Activate Your Account",
         html: htmlContent,
-        senderName: "Inbox Engine - Account Activation",
-        senderEmail: smtpProvider.fromEmail,
+        senderName: "Inbox Engine",
+        senderEmail: adminProvider.fromEmail,
       });
 
       return true;
