@@ -440,6 +440,15 @@ export class CampaignService {
     }
   }
 
+  static async addSubscriberIdToCampaign(
+    campaignId: string,
+    subscriberId: string
+  ) {
+    await Campaign.findByIdAndUpdate(campaignId, {
+      $push: { subscriberIds: subscriberId },
+    });
+  }
+
   static async sendCampaignEmail(
     offerId: string,
     subscriberId: string,
@@ -510,6 +519,8 @@ export class CampaignService {
       await CampaignService.updateCampaignMetrics(campaignId, "", {
         sent: 1,
       });
+
+      await CampaignService.addSubscriberIdToCampaign(campaignId, subscriberId);
     } catch (error) {
       logger.error("Error sending campaign email:", error);
     }

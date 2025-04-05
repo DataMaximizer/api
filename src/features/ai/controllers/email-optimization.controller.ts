@@ -10,6 +10,7 @@ import { CampaignProcess } from "../models/campaign-process.model";
 import { OptimizationRound } from "../models/optimization-round.model";
 import { SubscriberSegment } from "../models/subscriber-segment.model";
 import { Types } from "mongoose";
+import { EmailOptimizationService } from "../services/email-optimization.service";
 
 export class EmailOptimizationController {
   /**
@@ -523,6 +524,88 @@ export class EmailOptimizationController {
       logger.error("Error fetching optimization tree data:", error);
       res.status(500).json({
         error: "Failed to fetch optimization tree data",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Sends the winning email template to subscribers
+   *
+   * @param req - Express request object with processId and type (byConversionRate or byClickRate)
+   * @param res - Express response object
+   */
+  public static async sendWinningEmail(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+
+      const { processId } = req.params;
+      const {
+        type,
+        subscriberListId,
+        smtpProviderId,
+        senderName,
+        senderEmail,
+      } = req.body;
+
+      if (!processId) {
+        res.status(400).json({ error: "Process ID is required" });
+        return;
+      }
+
+      if (!type || !["byConversionRate", "byClickRate"].includes(type)) {
+        res.status(400).json({
+          error: "Valid type (byConversionRate or byClickRate) is required",
+        });
+        return;
+      }
+
+      if (!subscriberListId || !smtpProviderId || !senderName || !senderEmail) {
+        res.status(400).json({
+          error:
+            "subscriberListId, smtpProviderId, senderName, and senderEmail are required",
+        });
+        return;
+      }
+
+      // Check if the process belongs to the user
+      const process = await CampaignProcess.findOne({
+        _id: processId,
+        userId,
+      });
+
+      if (!process) {
+        res.status(404).json({ error: "Process not found" });
+        return;
+      }
+
+      // Call service to send winning email
+      const result = await EmailOptimizationService.sendWinningEmail(
+        processId,
+        type as "byConversionRate" | "byClickRate",
+        subscriberListId,
+        smtpProviderId,
+        senderName,
+        senderEmail,
+        userId
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Winning email sending process started",
+        result,
+      });
+    } catch (error) {
+      logger.error("Error sending winning email:", error);
+      res.status(500).json({
+        error: "Failed to send winning email",
         message: error instanceof Error ? error.message : String(error),
       });
     }

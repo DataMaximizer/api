@@ -59,4 +59,15 @@ router.get(
   EmailOptimizationController.getOptimizationTree
 );
 
+/**
+ * @route POST /api/ai/email-optimization/send-winning-email/:processId
+ * @desc Send the winning email template to subscribers
+ * @access Private
+ */
+router.post(
+  "/send-winning-email/:processId",
+  authenticate,
+  EmailOptimizationController.sendWinningEmail
+);
+
 export default router;

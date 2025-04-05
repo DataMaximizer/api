@@ -34,6 +34,7 @@ export interface ICampaign extends Document {
   status: CampaignStatus;
   userId: Schema.Types.ObjectId;
   offerId: Schema.Types.ObjectId;
+  subscriberIds: Schema.Types.ObjectId[];
   campaignProcessId?: Schema.Types.ObjectId;
   subject: string;
   content: string;
@@ -59,20 +60,6 @@ export interface ICampaign extends Document {
   updatedAt: Date;
 }
 
-const campaignVariantSchema = new Schema<ICampaignVariant>({
-  subject: String,
-  content: { type: String, required: true },
-  tone: { type: String, required: true },
-  personality: { type: String, required: true },
-  writingStyle: { type: String, required: true },
-  metrics: {
-    opens: { type: Number, default: 0 },
-    clicks: { type: Number, default: 0 },
-    conversions: { type: Number, default: 0 },
-    revenue: { type: Number, default: 0 },
-  },
-});
-
 const campaignSchema = new Schema<ICampaign>(
   {
     name: { type: String, required: true },
@@ -92,6 +79,7 @@ const campaignSchema = new Schema<ICampaign>(
       ref: "AffiliateOffer",
       required: true,
     },
+    subscriberIds: { type: [Schema.Types.ObjectId], ref: "Subscriber" },
     campaignProcessId: {
       type: Schema.Types.ObjectId,
       ref: "CampaignProcess",

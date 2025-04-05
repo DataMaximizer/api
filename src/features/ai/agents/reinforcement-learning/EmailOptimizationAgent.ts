@@ -691,6 +691,7 @@ export class EmailOptimizationAgent {
         offerId: Types.ObjectId;
         offerName: string;
         campaignId: Types.ObjectId;
+        subscriberIds: Types.ObjectId[];
         subject: string;
         content: string;
         conversionRate: number;
@@ -706,6 +707,7 @@ export class EmailOptimizationAgent {
         offerId: Types.ObjectId;
         offerName: string;
         campaignId: Types.ObjectId;
+        subscriberIds: Types.ObjectId[];
         subject: string;
         content: string;
         clickRate: number;
@@ -757,6 +759,7 @@ export class EmailOptimizationAgent {
               offerId: new Types.ObjectId(offerId),
               offerName: bestByConversion.name || "Unnamed Offer",
               campaignId: bestByConversion._id,
+              subscriberIds: bestByConversion.subscriberIds,
               subject: bestByConversion.subject || "",
               content: bestByConversion.content || "",
               conversionRate:
@@ -781,6 +784,7 @@ export class EmailOptimizationAgent {
               offerId: new Types.ObjectId(offerId),
               offerName: bestByClick.name || "Unnamed Offer",
               campaignId: bestByClick._id,
+              subscriberIds: bestByClick.subscriberId,
               subject: bestByClick.subject || "",
               content: bestByClick.content || "",
               clickRate:
