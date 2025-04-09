@@ -75,7 +75,7 @@ class SmtpController {
     try {
       const providers = await SmtpProvider.find({
         userId: req.user?.id,
-      }).select(["-brevoApiKey", "-password", "-mail"]);
+      }).select(["-password", "-mail"]);
 
       res.json({
         data: providers,
