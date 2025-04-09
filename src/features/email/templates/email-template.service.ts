@@ -55,7 +55,11 @@ export class EmailTemplateService {
     address: IAddress,
     companyName: string
   ): string {
-    const unsubscribeLink = this.generateUnsubscribeLink(clickId, websiteUrl);
+    let unsubscribeLink = "";
+    if (websiteUrl) {
+      unsubscribeLink = this.generateUnsubscribeLink(clickId, websiteUrl);
+    }
+
     const unsubscribeText = `
       <br />
       <br />
@@ -64,8 +68,14 @@ export class EmailTemplateService {
       <div style="text-align: center;">
         <p style="font-size: 12px; color: #666;margin:0;">${companyName}</p>
         <p style="font-size: 12px; color: #666;margin:0;">${address.line1}</p>
-        <p style="font-size: 12px; color: #666;margin:0;">${address.city}, ${address.state} - ${address.postalCode}</p>
-        <p style="font-size: 12px; color: #666;margin:0;">If you no longer wish to receive these emails, you can unsubscribe by clicking <a href="${unsubscribeLink}">here</a>.</p>
+        <p style="font-size: 12px; color: #666;margin:0;">${address.city}, ${
+      address.state
+    } - ${address.postalCode}</p>
+        ${
+          unsubscribeLink
+            ? `<p style="font-size: 12px; color: #666;margin:0;">If you no longer wish to receive these emails, you can unsubscribe by clicking <a href="${unsubscribeLink}">here</a>.</p>`
+            : ""
+        }
       </div>
     `;
     return content + unsubscribeText;

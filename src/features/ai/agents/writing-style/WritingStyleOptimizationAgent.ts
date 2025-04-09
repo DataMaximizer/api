@@ -329,7 +329,7 @@ export class WritingStyleOptimizationAgent {
     const user = await User.findById(userId);
     const websiteUrl = user?.companyUrl;
 
-    if (!websiteUrl) {
+    if (websiteUrl === undefined) {
       throw new Error("User website url not found");
     }
 
