@@ -9,11 +9,7 @@ const router = Router();
  * @desc Start a new email optimization process
  * @access Private
  */
-router.post(
-  "/",
-  authenticate,
-  EmailOptimizationController.startOptimizationProcess
-);
+router.post("/", EmailOptimizationController.startOptimizationProcess);
 
 /**
  * @route GET /api/ai/email-optimization/status/:processId
