@@ -507,6 +507,8 @@ export class CampaignService {
           companyName
         );
 
+      await CampaignService.addSubscriberIdToCampaign(campaignId, subscriberId);
+
       await SmtpService.sendEmail({
         providerId: smtpProviderId,
         to: subscriber.email,
@@ -519,8 +521,6 @@ export class CampaignService {
       await CampaignService.updateCampaignMetrics(campaignId, "", {
         sent: 1,
       });
-
-      await CampaignService.addSubscriberIdToCampaign(campaignId, subscriberId);
     } catch (error) {
       logger.error("Error sending campaign email:", error);
     }

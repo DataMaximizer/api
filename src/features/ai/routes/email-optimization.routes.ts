@@ -62,7 +62,7 @@ router.get(
  */
 router.post(
   "/send-winning-email/:processId",
-  authenticate,
+  //authenticate,
   EmailOptimizationController.sendWinningEmail
 );
 

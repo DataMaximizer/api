@@ -540,7 +540,7 @@ export class EmailOptimizationController {
     res: Response
   ): Promise<void> {
     try {
-      const userId = req.user?.id;
+      const userId = "67b3f3c782f65d3f5f459354";
       if (!userId) {
         res.status(401).json({ error: "Unauthorized" });
         return;

@@ -844,6 +844,7 @@ export class EmailOptimizationAgent {
           offerId: Types.ObjectId;
           offerName: string;
           campaignId: Types.ObjectId;
+          subscriberIds: Types.ObjectId[];
           subject: string;
           content: string;
           conversionRate: number;
@@ -862,6 +863,7 @@ export class EmailOptimizationAgent {
           offerId: Types.ObjectId;
           offerName: string;
           campaignId: Types.ObjectId;
+          subscriberIds: Types.ObjectId[];
           subject: string;
           content: string;
           clickRate: number;

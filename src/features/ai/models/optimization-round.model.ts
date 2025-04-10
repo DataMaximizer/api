@@ -55,6 +55,7 @@ export interface IOptimizationRound extends Document {
       offerId: Types.ObjectId;
       offerName: string;
       campaignId: Types.ObjectId;
+      subscriberIds: Types.ObjectId[];
       subject: string;
       content: string;
       conversionRate: number;
@@ -69,6 +70,7 @@ export interface IOptimizationRound extends Document {
       offerId: Types.ObjectId;
       offerName: string;
       campaignId: Types.ObjectId;
+      subscriberIds: Types.ObjectId[];
       subject: string;
       content: string;
       clickRate: number;
