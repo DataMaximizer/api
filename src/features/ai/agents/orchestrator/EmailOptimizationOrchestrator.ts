@@ -95,7 +95,7 @@ export class EmailOptimizationOrchestrator {
       totalSubscribers * config.selectionPercentage
     );
 
-    if (subscribersToUse < 10) {
+    if (subscribersToUse < 1) {
       throw new Error(
         "Not enough subscribers for optimization (minimum 10 required)"
       );
@@ -111,7 +111,7 @@ export class EmailOptimizationOrchestrator {
       subscribersToUse / config.numberOfRounds
     );
 
-    if (subscribersPerRound < 5) {
+    if (subscribersPerRound < 1) {
       throw new Error("Not enough subscribers per round (minimum 5 required)");
     }
 

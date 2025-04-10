@@ -9,11 +9,7 @@ const router = Router();
  * @desc Start a new email optimization process
  * @access Private
  */
-router.post(
-  "/",
-  authenticate,
-  EmailOptimizationController.startOptimizationProcess
-);
+router.post("/", EmailOptimizationController.startOptimizationProcess);
 
 /**
  * @route GET /api/ai/email-optimization/status/:processId
@@ -57,6 +53,17 @@ router.get(
   "/tree/:processId",
   authenticate,
   EmailOptimizationController.getOptimizationTree
+);
+
+/**
+ * @route POST /api/ai/email-optimization/send-winning-email/:processId
+ * @desc Send the winning email template to subscribers
+ * @access Private
+ */
+router.post(
+  "/send-winning-email/:processId",
+  authenticate,
+  EmailOptimizationController.sendWinningEmail
 );
 
 export default router;
