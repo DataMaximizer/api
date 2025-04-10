@@ -95,7 +95,7 @@ export class EmailOptimizationOrchestrator {
       totalSubscribers * config.selectionPercentage
     );
 
-    if (subscribersToUse < 1) {
+    if (subscribersToUse < 10) {
       throw new Error(
         "Not enough subscribers for optimization (minimum 10 required)"
       );
@@ -111,7 +111,7 @@ export class EmailOptimizationOrchestrator {
       subscribersToUse / config.numberOfRounds
     );
 
-    if (subscribersPerRound < 1) {
+    if (subscribersPerRound < 5) {
       throw new Error("Not enough subscribers per round (minimum 5 required)");
     }
 
@@ -137,14 +137,6 @@ export class EmailOptimizationOrchestrator {
         i < config.numberOfRounds - 1
           ? new Date(Date.now() + (i + 1) * config.roundInterval * 60 * 1000)
           : undefined;
-
-      // For testing with short delays, use this instead:
-      // const scheduledStartTime =
-      //   i === 0 ? new Date() : new Date(Date.now() + i * 60 * 1000); // 1 minute between rounds
-      // const nextRoundTime =
-      //   i < config.numberOfRounds - 1
-      //     ? new Date(Date.now() + (i + 1) * 60 * 1000)
-      //     : undefined;
 
       const round = await OptimizationRound.create({
         userId: new Types.ObjectId(config.userId),

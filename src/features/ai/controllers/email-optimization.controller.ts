@@ -24,7 +24,7 @@ export class EmailOptimizationController {
     res: Response
   ): Promise<void> {
     try {
-      const userId = "67b3f3c782f65d3f5f459354";
+      const userId = req.user?.id;
       if (!userId) {
         res.status(401).json({ error: "Unauthorized" });
         return;
@@ -508,6 +508,7 @@ export class EmailOptimizationController {
         status: process.status,
         result: process.result,
         error: process.error,
+        smtpProviderId: process.smtpProviderId,
         aiProvider: process.aiProvider,
         name: process.name,
         notified: process.notified,
@@ -540,7 +541,7 @@ export class EmailOptimizationController {
     res: Response
   ): Promise<void> {
     try {
-      const userId = "67b3f3c782f65d3f5f459354";
+      const userId = req.user?.id;
       if (!userId) {
         res.status(401).json({ error: "Unauthorized" });
         return;
