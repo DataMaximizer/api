@@ -11,7 +11,7 @@ import { OptimizationRound } from "../models/optimization-round.model";
 import { SubscriberSegment } from "../models/subscriber-segment.model";
 import { Types } from "mongoose";
 import { EmailOptimizationService } from "../services/email-optimization.service";
-
+import { Subscriber } from "@features/subscriber/models/subscriber.model";
 export class EmailOptimizationController {
   /**
    * Starts a new email optimization process
@@ -466,6 +466,19 @@ export class EmailOptimizationController {
         {}
       );
 
+      const subscribersMap = new Map<string, string>();
+      const subscriberIds = rounds
+        .flatMap((t) => t.emailsSent)
+        .map((t) => t?.subscriberId);
+
+      const subscribers = await Subscriber.find({
+        _id: { $in: subscriberIds },
+      });
+
+      subscribers.forEach((subscriber) => {
+        subscribersMap.set(subscriber.id.toString(), subscriber.email);
+      });
+
       // Build the hierarchical data structure
       const formattedRounds = rounds.map((round) => {
         const roundId = round._id ? round._id.toString() : "";
@@ -497,7 +510,13 @@ export class EmailOptimizationController {
           bestPerformingEmails: round.bestPerformingEmails,
           modelPerformance: round.modelPerformance,
           metrics: round.metrics,
-          emailsSent: round.emailsSent,
+          emailsSent:
+            round.emailsSent?.map((email) => ({
+              ...email,
+              subscriberEmail: subscribersMap.get(
+                email.subscriberId.toString()
+              ),
+            })) ?? [],
           segments: formattedSegments,
         };
       });

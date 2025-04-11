@@ -23,6 +23,7 @@ import { Anthropic } from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources";
 import { GeneratedContent } from "../url-analysis/url-analysis.service";
 import { aiService } from "../ai/services/ai.service";
+import { Subscriber } from "../subscriber/models/subscriber.model";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -591,5 +592,118 @@ export class AffiliateService {
     }
 
     return responseText;
+  }
+
+  /**
+   * Get offer reports with metrics for each offer.
+   * Sums metrics (sent, opens, clicks, conversions, revenue, unsubscribes) for campaigns related to each offer.
+   * @param userId - User ID to filter offers by
+   * @returns Array of offer reports with metrics
+   */
+  static async getOfferReports(userId: string) {
+    try {
+      // Find all offers for the user
+      const offers = await AffiliateOffer.find({
+        userId,
+      }).lean();
+
+      if (!offers || offers.length === 0) {
+        return [];
+      }
+
+      // Get all offer IDs
+      const offerIds = offers.map((offer) => offer._id);
+
+      // Find all campaigns related to these offers
+      const campaigns = await Campaign.find({
+        offerId: { $in: offerIds },
+      }).lean();
+
+      // Get all campaign IDs to query for unsubscribes
+      const campaignIds = campaigns.map((campaign) => campaign._id);
+
+      // Query subscribers who unsubscribed from these campaigns
+      const unsubscribes = await Subscriber.aggregate([
+        {
+          $match: {
+            "metadata.unsubscribeCampaignId": { $in: campaignIds },
+            status: "unsubscribed",
+          },
+        },
+        {
+          $group: {
+            _id: "$metadata.unsubscribeCampaignId",
+            unsubscribeCount: { $sum: 1 },
+          },
+        },
+      ]);
+
+      // Map campaign IDs to unsubscribe counts
+      const unsubscribeMap = new Map();
+      for (const item of unsubscribes) {
+        unsubscribeMap.set(item._id.toString(), item.unsubscribeCount);
+      }
+
+      // Create a map to group campaigns by offer ID and sum metrics
+      const offerReportsMap = new Map();
+
+      // Initialize offer reports map with all offers
+      for (const offer of offers) {
+        const offerId = offer._id.toString();
+        offerReportsMap.set(offerId, {
+          id: offerId,
+          name: offer.name,
+          description: offer.description,
+          url: offer.url,
+          status: offer.status,
+          categories: offer.categories,
+          tags: offer.tags,
+          commissionRate: offer.commissionRate,
+          createdAt: offer.createdAt,
+          updatedAt: offer.updatedAt,
+          campaignCount: 0,
+          metrics: {
+            totalSent: 0,
+            totalOpens: 0,
+            totalClicks: 0,
+            totalConversions: 0,
+            totalRevenue: 0,
+            totalUnsubscribes: 0,
+          },
+        });
+      }
+
+      // Process each campaign and aggregate metrics by offer
+      for (const campaign of campaigns) {
+        const offerId = campaign.offerId?.toString();
+        const campaignId = campaign._id.toString();
+
+        if (!offerId || !offerReportsMap.has(offerId)) continue;
+
+        const report = offerReportsMap.get(offerId);
+        report.campaignCount += 1;
+
+        // Get unsubscribe count for this campaign
+        const unsubscribeCount = unsubscribeMap.get(campaignId) || 0;
+
+        // Sum metrics if they exist
+        if (campaign.metrics) {
+          report.metrics.totalSent += campaign.metrics.totalSent || 0;
+          report.metrics.totalOpens += campaign.metrics.totalOpens || 0;
+          report.metrics.totalClicks += campaign.metrics.totalClicks || 0;
+          report.metrics.totalConversions +=
+            campaign.metrics.totalConversions || 0;
+          report.metrics.totalRevenue += campaign.metrics.totalRevenue || 0;
+        }
+
+        // Add unsubscribe count to total metrics
+        report.metrics.totalUnsubscribes += unsubscribeCount;
+      }
+
+      return Array.from(offerReportsMap.values());
+    } catch (error) {
+      logger.error("Error getting offer reports:", error);
+      throw error;
+    }
   }
 }

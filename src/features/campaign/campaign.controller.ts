@@ -453,7 +453,8 @@ export class CampaignController {
         req.body.tone,
         req.body.personality,
         req.body.writingStyle,
-        req.body.targetAudience
+        req.body.targetAudience,
+        "{subscriberName}"
       );
 
       res.status(200).json({

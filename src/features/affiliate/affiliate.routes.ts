@@ -59,4 +59,6 @@ router.post(
   (req, res) => AffiliateController.generateOfferFromImage(req, res)
 );
 
+router.get("/offers/report", authenticate, AffiliateController.getOfferReport);
+
 export default router;

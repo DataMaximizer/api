@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { AffiliateService } from "./affiliate.service";
 import { logger } from "@config/logger";
 import { UrlAnalysisService } from "@features/url-analysis/url-analysis.service";
@@ -208,6 +208,24 @@ export class AffiliateController {
         success: false,
         error: "Failed to generate offer from image",
       });
+    }
+  }
+
+  static async getOfferReport(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const reports = await AffiliateService.getOfferReports(
+        req.user?._id as string
+      );
+      res.status(200).json({
+        success: true,
+        data: reports,
+      });
+    } catch (error) {
+      next(error);
     }
   }
 }
