@@ -706,4 +706,178 @@ export class AffiliateService {
       throw error;
     }
   }
+
+  /**
+   * Get offer analytics grouped by writing style, tone, framework, and personality
+   * Calculates metrics to identify which copywriting approaches work best for each offer
+   * @param userId - User ID to filter offers by
+   * @param offerId - Optional offer ID to filter campaigns for a specific offer
+   * @returns Analytics grouped by writing style, tone, framework, and personality
+   */
+  static async getOfferAnalytics(userId: string, offerId?: string) {
+    try {
+      // Find offers based on the query parameters
+      const offerQuery: any = { userId };
+      let offers: any[] = [];
+
+      if (offerId) {
+        offers = await AffiliateOffer.find({
+          _id: offerId,
+          userId,
+        }).lean();
+      } else {
+        offers = await AffiliateOffer.find(offerQuery).lean();
+      }
+
+      if (!offers || offers.length === 0) {
+        return {
+          byWritingStyle: [],
+          byTone: [],
+          byFramework: [],
+          byPersonality: [],
+        };
+      }
+
+      // Get all offer IDs
+      const offerIds = offers.map((offer) => offer._id);
+
+      // Find all campaigns related to these offers
+      const campaignQuery: any = {};
+
+      // If offerId is provided, filter directly by that ID
+      if (offerId) {
+        campaignQuery.offerId = offerId;
+      } else {
+        campaignQuery.offerId = { $in: offerIds };
+      }
+
+      const campaigns = await Campaign.find(campaignQuery).lean();
+
+      if (campaigns.length === 0) {
+        return {
+          byWritingStyle: [],
+          byTone: [],
+          byFramework: [],
+          byPersonality: [],
+        };
+      }
+
+      // Create maps to track analytics
+      const writingStyleAnalytics = new Map();
+      const toneAnalytics = new Map();
+      const frameworkAnalytics = new Map();
+      const personalityAnalytics = new Map();
+
+      // Process each campaign
+      for (const campaign of campaigns) {
+        if (!campaign.offerId) continue;
+
+        // Extract metrics (default to 0 if not present)
+        const clicks = campaign.metrics?.totalClicks || 0;
+        const conversions = campaign.metrics?.totalConversions || 0;
+        const revenue = campaign.metrics?.totalRevenue || 0;
+
+        // Process writing style
+        const writingStyle = campaign.writingStyle || "Unknown";
+        if (!writingStyleAnalytics.has(writingStyle)) {
+          writingStyleAnalytics.set(writingStyle, {
+            writingStyle,
+            totalClicks: 0,
+            totalConversions: 0,
+            totalRevenue: 0,
+            campaignCount: 0,
+          });
+        }
+        const styleStats = writingStyleAnalytics.get(writingStyle);
+        styleStats.totalClicks += clicks;
+        styleStats.totalConversions += conversions;
+        styleStats.totalRevenue += revenue;
+        styleStats.campaignCount += 1;
+
+        // Process tone
+        const tone = campaign.tone || "Unknown";
+        if (!toneAnalytics.has(tone)) {
+          toneAnalytics.set(tone, {
+            tone,
+            totalClicks: 0,
+            totalConversions: 0,
+            totalRevenue: 0,
+            campaignCount: 0,
+          });
+        }
+        const toneStats = toneAnalytics.get(tone);
+        toneStats.totalClicks += clicks;
+        toneStats.totalConversions += conversions;
+        toneStats.totalRevenue += revenue;
+        toneStats.campaignCount += 1;
+
+        // Process framework
+        const framework = campaign.framework || "Unknown";
+        if (!frameworkAnalytics.has(framework)) {
+          frameworkAnalytics.set(framework, {
+            framework,
+            totalClicks: 0,
+            totalConversions: 0,
+            totalRevenue: 0,
+            campaignCount: 0,
+          });
+        }
+        const frameworkStats = frameworkAnalytics.get(framework);
+        frameworkStats.totalClicks += clicks;
+        frameworkStats.totalConversions += conversions;
+        frameworkStats.totalRevenue += revenue;
+        frameworkStats.campaignCount += 1;
+
+        // Process personality
+        const personality = campaign.personality || "Unknown";
+        if (!personalityAnalytics.has(personality)) {
+          personalityAnalytics.set(personality, {
+            personality,
+            totalClicks: 0,
+            totalConversions: 0,
+            totalRevenue: 0,
+            campaignCount: 0,
+          });
+        }
+        const personalityStats = personalityAnalytics.get(personality);
+        personalityStats.totalClicks += clicks;
+        personalityStats.totalConversions += conversions;
+        personalityStats.totalRevenue += revenue;
+        personalityStats.campaignCount += 1;
+      }
+
+      // Helper function to process and sort analytics
+      const processAnalytics = (
+        analyticsMap: Map<
+          string,
+          {
+            totalClicks: number;
+            totalConversions: number;
+            totalRevenue: number;
+            campaignCount: number;
+            [key: string]: any;
+          }
+        >
+      ) => {
+        return Array.from(analyticsMap.values()).sort((a, b) => {
+          // First sort by conversions, then by clicks if conversions are equal
+          if (b.totalConversions === a.totalConversions) {
+            return b.totalClicks - a.totalClicks;
+          }
+          return b.totalConversions - a.totalConversions;
+        });
+      };
+
+      // Return aggregated analytics
+      return {
+        byWritingStyle: processAnalytics(writingStyleAnalytics),
+        byTone: processAnalytics(toneAnalytics),
+        byFramework: processAnalytics(frameworkAnalytics),
+        byPersonality: processAnalytics(personalityAnalytics),
+      };
+    } catch (error) {
+      logger.error("Error getting offer analytics:", error);
+      throw error;
+    }
+  }
 }

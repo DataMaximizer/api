@@ -228,4 +228,24 @@ export class AffiliateController {
       next(error);
     }
   }
+
+  static async getOfferAnalytics(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const offerId = req.query?.offerId as string;
+      const analytics = await AffiliateService.getOfferAnalytics(
+        req.user?._id as string,
+        offerId
+      );
+      res.status(200).json({
+        success: true,
+        data: analytics,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

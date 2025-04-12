@@ -61,4 +61,10 @@ router.post(
 
 router.get("/offers/report", authenticate, AffiliateController.getOfferReport);
 
+router.get(
+  "/offers/analytics",
+  authenticate,
+  AffiliateController.getOfferAnalytics
+);
+
 export default router;

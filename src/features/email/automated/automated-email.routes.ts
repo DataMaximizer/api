@@ -82,11 +82,13 @@ router.post(
 
 router.get("/history", authenticate, async (req, res, next) => {
   try {
-    const campaigns = await AutomatedEmailService.getHistory(req.user!._id as string);
+    const campaigns = await AutomatedEmailService.getHistory(
+      req.user!._id as string
+    );
     res.json({
       data: {
-        campaigns
-      }
+        campaigns,
+      },
     });
   } catch (error) {
     next(error);
