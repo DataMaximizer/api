@@ -10,7 +10,6 @@ import {
 
 import multer from "multer";
 import rateLimit from "express-rate-limit";
-import express from "express";
 
 const router = Router();
 
@@ -82,5 +81,7 @@ const limiter = rateLimit({
   max: 5, // Max 5 requests per IP
 });
 router.post("/webhook/add", limiter, SubscriberController.addWebhookSubscriber);
+
+router.delete("/bulk", authenticate, SubscriberController.deleteSubscribers);
 
 export default router;

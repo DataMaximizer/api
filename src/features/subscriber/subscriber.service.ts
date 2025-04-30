@@ -281,4 +281,37 @@ export class SubscriberService {
       throw error;
     }
   }
+
+  static async deleteSubscribers(userId: string, subscriberIds: string[]): Promise<void> {
+    try {
+      // Convert string IDs to ObjectIds
+      const objectIds = subscriberIds.map(id => new Types.ObjectId(id));
+
+      // Find subscribers to get their list IDs
+      const subscribers = await Subscriber.find({
+        _id: { $in: objectIds },
+        userId: new Types.ObjectId(userId)
+      }).select('lists');
+
+      // Get unique list IDs
+      const listIds = [...new Set(subscribers.flatMap(sub => sub.lists))];
+
+      // Delete subscribers
+      await Subscriber.deleteMany({
+        _id: { $in: objectIds },
+        userId: new Types.ObjectId(userId)
+      });
+
+      // Update subscriber counts in lists
+      if (listIds.length > 0) {
+        await SubscriberList.updateMany(
+          { _id: { $in: listIds } },
+          { $inc: { subscriberCount: -subscriberIds.length } }
+        );
+      }
+    } catch (error) {
+      logger.error("Error deleting subscribers:", error);
+      throw error;
+    }
+  }
 }

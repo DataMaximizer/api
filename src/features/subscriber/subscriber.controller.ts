@@ -463,10 +463,12 @@ export class SubscriberController {
           );
         }
 
+        const actuallyImported = importedCount - existingSubscribersCount;
+
         // Create new subscribers
         await Subscriber.create(uniqueSubscribers);
         await SubscriberList.findByIdAndUpdate(list._id, {
-          subscriberCount: importedCount,
+          subscriberCount: list.subscriberCount + actuallyImported,
         });
       }
 
@@ -834,6 +836,41 @@ export class SubscriberController {
       res.status(400).json({
         success: false,
         error: "Failed to add subscriber via webhook",
+      });
+    }
+  }
+
+  static async deleteSubscribers(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, error: "Unauthorized" });
+        return;
+      }
+
+      const { subscriberIds } = req.body;
+
+      if (!Array.isArray(subscriberIds) || subscriberIds.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: "Subscriber IDs array is required",
+        });
+        return;
+      }
+
+      await SubscriberService.deleteSubscribers(
+        req.user._id.toString(),
+        subscriberIds
+      );
+
+      res.json({
+        success: true,
+        message: "Subscribers deleted successfully",
+      });
+    } catch (error) {
+      logger.error("Error in deleteSubscribers:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to delete subscribers",
       });
     }
   }
