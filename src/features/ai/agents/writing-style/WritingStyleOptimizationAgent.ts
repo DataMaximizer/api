@@ -1,4 +1,4 @@
-import { OPENAI_API_KEY } from "@/local";
+import { OPENAI_API_KEY, OPENAI_API_ASSISTANT_REF } from "@/local";
 import {
   ConversionAnalysisAgent,
   IWritingStylePerformance,
@@ -13,19 +13,15 @@ import {
   CampaignStatus,
   ICampaign,
 } from "@/features/campaign/models/campaign.model";
-import mongoose, { Types } from "mongoose";
+import { Types } from "mongoose";
 import {
   CopywritingStyle,
-  OfferSelectionAgent,
   Personality,
   Tone,
   WritingStyle,
 } from "../offer-selection/OfferSelectionAgent";
-import { BlockedEmail } from "@/features/subscriber/models/blocked-email.model";
 import { IAddress, User } from "@/features/user/models/user.model";
 import { UserService } from "@/features/user/user.service";
-import { SubscriberList } from "@/features/subscriber/models/subscriber-list.model";
-import { CampaignProcess } from "../../models/campaign-process.model";
 import { logger } from "@/config/logger";
 
 export const availableRecommendedStyles = [
@@ -200,8 +196,14 @@ export class WritingStyleOptimizationAgent {
 
   private static async assitantGenerateCompletion(prompt: string, subscriberId: string): Promise<string> {
     try {
-      const threadId = await this.openai.beta.threads.create(subscriberId);
-      const response = await this.openai.beta.threads.messages.create(threadId, prompt);
+      
+      const apiPath = OPENAI_API_ASSISTANT_REF || 'beta.threads';
+    
+      // Dynamically access the API path
+      const threadsApi = apiPath.split('.').reduce((obj: { [x: string]: any; }, path: string) => obj[path], this.openai);
+      
+      const threadId = await threadsApi.create(subscriberId);
+      const response = await threadsApi.messages.create(threadId, prompt);
       if (response.hasOwnProperty("incomplete_details")) {
         logger.warn("OpenAI Assistant failed, incomplete datail:", response.incomplete_details);
         throw new Error("OpenAI Assistant returned incomplete details");
