@@ -34,7 +34,7 @@ export interface IAffiliateOffer extends Document {
   description: string;
   url: string;
   networkId: Schema.Types.ObjectId;
-  categories: string[];
+  categories?: string[];
   tags: string[];
   commissionRate: number;
   status: OfferStatus;
