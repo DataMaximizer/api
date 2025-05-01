@@ -1,4 +1,4 @@
-import { OPENAI_API_KEY, OPENAI_API_ASSISTANT_REF } from "@/local";
+import { OPENAI_API_KEY, OPENAI_ASSISTANT_ID, OPENAI_API_ASSISTANT_REF } from "@/local";
 import {
   ConversionAnalysisAgent,
   IWritingStylePerformance,
@@ -196,20 +196,43 @@ export class WritingStyleOptimizationAgent {
 
   private static async assitantGenerateCompletion(prompt: string, subscriberId: string): Promise<string> {
     try {
-      
+      const assistantId = OPENAI_ASSISTANT_ID;
       const apiPath = OPENAI_API_ASSISTANT_REF || 'beta.threads';
     
       // Dynamically access the API path
       const threadsApi = apiPath.split('.').reduce((obj: { [x: string]: any; }, path: string) => obj[path], this.openai);
       
-      const threadId = await threadsApi.create(subscriberId);
-      const response = await threadsApi.messages.create(threadId, prompt);
-      if (response.hasOwnProperty("incomplete_details")) {
-        logger.warn("OpenAI Assistant failed, incomplete datail:", response.incomplete_details);
-        throw new Error("OpenAI Assistant returned incomplete details");
-      } else {
-        return response.content[0].text.value;
+      const thread = await threadsApi.create(subscriberId);
+      await threadsApi.messages.create(thread.id, prompt);
+      const run = await threadsApi.runs.create(thread.id, {
+        assistant_id: assistantId,
+      });
+
+      let runStatus = run.status;
+      let runError = "";
+      while (runStatus !== "completed" && runStatus !== "failed" && runStatus !== "cancelled") {
+        await new Promise((res) => setTimeout(res, 1000));
+        const updatedRun = await threadsApi.runs.retrieve(thread.id, run.id);
+        runStatus = updatedRun.status;
+        runError = updatedRun.last_error?.message || "";
       }
+
+      if (runStatus === "failed" || runStatus === "cancelled") {
+        logger.error("OpenAI Assistant failed, falling back to Claude", runError);
+        throw new Error("OpenAI Assistant failed, falling back to Claude");
+      }
+
+      const messages = await threadsApi.messages.list(thread.id);
+      const assistantMessage = messages.data.find((msg: { role: string; content: { text: { value: string; }; }; }) => msg.role === "assistant");
+
+      if (!assistantMessage) {
+        throw new Error("No assistant message found.");
+      }
+
+      return assistantMessage.content
+        .map((part: { text: { value: string; }; }) => ("text" in part ? part.text.value : ""))
+        .join("\n")
+        .trim();
     } catch (openaiErr) {
       logger.warn("OpenAI Assistant failed, falling back to Claude:", openaiErr);
       return this.anthropicGenerateCompletion(prompt);
