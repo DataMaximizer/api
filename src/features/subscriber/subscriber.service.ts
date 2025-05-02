@@ -311,7 +311,7 @@ export class SubscriberService {
           });
           await SubscriberList.updateMany(
             { _id: listId },
-            { $inc: { subscriberCount: subscriberCount } }
+            { $set: { subscriberCount: subscriberCount } }
           );
         }
       }

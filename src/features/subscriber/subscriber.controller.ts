@@ -463,8 +463,6 @@ export class SubscriberController {
           );
         }
 
-        const actuallyImported = importedCount - existingSubscribersCount;
-
         // Create new subscribers
         await Subscriber.create(uniqueSubscribers);
 
