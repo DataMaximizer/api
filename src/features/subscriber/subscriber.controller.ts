@@ -467,8 +467,13 @@ export class SubscriberController {
 
         // Create new subscribers
         await Subscriber.create(uniqueSubscribers);
+
+        const subscriberCount = await Subscriber.countDocuments({
+          userId,
+          lists: list._id,
+        });
         await SubscriberList.findByIdAndUpdate(list._id, {
-          subscriberCount: list.subscriberCount + actuallyImported,
+          subscriberCount,
         });
       }
 

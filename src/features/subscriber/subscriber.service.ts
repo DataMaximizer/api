@@ -304,10 +304,16 @@ export class SubscriberService {
 
       // Update subscriber counts in lists
       if (listIds.length > 0) {
-        await SubscriberList.updateMany(
-          { _id: { $in: listIds } },
-          { $inc: { subscriberCount: -subscriberIds.length } }
-        );
+        for (const listId of listIds) {
+          const subscriberCount = await Subscriber.countDocuments({
+            userId: new Types.ObjectId(userId),
+            lists: listId,
+          });
+          await SubscriberList.updateMany(
+            { _id: listId },
+            { $inc: { subscriberCount: subscriberCount } }
+          );
+        }
       }
     } catch (error) {
       logger.error("Error deleting subscribers:", error);
