@@ -1,4 +1,4 @@
-import { OPENAI_API_KEY } from "@/local";
+import { OPENAI_API_KEY, OPENAI_ASSISTANT_ID, OPENAI_API_ASSISTANT_REF } from "@/local";
 import {
   ConversionAnalysisAgent,
   IWritingStylePerformance,
@@ -13,19 +13,16 @@ import {
   CampaignStatus,
   ICampaign,
 } from "@/features/campaign/models/campaign.model";
-import mongoose, { Types } from "mongoose";
+import { Types } from "mongoose";
 import {
   CopywritingStyle,
-  OfferSelectionAgent,
   Personality,
   Tone,
   WritingStyle,
 } from "../offer-selection/OfferSelectionAgent";
-import { BlockedEmail } from "@/features/subscriber/models/blocked-email.model";
 import { IAddress, User } from "@/features/user/models/user.model";
 import { UserService } from "@/features/user/user.service";
-import { SubscriberList } from "@/features/subscriber/models/subscriber-list.model";
-import { CampaignProcess } from "../../models/campaign-process.model";
+import { logger } from "@/config/logger";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -131,7 +128,8 @@ export class WritingStyleOptimizationAgent {
         // Use GPT's recommendation for the best style.
         recommendedStyle =
           await WritingStyleOptimizationAgent.getBestFittingWritingStyle(
-            productDescription
+            productDescription,
+            subscriberId
           );
         personalizationMessage = `INSTRUCTIONS:
 - Compose an email using a "${recommendedStyle}" writing style.
@@ -173,7 +171,8 @@ export class WritingStyleOptimizationAgent {
    * @returns A promise that resolves to the chosen writing style.
    */
   static async getBestFittingWritingStyle(
-    productDescription: string
+    productDescription: string,
+    subscriberId: string
   ): Promise<string> {
     // Build a prompt instructing GPT to choose one of the styles.
     const prompt = `
@@ -185,27 +184,77 @@ export class WritingStyleOptimizationAgent {
       Options: ${availableRecommendedStyles.join(", ")}
     `;
 
-    const completion = await this.openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert marketing copywriter specialized in email campaigns.",
-        },
-        { role: "user", content: prompt },
-      ],
-    });
-
-    // Retrieve the GPT response.
-    const response = completion.choices[0].message?.content || "";
-    const selectedStyle = response.trim();
+    const completion = await this.assitantGenerateCompletion(prompt, subscriberId);
+    const selectedStyle = completion.trim();
 
     // Validate that the returned style is one of the available options.
     const matchingStyle = availableRecommendedStyles.find(
       (style) => style.toLowerCase() === selectedStyle.toLowerCase()
     );
     return matchingStyle || "Short & Direct";
+  }
+
+  private static async assitantGenerateCompletion(prompt: string, subscriberId: string): Promise<string> {
+    try {
+      const assistantId = OPENAI_ASSISTANT_ID;
+      const apiPath = OPENAI_API_ASSISTANT_REF || 'beta.threads';
+    
+      // Dynamically access the API path
+      const threadsApi = apiPath.split('.').reduce((obj: { [x: string]: any; }, path: string) => obj[path], this.openai);
+      
+      const thread = await threadsApi.create(subscriberId);
+      await threadsApi.messages.create(thread.id, prompt);
+      const run = await threadsApi.runs.create(thread.id, {
+        assistant_id: assistantId,
+      });
+
+      let runStatus = run.status;
+      let runError = "";
+      while (runStatus !== "completed" && runStatus !== "failed" && runStatus !== "cancelled") {
+        await new Promise((res) => setTimeout(res, 1000));
+        const updatedRun = await threadsApi.runs.retrieve(thread.id, run.id);
+        runStatus = updatedRun.status;
+        runError = updatedRun.last_error?.message || "";
+      }
+
+      if (runStatus === "failed" || runStatus === "cancelled") {
+        logger.error("OpenAI Assistant failed, falling back to Claude", runError);
+        throw new Error("OpenAI Assistant failed, falling back to Claude");
+      }
+
+      const messages = await threadsApi.messages.list(thread.id);
+      const assistantMessage = messages.data.find((msg: { role: string; content: { text: { value: string; }; }; }) => msg.role === "assistant");
+
+      if (!assistantMessage) {
+        throw new Error("No assistant message found.");
+      }
+
+      return assistantMessage.content
+        .map((part: { text: { value: string; }; }) => ("text" in part ? part.text.value : ""))
+        .join("\n")
+        .trim();
+    } catch (openaiErr) {
+      logger.warn("OpenAI Assistant failed, falling back to Claude:", openaiErr);
+      return this.anthropicGenerateCompletion(prompt);
+    }
+  }
+
+  private static async anthropicGenerateCompletion(prompt: string): Promise<string> {
+    try {
+      const completion = await this.openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert marketing copywriter specialized in email campaigns.",
+          },
+          { role: "user", content: prompt },
+        ],
+      });
+      return completion.choices[0].message?.content || "";
+    } catch (claudeErr) {
+      throw new Error("Both OpenAI Assistant and Claude failed.");
+    }
   }
 
   public async generateCampaign(
@@ -320,7 +369,7 @@ export class WritingStyleOptimizationAgent {
       throw new Error("No active subscribers found in the segment");
     }
 
-    console.log(
+    logger.info(
       `Creating campaigns for ${subscribers.length} subscribers with style:`,
       styleOptions
     );
@@ -361,7 +410,7 @@ export class WritingStyleOptimizationAgent {
       subscriberToOfferMap.set(subscriber.id, offers[offerIndex]);
     });
 
-    console.log(
+    logger.info(
       `Mapped ${subscriberToOfferMap.size} subscribers to ${offers.length} offers`
     );
 
@@ -373,7 +422,7 @@ export class WritingStyleOptimizationAgent {
         offerToSubscribersMap.set(offer.id, []);
       }
 
-      const subscriber = subscribers.find((s) => s.id === subscriberId);
+      const subscriber = subscribers.find((s: { id: string; }) => s.id === subscriberId);
       if (subscriber) {
         offerToSubscribersMap.get(offer.id)!.push(subscriber);
       }
@@ -410,7 +459,7 @@ export class WritingStyleOptimizationAgent {
 
       const batchResults = await Promise.all(
         offerBatch.map(async ([offerId, offerSubscribers]) => {
-          const offer = offers.find((o) => o.id === offerId);
+          const offer = offers.find((o: { id: string; }) => o.id === offerId);
           if (!offer) {
             throw new Error(
               `Offer with ID ${offerId} not found in available offers`
@@ -464,7 +513,7 @@ export class WritingStyleOptimizationAgent {
             );
 
             // Return data for each subscriber assigned to this offer
-            return offerSubscribers.map((subscriber) => ({
+            return offerSubscribers.map((subscriber: { id: any; email: any; }) => ({
               offerId,
               offerName: offer.name,
               offerUrl: offer.url,
@@ -482,14 +531,14 @@ export class WritingStyleOptimizationAgent {
               ...styleOptions,
             }));
           } catch (error: any) {
-            console.error(
+            logger.error(
               `Error parsing email content for offer ${offerId} with ${aiProvider}:`,
               error
             );
 
             // Try with fallback AI provider
             try {
-              console.log(
+              logger.info(
                 `Attempting fallback with ${
                   aiProvider === "openai" ? "claude" : "openai"
                 } for offer ${offerId}`
@@ -540,7 +589,7 @@ export class WritingStyleOptimizationAgent {
               );
 
               // Return data using the fallback provider's content
-              return offerSubscribers.map((subscriber) => ({
+              return offerSubscribers.map((subscriber: { id: any; email: any; }) => ({
                 offerId,
                 offerName: offer.name,
                 offerUrl: offer.url,
@@ -558,7 +607,7 @@ export class WritingStyleOptimizationAgent {
                 ...styleOptions,
               }));
             } catch (fallbackError: any) {
-              console.error(
+              logger.error(
                 `Fallback AI provider also failed for offer ${offerId}. Original error: ${error.message}, Fallback error: ${fallbackError.message}`
               );
               throw new Error(
@@ -569,14 +618,14 @@ export class WritingStyleOptimizationAgent {
         })
       );
 
-      results.push(...batchResults.filter((result) => result.length > 0));
+      results.push(...batchResults.filter((result: string | any[]) => result.length > 0));
     }
 
     // Send emails in batches to avoid overwhelming the system
     const SEND_BATCH_SIZE = 10;
     const allEmails = results.flatMap((r) => r);
 
-    console.log(`Sending ${allEmails.length} emails to subscribers`);
+    logger.info(`Sending ${allEmails.length} emails to subscribers`);
 
     for (let i = 0; i < allEmails.length; i += SEND_BATCH_SIZE) {
       const batch = allEmails.slice(i, i + SEND_BATCH_SIZE);
@@ -608,3 +657,7 @@ export class WritingStyleOptimizationAgent {
     return results;
   }
 }
+function setTimeout(resolve: (value: unknown) => void, arg1: number): void {
+  throw new Error("Function not implemented.");
+}
+
