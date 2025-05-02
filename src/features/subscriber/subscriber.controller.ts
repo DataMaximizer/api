@@ -354,6 +354,17 @@ export class SubscriberController {
               case "countryRegion":
                 subscriberData.data.countryRegion = value;
                 break;
+              case "ip":
+              case "ipAddress":
+              case "ip_address":
+                subscriberData.data.ip = value;
+                break;
+              case "optin":
+              case "opt_in":
+              case "optinVerified":
+              case "optin_verified":
+                subscriberData.data.optInVerified = value;
+                break;
               default:
                 // Handle any custom fields by adding them to the data object
                 if (mapping.mappedField.startsWith("custom_")) {
