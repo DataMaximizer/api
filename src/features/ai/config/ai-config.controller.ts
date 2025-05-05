@@ -342,9 +342,20 @@ export class AIConfigController {
 
       const campaignTracker = CampaignTrackerService.getInstance();
 
+      // Set headers for SSE and CORS
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+      // Handle preflight requests
+      if (req.method === "OPTIONS") {
+        res.status(204).end();
+        return;
+      }
 
       const listener = (update: any) => {
         res.write(
