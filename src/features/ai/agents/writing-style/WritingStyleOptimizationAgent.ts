@@ -214,7 +214,7 @@ export class WritingStyleOptimizationAgent {
       let runStatus = run.status;
       let runError = "";
       while (runStatus !== "completed" && runStatus !== "failed" && runStatus !== "cancelled") {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => global.setTimeout(resolve, 1000));
         const updatedRun = await threadsApi.runs.retrieve(thread.id, run.id);
         runStatus = updatedRun.status;
         runError = updatedRun.last_error?.message || "";
@@ -460,7 +460,7 @@ export class WritingStyleOptimizationAgent {
 
       // Add a small delay between batches to avoid rate limiting
       if (i > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 10000));
+        await new Promise((resolve) => global.setTimeout(resolve, 10000));
       }
 
       const batchResults = await Promise.all(
@@ -656,7 +656,7 @@ export class WritingStyleOptimizationAgent {
 
       // Add a small delay between sending batches
       if (i + SEND_BATCH_SIZE < allEmails.length) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => global.setTimeout(resolve, 1000));
       }
     }
 
@@ -681,8 +681,4 @@ export class WritingStyleOptimizationAgent {
     };
   }
   
-}
-
-function setTimeout(resolve: (value: unknown) => void, arg1: number): void {
-  throw new Error("Function not implemented.");
 }
