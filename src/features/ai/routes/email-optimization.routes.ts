@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { EmailOptimizationController } from "../controllers/email-optimization.controller";
 import { authenticate } from "@core/middlewares/auth.middleware";
+import { AIConfigController } from "../config/ai-config.controller";
 
 const router = Router();
 
@@ -68,6 +69,12 @@ router.post(
   "/send-winning-email/:processId",
   authenticate,
   EmailOptimizationController.sendWinningEmail
+);
+
+router.post(
+  "/test-completion",
+  authenticate,
+  AIConfigController.testCompletion
 );
 
 export default router;
