@@ -214,7 +214,7 @@ export class WritingStyleOptimizationAgent {
       let runStatus = run.status;
       let runError = "";
       while (runStatus !== "completed" && runStatus !== "failed" && runStatus !== "cancelled") {
-        await new Promise((res) => setTimeout(res, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         const updatedRun = await threadsApi.runs.retrieve(thread.id, run.id);
         runStatus = updatedRun.status;
         runError = updatedRun.last_error?.message || "";
@@ -682,6 +682,7 @@ export class WritingStyleOptimizationAgent {
   }
   
 }
+
 function setTimeout(resolve: (value: unknown) => void, arg1: number): void {
   throw new Error("Function not implemented.");
 }
