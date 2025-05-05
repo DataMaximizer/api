@@ -201,10 +201,8 @@ export class WritingStyleOptimizationAgent {
     
       // Dynamically access the API path
       const threadsApi = apiPath.split('.').reduce((obj: { [x: string]: any; }, path: string) => obj[path], this.openai);
-
-      const threadId = subscriberId ? subscriberId : "test";
       
-      const thread = await threadsApi.create(threadId);
+      const thread = await threadsApi.create();
       await threadsApi.messages.create(thread.id, {
         role: "user",
         content: prompt
