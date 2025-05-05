@@ -194,15 +194,17 @@ export class WritingStyleOptimizationAgent {
     return matchingStyle || "Short & Direct";
   }
 
-  private static async assitantGenerateCompletion(prompt: string, subscriberId: string): Promise<string> {
+  private static async assitantGenerateCompletion(prompt: string, subscriberId?: string): Promise<string> {
     try {
       const assistantId = OPENAI_ASSISTANT_ID;
       const apiPath = OPENAI_API_ASSISTANT_REF || 'beta.threads';
     
       // Dynamically access the API path
       const threadsApi = apiPath.split('.').reduce((obj: { [x: string]: any; }, path: string) => obj[path], this.openai);
+
+      const threadId = subscriberId ? subscriberId : "test";
       
-      const thread = await threadsApi.create(subscriberId);
+      const thread = await threadsApi.create(threadId);
       await threadsApi.messages.create(thread.id, prompt);
       const run = await threadsApi.runs.create(thread.id, {
         assistant_id: assistantId,
@@ -235,7 +237,11 @@ export class WritingStyleOptimizationAgent {
         .trim();
     } catch (openaiErr) {
       logger.warn("OpenAI Assistant failed, falling back to Claude:", openaiErr);
-      return this.anthropicGenerateCompletion(prompt);
+      if (subscriberId) {
+        return this.anthropicGenerateCompletion(prompt);
+      }  else { 
+        return "Assistant failed to generate completion";
+      }
     }
   }
 
@@ -656,8 +662,26 @@ export class WritingStyleOptimizationAgent {
 
     return results;
   }
+
+  public static async testCompletion() {
+    const prompt = `
+      Given the following product description:
+      This is a test for a description of a product.
+      
+      Which writing style from the following list best fits the product for a marketing email?
+      Please choose only one exact writing style from the options below and respond with only the style name.
+      Options: ${availableRecommendedStyles.join(", ")}
+    `;
+  
+    const completion = await this.assitantGenerateCompletion(prompt);
+
+    return {
+      success: (completion === "Assistant failed to generate completion")?false:true,
+      response: completion,
+    };
+  }
+  
 }
 function setTimeout(resolve: (value: unknown) => void, arg1: number): void {
   throw new Error("Function not implemented.");
 }
-

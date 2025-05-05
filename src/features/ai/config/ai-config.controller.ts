@@ -361,4 +361,21 @@ export class AIConfigController {
       res.status(401).json({ success: false, error: "Invalid token" });
     }
   }
+
+  static async testCompletion(req: Request, res: Response): Promise<void> {
+    try {
+      const result = await WritingStyleOptimizationAgent.testCompletion();
+      
+      res.status(result.success ? 200 : 500).json({
+        success: result.success,
+        data: result.response,
+      });
+    } catch (error) {
+      logger.error("Error testing LLM Assistant:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred"
+      });
+    }
+  }
 }
