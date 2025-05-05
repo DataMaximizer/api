@@ -325,10 +325,36 @@ export class AIConfigController {
     req: Request,
     res: Response
   ): Promise<void> {
+    // Set CORS headers first, before any response
+    const origin = req.headers.origin;
+    if (origin === "https://app.inboxengine.ai" || origin === "http://localhost:3000") {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      res.setHeader("Access-Control-Expose-Headers", "Content-Type, Authorization");
+    }
+
+    // Handle preflight requests
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+
+    // Set SSE headers before any response
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no"); // Disable proxy buffering
+
+    // Send initial heartbeat to establish connection
+    res.write(": heartbeat\n\n");
+
     try {
       const token = req.query.token as string;
       if (!token) {
-        res.status(401).json({ success: false, error: "No token provided" });
+        res.write(`data: ${JSON.stringify({ type: "error", message: "No token provided" })}\n\n`);
+        res.end();
         return;
       }
 
@@ -336,40 +362,51 @@ export class AIConfigController {
       const userId = decoded.userId;
 
       if (!userId) {
-        res.status(401).json({ success: false, error: "No user ID provided" });
+        res.write(`data: ${JSON.stringify({ type: "error", message: "No user ID provided" })}\n\n`);
+        res.end();
         return;
       }
 
       const campaignTracker = CampaignTrackerService.getInstance();
 
-      // Set headers for SSE and CORS
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
-      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-      res.setHeader("Access-Control-Allow-Credentials", "true");
-      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      // Send initial connection message
+      res.write(`data: ${JSON.stringify({ type: "connected", userId })}\n\n`);
 
-      // Handle preflight requests
-      if (req.method === "OPTIONS") {
-        res.status(204).end();
-        return;
-      }
+      // Set up heartbeat interval
+      const heartbeatInterval = global.setInterval(() => {
+        res.write(": heartbeat\n\n");
+      }, 30000); // Send heartbeat every 30 seconds
 
       const listener = (update: any) => {
-        res.write(
-          `data: ${JSON.stringify({ type: "update", campaign: update })}\n\n`
-        );
+        try {
+          res.write(`data: ${JSON.stringify({ type: "update", campaign: update })}\n\n`);
+        } catch (error) {
+          // Client disconnected or other write error
+          global.clearInterval(heartbeatInterval);
+          campaignTracker.unsubscribeFromUserUpdates(userId, listener);
+        }
       };
 
       campaignTracker.subscribeToUserUpdates(userId, listener);
 
+      // Handle client disconnection
       req.on("close", () => {
+        global.clearInterval(heartbeatInterval);
         campaignTracker.unsubscribeFromUserUpdates(userId, listener);
+        res.end();
       });
+
+      // Handle errors
+      req.on("error", (error: Error) => {
+        logger.error("EventSource error:", error);
+        global.clearInterval(heartbeatInterval);
+        campaignTracker.unsubscribeFromUserUpdates(userId, listener);
+        res.end();
+      });
+
     } catch (error) {
-      res.status(401).json({ success: false, error: "Invalid token" });
+      res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid token" })}\n\n`);
+      res.end();
     }
   }
 
