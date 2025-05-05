@@ -205,7 +205,10 @@ export class WritingStyleOptimizationAgent {
       const threadId = subscriberId ? subscriberId : "test";
       
       const thread = await threadsApi.create(threadId);
-      await threadsApi.messages.create(thread.id, prompt);
+      await threadsApi.messages.create(thread.id, {
+        role: "user",
+        content: prompt
+      });
       const run = await threadsApi.runs.create(thread.id, {
         assistant_id: assistantId,
       });
@@ -220,8 +223,7 @@ export class WritingStyleOptimizationAgent {
       }
 
       if (runStatus === "failed" || runStatus === "cancelled") {
-        logger.error("OpenAI Assistant failed, falling back to Claude", runError);
-        throw new Error("OpenAI Assistant failed, falling back to Claude");
+        logger.error("OpenAI Assistant failed[runStatus]", runStatus);
       }
 
       const messages = await threadsApi.messages.list(thread.id);
@@ -236,7 +238,7 @@ export class WritingStyleOptimizationAgent {
         .join("\n")
         .trim();
     } catch (openaiErr) {
-      logger.warn("OpenAI Assistant failed, falling back to Claude:", openaiErr);
+      logger.warn("OpenAI Assistant failed [catch an error], falling back to Claude:", openaiErr);
       if (subscriberId) {
         return this.anthropicGenerateCompletion(prompt);
       }  else { 
