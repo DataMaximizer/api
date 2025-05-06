@@ -4,6 +4,7 @@ import { Anthropic } from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources";
 import sharp from "sharp";
 import { OpenAIProvider } from "../providers/openai.provider";
+import { ClaudeProvider } from "../providers/claude.provider";
 
 export class AIService {
   /**
@@ -99,7 +100,6 @@ export class AIService {
    */
   async extractTextWithClaude(
     image: Buffer | string,
-    anthropicApiKey: string
   ): Promise<string> {
     try {
       // Convert to buffer for processing if it's not already
@@ -130,38 +130,16 @@ export class AIService {
       const base64Image = compressedImageBuffer.toString("base64");
 
       // Initialize Anthropic client
-      const client = new Anthropic({ apiKey: anthropicApiKey });
+      const client = new ClaudeProvider();
 
       // Create the message with the image
-      const message = await client.messages.create({
-        model: "claude-3-5-sonnet-latest",
-        max_tokens: 1000,
-        system:
-          "You are an OCR system. Your only function is to output the text visible in images. Extract and transcribe all visible text from the provided image. Return only the extracted text without any commentary, explanations, or refusals.",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Please extract and transcribe all visible text from this image. Only return the exact text you see, with no additional commentary or explanations.",
-              },
-              {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: format === "png" ? "image/png" : "image/jpeg",
-                  data: base64Image,
-                },
-              },
-            ],
-          },
-        ],
-      });
 
-      // Extract the text from the response
-      const extractedText = (message.content[0] as TextBlock).text;
-      return extractedText;
+      return await client.extractTextFromImage(
+        "Please extract and transcribe all visible text from this image. Only return the exact text you see, with no additional commentary or explanations.",
+        format,
+        base64Image,
+        "You are an OCR system. Your only function is to output the text visible in images. Extract and transcribe all visible text from the provided image. Return only the extracted text without any commentary, explanations, or refusals."
+      );
     } catch (error: any) {
       console.error("Error extracting text with Claude:", error);
 

@@ -9,11 +9,8 @@ export interface MessageContent {
 }
 
 export class OpenAIProvider {
-  private static instance: OpenAIProvider;
   private openai: OpenAI;
   private readonly defaultModel = 'gpt-4-turbo-preview';
-  private readonly defaultAssistantModel = 'gpt-4-turbo-preview';
-  private readonly defaultVisionModel = 'gpt-4-vision-preview';
 
   public constructor(user?: IUser) {
     this.openai = new OpenAI({
@@ -92,14 +89,14 @@ export class OpenAIProvider {
    * Extract text from image using OpenAI Vision
    */
   public async extractTextFromImage(
-    text: string,
+    prompt: string,
     imageUrl: string,
   ): Promise<string> {
     try {
       return await this.runMessage({
         role: 'user',
         content: [
-          { type: 'text', text: text },
+          { type: 'text', text: prompt },
           { type: 'image_url', image_url: { url: imageUrl } }
         ]
       }, 1000);
@@ -133,46 +130,6 @@ export class OpenAIProvider {
       );
     } catch (error) {
       logger.error('OpenAI email generation error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Generate writing style recommendations using OpenAI
-   */
-  public async generateWritingStyleRecommendations(
-    prompt: string,
-    options: {
-      model?: string;
-      temperature?: number;
-      maxTokens?: number;
-      user?: IUser;
-    } = {}
-  ): Promise<string> {
-    try {
-      if (options.user) {
-        this.initializeWithUserKey(options.user);
-      }
-
-      const response = await this.openai.chat.completions.create({
-        model: options.model || this.defaultModel,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert in email marketing and writing style optimization. Provide specific, actionable recommendations to improve email content.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: options.temperature || 0.7,
-        max_tokens: options.maxTokens || 1000,
-      });
-
-      return response.choices[0]?.message?.content || '';
-    } catch (error) {
-      logger.error('OpenAI writing style recommendations error:', error);
       throw error;
     }
   }
