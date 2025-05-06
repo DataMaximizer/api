@@ -21,7 +21,7 @@ import {
 import { IAddress, User } from "@/features/user/models/user.model";
 import { UserService } from "@/features/user/user.service";
 import { logger } from "@/config/logger";
-import { OpenAIProvider } from "../../providers/openai.provider";
+import { FallbackAiProvider } from "../../providers/fallback.provider";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -176,8 +176,8 @@ export class WritingStyleOptimizationAgent {
       Options: ${availableRecommendedStyles.join(", ")}
     `;
 
-    const openaiProvider = new OpenAIProvider();
-    const selectedStyle = await openaiProvider.generateCompletion(prompt);
+    const aiclient = new FallbackAiProvider({});
+    const selectedStyle = await aiclient.generateCompletion(prompt);
 
     // Validate that the returned style is one of the available options.
     const matchingStyle = availableRecommendedStyles.find(
@@ -595,8 +595,8 @@ export class WritingStyleOptimizationAgent {
       Please choose only one exact writing style from the options below and respond with only the style name.
       Options: ${availableRecommendedStyles.join(", ")}
     `;
-    const openaiProvider = new OpenAIProvider();
-    const completion = await openaiProvider.generateCompletion(prompt);
+    const aiclient = new FallbackAiProvider({});
+    const completion = await aiclient.generateCompletion(prompt);
 
     return {
       success: (completion === "Assistant failed to generate completion")?false:true,

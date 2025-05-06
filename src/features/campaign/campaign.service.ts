@@ -1,4 +1,3 @@
-import OpenAI from "openai";
 import {
   Campaign,
   ICampaign,
@@ -8,16 +7,14 @@ import {
 import { logger } from "@config/logger";
 import { EmailTemplateService } from "@features/email/templates/email-template.service";
 import { SmtpService } from "@features/email/smtp/smtp.service";
-import { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 import { Click } from "../tracking/models/click.model";
 import { AffiliateOffer } from "../affiliate/models/affiliate-offer.model";
 import { Subscriber } from "../subscriber/models/subscriber.model";
 import { IAddress } from "../user/models/user.model";
-import { Anthropic } from "@anthropic-ai/sdk";
-import { TextBlock } from "@anthropic-ai/sdk/resources";
 import { CampaignProcess } from "../ai/models/campaign-process.model";
 import { PromptService } from "../prompt/prompt.service";
 import { OpenAIProvider } from "../ai/providers/openai.provider";
+import { FallbackAiProvider } from "../ai/providers/fallback.provider";
 
 const COPYWRITING_FRAMEWORKS = [
   "PAS (Problem-Agitate-Solution)",
@@ -245,11 +242,14 @@ export class CampaignService {
       subscriberName
     );
 
-    const openaiProvider = new OpenAIProvider();
+    const aiclient = new FallbackAiProvider({
+      openaiKey: openaiApiKey,
+      claudeKey: anthropicApiKey,
+    });
     const systemPrompt = "You are an expert email copywriter. Generate engaging, persuasive email content that drives action.";
 
     return {
-      content: await openaiProvider.generateSystemPromptContent(
+      content: await aiclient.generateSystemPromptContent(
         systemPrompt,
         prompt,
         jsonResponse,
@@ -285,7 +285,10 @@ export class CampaignService {
       4. Make it relevant to the content
     `;
 
-    const openaiProvider = new OpenAIProvider();
+    const openaiProvider = new FallbackAiProvider({
+      openaiKey: openaiApiKey,
+      claudeKey: anthropicApiKey,
+    });
     const systemPrompt = "You are an expert in writing email subject lines that maximize open rates.";
 
     return await openaiProvider.generateSystemPromptContent(systemPrompt, prompt);
@@ -442,10 +445,12 @@ export class CampaignService {
       3. Keep it concise and engaging
       4. Focus on the specific instructions provided
     `;
-    const openaiProvider = new OpenAIProvider();
+    const aiclient = new FallbackAiProvider({
+      openaiKey: openaiApiKey,
+    });
     const systemPrompt = "You are an expert email copywriter skilled at following specific instructions while maintaining consistent tone and style.";
 
-    return await openaiProvider.generateSystemPromptContent(systemPrompt, prompt);
+    return await aiclient.generateSystemPromptContent(systemPrompt, prompt);
   }
 
   static async processCampaignSchedule(campaign: ICampaign): Promise<void> {

@@ -1,10 +1,9 @@
-import OpenAI from "openai";
 import {
   IAffiliateOffer,
   IProductInfo,
 } from "@features/affiliate/models/affiliate-offer.model";
 import { logger } from "@config/logger";
-import { OPENAI_API_KEY } from "@/local";
+import { FallbackAiProvider } from "@/features/ai/providers/fallback.provider";
 
 const CATEGORY_HIERARCHY = {
   electronics: {
@@ -57,10 +56,6 @@ interface EnhancedContent {
 }
 
 export class OfferEnhancementService {
-  private static readonly openai = new OpenAI({
-    apiKey: OPENAI_API_KEY,
-  });
-
   static async enhanceOfferDescription(
     offer: Partial<IAffiliateOffer>,
   ): Promise<Partial<IAffiliateOffer>> {
@@ -115,20 +110,13 @@ export class OfferEnhancementService {
       Format the response in JSON structure.
     `;
 
-    const completion = await this.openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an e-commerce marketing expert specializing in product descriptions and categorization.",
-        },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-    });
+    const aiclient = new FallbackAiProvider({});
 
-    const response = JSON.parse(completion.choices[0].message?.content || "{}");
+    const response = JSON.parse(await aiclient.generateSystemPromptContent(
+      "You are an e-commerce marketing expert specializing in product descriptions and categorization.",
+      prompt,
+      true
+    )) || {};
 
     return {
       description: response.description || offer.description || "",
@@ -153,20 +141,13 @@ export class OfferEnhancementService {
       Return only the category names as a JSON array of strings.
     `;
 
-    const completion = await this.openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a product categorization expert. Return only the requested category names as a JSON array.",
-        },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-    });
+    const aiclient = new FallbackAiProvider({});
+    const response = JSON.parse(await aiclient.generateSystemPromptContent(
+      "You are a product categorization expert. Return only the requested category names as a JSON array.",
+      prompt,
+      true
+    )) || [];
 
-    const response = JSON.parse(completion.choices[0].message?.content || "[]");
     return response.categories || [];
   }
 

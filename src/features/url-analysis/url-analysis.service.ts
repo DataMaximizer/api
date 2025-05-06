@@ -1,4 +1,3 @@
-import OpenAI from "openai";
 import axios from "axios";
 import { load } from "cheerio";
 import {
@@ -9,12 +8,9 @@ import {
 } from "@features/affiliate/models/affiliate-offer.model";
 import { logger } from "@config/logger";
 import { Types } from "mongoose";
-import { Anthropic } from "@anthropic-ai/sdk";
-import { TextBlock } from "@anthropic-ai/sdk/resources";
 
 import { PREDEFINED_CATEGORIES } from "@features/shared/constants/categories";
-
-import { OPENAI_API_KEY } from "@/local";
+import { FallbackAiProvider } from "../ai/providers/fallback.provider";
 
 interface ScrapedData {
   title: string;
@@ -34,10 +30,6 @@ export interface GeneratedContent {
   categories: string[];
   tags: string[];
 }
-
-const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY,
-});
 
 const predefinedCategories = PREDEFINED_CATEGORIES;
 
@@ -183,41 +175,13 @@ export class UrlAnalysisService {
     `;
 
     try {
-      const apiKey = anthropicApiKey;
+      const aiclient = new FallbackAiProvider({ claudeKey: anthropicApiKey });
 
-      if (!apiKey) {
-        throw new Error("Anthropic API key is required");
-      }
-
-      const anthropic = new Anthropic({
-        apiKey: apiKey,
-      });
-
-      const message = await anthropic.messages.create({
-        model: "claude-3-7-sonnet-latest",
-        max_tokens: 2000,
-        system:
-          "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      });
-
-      // Extract the text content from the response
-      const messageContent = message.content[0] as TextBlock;
-      let responseText = messageContent.text;
-
-      // Clean up JSON response if needed
-      if (responseText.startsWith("```json")) {
-        responseText = responseText
-          .replace(/```json\n/, "")
-          .replace(/\n```$/, "");
-      }
-
-      const content = JSON.parse(responseText) as GeneratedContent;
+      const content = JSON.parse(await aiclient.generateSystemPromptContent(
+        "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
+        prompt,
+        true
+      )) as GeneratedContent;
 
       const requiredFields: (keyof GeneratedContent)[] = [
         "name",

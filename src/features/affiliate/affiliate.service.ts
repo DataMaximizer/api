@@ -1,5 +1,4 @@
 import axios from "axios";
-import OpenAI from "openai";
 import { FilterQuery, QueryOptions, Types } from "mongoose";
 import {
   AffiliateOffer,
@@ -19,17 +18,10 @@ import {
 } from "../comission/models/commission.model";
 import { LinkValidation } from "../url-analysis/models/link-validation.model";
 import { PREDEFINED_CATEGORIES } from "../shared/constants/categories";
-import { Anthropic } from "@anthropic-ai/sdk";
-import { TextBlock } from "@anthropic-ai/sdk/resources";
 import { GeneratedContent } from "../url-analysis/url-analysis.service";
 import { aiService } from "../ai/services/ai.service";
 import { Subscriber } from "../subscriber/models/subscriber.model";
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY,
-});
+import { FallbackAiProvider } from "../ai/providers/fallback.provider";
 
 export class AffiliateService {
   private static CACHE_TTL = 3600; // 1 hour
@@ -178,20 +170,12 @@ export class AffiliateService {
         Categories: [category1, category2, category3]
       `;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a product analysis expert. Provide concise, accurate information focused on key selling points and target audience.",
-          },
-          { role: "user", content: prompt },
-        ],
-      });
+      const aiclient = new FallbackAiProvider({});
 
-      const result = completion.choices[0].message?.content;
-      if (!result) throw new Error("No response from OpenAI");
+      const result = await aiclient.generateSystemPromptContent(
+        "You are a product analysis expert. Provide concise, accurate information focused on key selling points and target audience.",
+        prompt
+      );
 
       const sections = result.split("\n\n");
       const benefitsSection =
@@ -247,19 +231,14 @@ export class AffiliateService {
         5. Keep it concise and relevant
       `;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a product tagging expert. Return only the requested tags, nothing else.",
-          },
-          { role: "user", content: prompt },
-        ],
-      });
+      const aiclient = new FallbackAiProvider({});
 
-      const tags = completion.choices[0].message?.content?.split(",") || [];
+      const completion = await aiclient.generateSystemPromptContent(
+        "You are a product tagging expert. Return only the requested tags, nothing else.",
+        prompt
+      );
+
+      const tags = completion.split(",") || [];
       return tags
         .map((tag: string) => tag.trim().toLowerCase())
         .filter((tag: string) => tag.length > 0)
@@ -299,25 +278,24 @@ export class AffiliateService {
     options: QueryOptions = {}
   ) {
     try {
-      console.log("📥 Getting offers with filters:", JSON.stringify(filters));
-      console.log("⚙️ Query options:", JSON.stringify(options));
+      logger.info("📥 Getting offers with filters:", JSON.stringify(filters));
+      logger.info("⚙️ Query options:", JSON.stringify(options));
 
       const offers = await AffiliateOffer.find(filters, null, options)
         .populate("networkId", "name")
         .exec();
-      console.log(`📝 Found ${offers.length} offers in database`);
+      logger.info(`📝 Found ${offers.length} offers in database`);
 
       return offers;
     } catch (error) {
       logger.error("Error in getOffers:", error);
-      console.error("❌ Error getting offers:", error);
       throw error;
     }
   }
 
   static async getOfferById(id: string) {
     try {
-      console.log("🔍 Getting offer by ID:", id);
+      logger.info("🔍 Getting offer by ID:", id);
 
       const cacheKey = CacheService.generateKey(`${this.CACHE_PREFIX}:single`, {
         id,
@@ -325,19 +303,19 @@ export class AffiliateService {
       const cachedOffer = await CacheService.get<IAffiliateOffer>(cacheKey);
 
       if (cachedOffer) {
-        console.log("✅ Retrieved offer from cache:", cachedOffer._id);
+        logger.info("✅ Retrieved offer from cache:", cachedOffer._id);
         logger.debug("Returning cached offer");
         return cachedOffer;
       }
 
-      console.log("🔄 Cache miss - fetching from database");
+      logger.info("🔄 Cache miss - fetching from database");
       const offer = await AffiliateOffer.findById(id);
 
       if (offer) {
-        console.log("📝 Found offer in database:", offer._id);
+        logger.info("📝 Found offer in database:", offer._id);
         await CacheService.set(cacheKey, offer, this.CACHE_TTL);
       } else {
-        console.log("⚠️ No offer found with ID:", id);
+        logger.info("⚠️ No offer found with ID:", id);
       }
 
       return offer;
@@ -526,72 +504,15 @@ export class AffiliateService {
       }
     `;
 
-    const response =
-      aiProvider === "openai"
-        ? await this.processWithOpenAI(prompt, openaiApiKey)
-        : await this.processWithClaude(prompt, anthropicApiKey);
+    const aiclient = new FallbackAiProvider({});
+
+    const response = await aiclient.generateSystemPromptContent(
+      "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
+      prompt,
+      true
+    );
 
     return JSON.parse(response) as GeneratedContent;
-  }
-
-  private async processWithOpenAI(
-    prompt: string,
-    openaiApiKey?: string
-  ): Promise<string> {
-    if (!openaiApiKey) {
-      throw new Error("OpenAI API key is required");
-    }
-
-    const client = new OpenAI({ apiKey: openaiApiKey });
-    const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
-        },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-    });
-
-    return completion.choices[0].message?.content || "";
-  }
-
-  private async processWithClaude(
-    prompt: string,
-    anthropicApiKey?: string
-  ): Promise<string> {
-    if (!anthropicApiKey) {
-      throw new Error("Anthropic API key is required");
-    }
-
-    const client = new Anthropic({ apiKey: anthropicApiKey });
-    const message = await client.messages.create({
-      model: "claude-3-7-sonnet-latest",
-      max_tokens: 1000,
-      system:
-        "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    });
-
-    const messageContent = message.content[0] as TextBlock;
-    let responseText = messageContent.text;
-
-    // Clean up JSON response if needed
-    if (responseText.startsWith("```json")) {
-      responseText = responseText
-        .replace(/```json\n/, "")
-        .replace(/\n```$/, "");
-    }
-
-    return responseText;
   }
 
   /**
