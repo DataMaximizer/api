@@ -1,9 +1,9 @@
 import Tesseract, { createWorker, PSM } from "tesseract.js";
 import axios from "axios";
-import OpenAI from "openai";
 import { Anthropic } from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources";
 import sharp from "sharp";
+import { OpenAIProvider } from "../providers/openai.provider";
 
 export class AIService {
   /**
@@ -82,33 +82,9 @@ export class AIService {
           ? base64Image // URL or data URL
           : `data:image/jpeg;base64,${base64Image}`; // Base64
 
-      // Use OpenAI client library instead of axios
-      const client = new OpenAI({ apiKey: openAiKey });
-      const completion = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Extract all text from this image. Return only the extracted text without any additional commentary.",
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: content,
-                  detail: "low",
-                },
-              },
-            ],
-          },
-        ],
-        max_tokens: 1000,
-      });
-
-      // Extract and return the text from the response
-      return completion.choices[0].message?.content?.trim() || "";
+      const openaiProvider = new OpenAIProvider();
+      const prompt = "Extract all text from this image. Return only the extracted text without any additional commentary.";
+      return await openaiProvider.extractTextFromImage(prompt, content) || "";
     } catch (error) {
       console.error("Error extracting text with OpenAI:", error);
       throw new Error("Failed to extract text with OpenAI");

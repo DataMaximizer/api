@@ -1,10 +1,8 @@
-import { OPENAI_API_KEY, OPENAI_ASSISTANT_ID, OPENAI_API_ASSISTANT_REF } from "@/local";
 import {
   ConversionAnalysisAgent,
   IWritingStylePerformance,
 } from "../conversion-analysis/ConversionAnalysisAgent";
 import { Subscriber } from "@features/subscriber/models/subscriber.model";
-import OpenAI from "openai";
 import { AffiliateOffer } from "@/features/affiliate/models/affiliate-offer.model";
 import { CampaignService } from "@/features/campaign/campaign.service";
 import {
@@ -23,6 +21,7 @@ import {
 import { IAddress, User } from "@/features/user/models/user.model";
 import { UserService } from "@/features/user/user.service";
 import { logger } from "@/config/logger";
+import { OpenAIProvider } from "../../providers/openai.provider";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -45,9 +44,6 @@ export interface IOptimizedWritingStyleResult {
 
 export class WritingStyleOptimizationAgent {
   private conversionAgent: ConversionAnalysisAgent;
-  private static openai = new OpenAI({
-    apiKey: OPENAI_API_KEY,
-  });
 
   constructor() {
     this.conversionAgent = new ConversionAnalysisAgent();
@@ -127,10 +123,7 @@ export class WritingStyleOptimizationAgent {
         // Case 2: performance exists but the first record conversion rate is lower than threshold.
         // Use GPT's recommendation for the best style.
         recommendedStyle =
-          await WritingStyleOptimizationAgent.getBestFittingWritingStyle(
-            productDescription,
-            subscriberId
-          );
+          await WritingStyleOptimizationAgent.getBestFittingWritingStyle(productDescription);
         personalizationMessage = `INSTRUCTIONS:
 - Compose an email using a "${recommendedStyle}" writing style.
 `;
@@ -172,7 +165,6 @@ export class WritingStyleOptimizationAgent {
    */
   static async getBestFittingWritingStyle(
     productDescription: string,
-    subscriberId: string
   ): Promise<string> {
     // Build a prompt instructing GPT to choose one of the styles.
     const prompt = `
@@ -184,83 +176,14 @@ export class WritingStyleOptimizationAgent {
       Options: ${availableRecommendedStyles.join(", ")}
     `;
 
-    const completion = await this.assitantGenerateCompletion(prompt, subscriberId);
-    const selectedStyle = completion.trim();
+    const openaiProvider = new OpenAIProvider();
+    const selectedStyle = await openaiProvider.generateCompletion(prompt);
 
     // Validate that the returned style is one of the available options.
     const matchingStyle = availableRecommendedStyles.find(
       (style) => style.toLowerCase() === selectedStyle.toLowerCase()
     );
     return matchingStyle || "Short & Direct";
-  }
-
-  private static async assitantGenerateCompletion(prompt: string, subscriberId?: string): Promise<string> {
-    try {
-      const assistantId = OPENAI_ASSISTANT_ID;
-      const apiPath = OPENAI_API_ASSISTANT_REF || 'beta.threads';
-    
-      // Dynamically access the API path
-      const threadsApi = apiPath.split('.').reduce((obj: { [x: string]: any; }, path: string) => obj[path], this.openai);
-      
-      const thread = await threadsApi.create();
-      await threadsApi.messages.create(thread.id, {
-        role: "user",
-        content: prompt
-      });
-      const run = await threadsApi.runs.create(thread.id, {
-        assistant_id: assistantId,
-      });
-
-      let runStatus = run.status;
-      let runError = "";
-      while (runStatus !== "completed" && runStatus !== "failed" && runStatus !== "cancelled") {
-        await new Promise(resolve => global.setTimeout(resolve, 1000));
-        const updatedRun = await threadsApi.runs.retrieve(thread.id, run.id);
-        runStatus = updatedRun.status;
-        runError = updatedRun.last_error?.message || "";
-      }
-
-      if (runStatus === "failed" || runStatus === "cancelled") {
-        logger.error("OpenAI Assistant failed[runStatus]", runStatus);
-      }
-
-      const messages = await threadsApi.messages.list(thread.id);
-      const assistantMessage = messages.data.find((msg: { role: string; content: { text: { value: string; }; }; }) => msg.role === "assistant");
-
-      if (!assistantMessage) {
-        throw new Error("No assistant message found.");
-      }
-
-      return assistantMessage.content
-        .map((part: { text: { value: string; }; }) => ("text" in part ? part.text.value : ""))
-        .join("\n")
-        .trim();
-    } catch (openaiErr) {
-      logger.warn("OpenAI Assistant failed [catch an error], falling back to Claude:", openaiErr);
-      if (subscriberId) {
-        return this.anthropicGenerateCompletion(prompt);
-      }  else { 
-        return "Assistant failed to generate completion";
-      }
-    }
-  }
-
-  private static async anthropicGenerateCompletion(prompt: string): Promise<string> {
-    try {
-      const completion = await this.openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert marketing copywriter specialized in email campaigns.",
-          },
-          { role: "user", content: prompt },
-        ],
-      });
-      return completion.choices[0].message?.content || "";
-    } catch (claudeErr) {
-      throw new Error("Both OpenAI Assistant and Claude failed.");
-    }
   }
 
   public async generateCampaign(
@@ -672,8 +595,8 @@ export class WritingStyleOptimizationAgent {
       Please choose only one exact writing style from the options below and respond with only the style name.
       Options: ${availableRecommendedStyles.join(", ")}
     `;
-  
-    const completion = await this.assitantGenerateCompletion(prompt);
+    const openaiProvider = new OpenAIProvider();
+    const completion = await openaiProvider.generateCompletion(prompt);
 
     return {
       success: (completion === "Assistant failed to generate completion")?false:true,
