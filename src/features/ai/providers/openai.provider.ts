@@ -12,18 +12,24 @@ export class OpenAIProvider {
   private openai: OpenAI;
   private readonly defaultModel = 'gpt-4-turbo-preview';
 
-  public constructor(user?: IUser) {
-    this.openai = new OpenAI({
-      apiKey: OPENAI_API_KEY
-    });
-
+  public constructor(user?: IUser, key?: string) {
     if (user) {
       if (user.openAiKey) {
         this.openai = new OpenAI({
           apiKey: user.openAiKey
         });
       }
+    } else {
+      if (key) {
+        this.openai = new OpenAI({
+          apiKey: key
+        });
+      }
     }
+
+    this.openai = new OpenAI({
+      apiKey: OPENAI_API_KEY
+    });
   }
 
   private async runMessage(content: MessageContent | MessageContent[], maxToken?: number, temperature?: number, jsonResponse?: boolean) {

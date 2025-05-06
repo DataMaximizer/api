@@ -19,16 +19,22 @@ export interface ClaudeContent {
 export class ClaudeProvider {
   private claude: Claude;
 
-  public constructor(user?: IUser) {
-    this.claude = new Anthropic({ apiKey: CLAUDE_API_KEY });
-
+  public constructor(user?: IUser, key?: string) {
     if (user) {
       if (user.claudeKey) {
         this.claude = new Anthropic({
           apiKey: user.claudeKey
         });
       }
+    } else {
+      if (key) {
+        this.claude = new Anthropic({
+          apiKey: key
+        });
+      }
     }
+
+    this.claude = new Anthropic({ apiKey: CLAUDE_API_KEY });
   }
 
   private async runMessage(

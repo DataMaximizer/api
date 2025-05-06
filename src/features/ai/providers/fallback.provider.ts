@@ -1,12 +1,16 @@
+import { IUser } from "@/features/user/models/user.model";
 import { AIInterface } from "../interfaces/ai.interface";
-import { ClaudeProvider } from "./claude.provider";
-import { OpenAIProvider } from "./openai.provider";
+import { type ClaudeProvider as ClaudeProviderType, ClaudeProvider } from "./claude.provider";
+import { type OpenAIProvider as OpenAIProviderType, OpenAIProvider } from "./openai.provider";
 
 export class FallbackAiProvider implements AIInterface {
-  constructor(
-    private primary: OpenAIProvider,
-    private fallback: ClaudeProvider
-  ) {}
+  private primary: OpenAIProviderType;
+  private fallback: ClaudeProviderType;
+
+  constructor(user?: IUser, openaiKey?: string, claudeKey?: string) {
+    this.primary = new OpenAIProvider(user, openaiKey);
+    this.fallback = new ClaudeProvider(user, claudeKey);
+  }
 
   async generateCompletion(prompt: string): Promise<string> {
     try {
