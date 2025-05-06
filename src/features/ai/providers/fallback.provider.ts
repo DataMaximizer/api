@@ -7,7 +7,7 @@ export class FallbackAiProvider implements AIInterface {
   private primary: OpenAIProviderType;
   private fallback: ClaudeProviderType;
 
-  constructor(user?: IUser, openaiKey?: string, claudeKey?: string) {
+  constructor({ user, openaiKey, claudeKey }: { user?: IUser; openaiKey?: string; claudeKey?: string }) {
     this.primary = new OpenAIProvider(user, openaiKey);
     this.fallback = new ClaudeProvider(user, claudeKey);
   }

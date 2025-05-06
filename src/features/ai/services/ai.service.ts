@@ -5,6 +5,7 @@ import { TextBlock } from "@anthropic-ai/sdk/resources";
 import sharp from "sharp";
 import { OpenAIProvider } from "../providers/openai.provider";
 import { ClaudeProvider } from "../providers/claude.provider";
+import { FallbackAiProvider } from "../providers/fallback.provider";
 
 export class AIService {
   /**
@@ -83,9 +84,9 @@ export class AIService {
           ? base64Image // URL or data URL
           : `data:image/jpeg;base64,${base64Image}`; // Base64
 
-      const openaiProvider = new OpenAIProvider();
+      const aiclient = new FallbackAiProvider({});
       const prompt = "Extract all text from this image. Return only the extracted text without any additional commentary.";
-      return await openaiProvider.extractTextFromImage(prompt, content) || "";
+      return await aiclient.extractTextFromImage(prompt, content) || "";
     } catch (error) {
       console.error("Error extracting text with OpenAI:", error);
       throw new Error("Failed to extract text with OpenAI");
@@ -130,7 +131,7 @@ export class AIService {
       const base64Image = compressedImageBuffer.toString("base64");
 
       // Initialize Anthropic client
-      const client = new ClaudeProvider();
+      const client = new FallbackAiProvider({});
 
       // Create the message with the image
 

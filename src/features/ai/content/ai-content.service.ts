@@ -1,4 +1,3 @@
-import OpenAI from "openai";
 import {
   ContentFramework,
   WritingTone,
@@ -7,15 +6,11 @@ import {
   IContentVariant,
 } from "../models/ai-content.model";
 import { logger } from "@config/logger";
-import { OPENAI_API_KEY } from "@/local";
 import { ContentTemplateService } from "@features/email/templates/content-template.service";
 import { getAllSpamKeywords, findSpamKeywords } from "./keywords";
+import { FallbackAiProvider } from "../providers/fallback.provider";
 
 export class AIContentService {
-  private static readonly openai = new OpenAI({
-    apiKey: OPENAI_API_KEY,
-  });
-
   static async generateContentVariants(
     productInfo: any,
     framework: ContentFramework,
@@ -144,19 +139,11 @@ export class AIContentService {
       - No extra newlines between HTML elements
     `;
 
-		const completion = await this.openai.chat.completions.create({
-			model: "gpt-4",
-			messages: [
-				{
-					role: "system",
-					content:
-						"You are a skilled communications specialist focusing on authentic messaging. Avoid using any spam trigger words or phrases that could affect email deliverability.",
-				},
-				{ role: "user", content: prompt },
-			],
-		});
-
-		return completion.choices[0].message?.content || "";
+    const aiclient = new FallbackAiProvider({});
+		return await aiclient.generateSystemPromptContent(
+      "You are a skilled communications specialist focusing on authentic messaging. Avoid using any spam trigger words or phrases that could affect email deliverability.",
+      prompt
+    );
 	}
 
 	private static async generateSubject(content: string): Promise<string> {
@@ -193,19 +180,12 @@ export class AIContentService {
       - Plain text only
     `;
 
-    const completion = await this.openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a communications specialist focused on creating relevant, professional message openings. Avoid any terms that could trigger spam filters.",
-        },
-        { role: "user", content: prompt },
-      ],
-    });
+    const aiclient = new FallbackAiProvider({});
 
-    return completion.choices[0].message?.content || "";
+    return await aiclient.generateSystemPromptContent(
+      "You are a communications specialist focused on creating relevant, professional message openings. Avoid any terms that could trigger spam filters.",
+      prompt
+    );
   }
 
   static async updateContentPerformance(
@@ -315,20 +295,15 @@ export class AIContentService {
     - Reference industry categories
     `;
 
-    const completion = await this.openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a product categorization expert focused on accurate, professional descriptions. Avoid marketing language and spam trigger words.",
-        },
-        { role: "user", content: prompt },
-      ],
-    });
+    const aiclient = new FallbackAiProvider({});
+
+    const completion = await aiclient.generateSystemPromptContent(
+      "You are a product categorization expert focused on accurate, professional descriptions. Avoid marketing language and spam trigger words.",
+      prompt
+    );
 
     const generatedTags =
-      completion.choices[0].message?.content?.split(",") || [];
+      completion.split(",") || [];
     const tags = generatedTags.map((tag) => tag.trim().toLowerCase());
 
     return tags.filter((tag) => !findSpamKeywords(tag).length);
