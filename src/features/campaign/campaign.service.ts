@@ -17,6 +17,7 @@ import { Anthropic } from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources";
 import { CampaignProcess } from "../ai/models/campaign-process.model";
 import { PromptService } from "../prompt/prompt.service";
+import { OpenAIProvider } from "../ai/providers/openai.provider";
 
 const COPYWRITING_FRAMEWORKS = [
   "PAS (Problem-Agitate-Solution)",
@@ -244,96 +245,19 @@ export class CampaignService {
       subscriberName
     );
 
-    return aiProvider === "openai"
-      ? {
-          content: await this.generateOpenAIEmailContent(
-            prompt,
-            jsonResponse,
-            openaiApiKey
-          ),
-          generatedPrompt: prompt,
-          aiProvider: "openai",
-          aiModel: "gpt-4o-mini",
-        }
-      : {
-          content: await this.generateClaudeEmailContent(
-            prompt,
-            jsonResponse,
-            anthropicApiKey
-          ),
-          generatedPrompt: prompt,
-          aiProvider: "claude",
-          aiModel: "claude-3-7-sonnet-latest",
-        };
-  }
+    const openaiProvider = new OpenAIProvider();
+    const systemPrompt = "You are an expert email copywriter. Generate engaging, persuasive email content that drives action.";
 
-  public static async generateOpenAIEmailContent(
-    prompt: string,
-    jsonResponse?: boolean,
-    openaiApiKey?: string
-  ): Promise<string> {
-    if (!openaiApiKey) {
-      throw new Error("OpenAI API key is required");
+    return {
+      content: await openaiProvider.generateSystemPromptContent(
+        systemPrompt,
+        prompt,
+        jsonResponse,
+      ),
+      generatedPrompt: prompt,
+      aiProvider: "openai",
+      aiModel: "gpt-4o-mini",
     }
-
-    const client = new OpenAI({ apiKey: openaiApiKey });
-    const gptParams: ChatCompletionCreateParamsNonStreaming = {
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert direct-response copywriter specializing in high-converting emails.",
-        },
-        { role: "user", content: prompt },
-      ],
-    };
-
-    if (jsonResponse) {
-      gptParams.response_format = { type: "json_object" };
-    }
-
-    const completion = await client.chat.completions.create(gptParams);
-    return completion.choices[0].message?.content || "";
-  }
-
-  public static async generateClaudeEmailContent(
-    prompt: string,
-    jsonResponse?: boolean,
-    anthropicApiKey?: string
-  ): Promise<string> {
-    if (!anthropicApiKey) {
-      throw new Error("Anthropic API key is required");
-    }
-
-    const client = new Anthropic({ apiKey: anthropicApiKey });
-    let finalPrompt = prompt;
-
-    if (jsonResponse) {
-      finalPrompt = `${prompt}\n\nPlease respond with valid JSON only, without any markdown formatting, code blocks, or explanations.`;
-    }
-
-    const message = await client.messages.create({
-      model: "claude-3-7-sonnet-latest",
-      max_tokens: 1000,
-      system:
-        "You are an expert direct-response copywriter specializing in high-converting emails.",
-      messages: [
-        {
-          role: "user",
-          content: finalPrompt,
-        },
-      ],
-    });
-
-    let response = (message.content[0] as TextBlock).text;
-
-    // Clean up JSON response if needed
-    if (jsonResponse && response.startsWith("```json")) {
-      response = response.replace(/```json\n/, "").replace(/\n```$/, "");
-    }
-
-    return response;
   }
 
   private static async generateEmailSubject(
@@ -361,59 +285,10 @@ export class CampaignService {
       4. Make it relevant to the content
     `;
 
-    return aiProvider === "openai"
-      ? this.generateOpenAISubject(prompt, openaiApiKey)
-      : this.generateClaudeSubject(prompt, anthropicApiKey);
-  }
+    const openaiProvider = new OpenAIProvider();
+    const systemPrompt = "You are an expert in writing email subject lines that maximize open rates.";
 
-  private static async generateOpenAISubject(
-    prompt: string,
-    openaiApiKey?: string
-  ): Promise<string> {
-    if (!openaiApiKey) {
-      throw new Error("OpenAI API key is required");
-    }
-
-    const client = new OpenAI({ apiKey: openaiApiKey });
-    const completion = await client.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert in writing email subject lines that maximize open rates.",
-        },
-        { role: "user", content: prompt },
-      ],
-    });
-
-    return completion.choices[0].message?.content || "";
-  }
-
-  private static async generateClaudeSubject(
-    prompt: string,
-    anthropicApiKey?: string
-  ): Promise<string> {
-    if (!anthropicApiKey) {
-      throw new Error("Anthropic API key is required");
-    }
-
-    const client = new Anthropic({ apiKey: anthropicApiKey });
-    const message = await client.messages.create({
-      model: "claude-3-sonnet-20240229",
-      max_tokens: 100,
-      system:
-        "You are an expert in writing email subject lines that maximize open rates.",
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    });
-
-    const messageContent = message.content[0] as TextBlock;
-    return messageContent.text;
+    return await openaiProvider.generateSystemPromptContent(systemPrompt, prompt);
   }
 
   static async updateCampaignMetrics(
@@ -553,39 +428,24 @@ export class CampaignService {
     customPrompt: string,
     tone: string,
     style: string,
-    openaiApiKey: string
+    openaiApiKey?: string
   ): Promise<string> {
-    if (!openaiApiKey) {
-      throw new Error("OpenAI API key is required");
-    }
-
     const prompt = `
-    Write a marketing email with the following specifications:
-    Custom Instructions: ${customPrompt}
-    Tone: ${tone}
-    Writing Style: ${style}
-    
-    Requirements:
-    1. Maintain the specified tone and writing style throughout
-    2. Include a clear call to action
-    3. Keep it concise and engaging
-    4. Focus on the specific instructions provided
-  `;
+      Write a marketing email with the following specifications:
+      Custom Instructions: ${customPrompt}
+      Tone: ${tone}
+      Writing Style: ${style}
+      
+      Requirements:
+      1. Maintain the specified tone and writing style throughout
+      2. Include a clear call to action
+      3. Keep it concise and engaging
+      4. Focus on the specific instructions provided
+    `;
+    const openaiProvider = new OpenAIProvider();
+    const systemPrompt = "You are an expert email copywriter skilled at following specific instructions while maintaining consistent tone and style.";
 
-    const client = new OpenAI({ apiKey: openaiApiKey });
-    const completion = await client.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert email copywriter skilled at following specific instructions while maintaining consistent tone and style.",
-        },
-        { role: "user", content: prompt },
-      ],
-    });
-
-    return completion.choices[0].message?.content || "";
+    return await openaiProvider.generateSystemPromptContent(systemPrompt, prompt);
   }
 
   static async processCampaignSchedule(campaign: ICampaign): Promise<void> {
