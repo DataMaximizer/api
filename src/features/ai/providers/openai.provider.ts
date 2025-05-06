@@ -1,7 +1,7 @@
 import { OPENAI_API_KEY, OPENAI_ASSISTANT_ID, OPENAI_API_ASSISTANT_REF } from "@/local";
 import OpenAI from 'openai';
-import { IUser } from '../../user/user.model';
-import { logger } from '../../../utils/logger';
+import { IUser } from "@/features/user/models/user.model";
+import { logger } from  "@/config/logger";
 
 export interface MessageContent {
   role: string;
