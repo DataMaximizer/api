@@ -32,7 +32,7 @@ export class OpenAIProvider {
     });
   }
 
-  private async runMessage(content: MessageContent | MessageContent[], maxToken?: number, temperature?: number, jsonResponse?: boolean) {
+  private async runMessage(content: MessageContent | MessageContent[], assistantInstruction?: string | null, maxToken?: number, temperature?: number, jsonResponse?: boolean) {
     try {
       const assistantId = OPENAI_ASSISTANT_ID;
       const apiPath = OPENAI_API_ASSISTANT_REF || 'beta.threads';
@@ -44,6 +44,7 @@ export class OpenAIProvider {
       await threadsApi.messages.create(thread.id, content);
       const run = await threadsApi.runs.create(thread.id, {
         assistant_id: assistantId,
+        instructions: assistantInstruction || undefined,
         max_prompt_tokens: maxToken || undefined,
         temperature: temperature || undefined,
         response_format: jsonResponse ? { type: "json_object" } : undefined
@@ -85,10 +86,13 @@ export class OpenAIProvider {
   public async generateCompletion(
     prompt: string,
   ): Promise<string> {
-    return await this.runMessage({
+    const content = {
       role: "user",
       content: prompt
-    });
+    };
+
+    logger.info("generateCompletion", prompt);
+    return await this.runMessage(content);
   }
 
   /**
@@ -99,13 +103,16 @@ export class OpenAIProvider {
     imageUrl: string,
   ): Promise<string> {
     try {
-      return await this.runMessage({
+      const content = {
         role: 'user',
         content: [
           { type: 'text', text: prompt },
           { type: 'image_url', image_url: { url: imageUrl } }
         ]
-      }, 1000);
+      };
+
+      logger.info("extractTextFromImage", content);
+      return await this.runMessage(content, null, 1000);
     } catch (error) {
       logger.error('OpenAI Vision error:', error);
       throw error;
@@ -121,19 +128,13 @@ export class OpenAIProvider {
     jsonResponse?: boolean
   ): Promise<string> {
     try {
-      return await this.runMessage(
-        [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        1000, 0.7, jsonResponse
-      );
+      const content = {
+        role: 'user',
+        content: prompt
+      };
+
+      logger.info("generateSystemPromptContent", content);
+      return await this.runMessage(content, systemPrompt, 1000, 0.7, jsonResponse);
     } catch (error) {
       logger.error('OpenAI email generation error:', error);
       throw error;
