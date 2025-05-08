@@ -247,16 +247,17 @@ export class CampaignService {
       claudeKey: anthropicApiKey,
     });
     const systemPrompt = "You are an expert email copywriter. Generate engaging, persuasive email content that drives action.";
+    const { content, aiData } = await aiclient.generateSystemPromptContent(
+      systemPrompt,
+      prompt,
+      jsonResponse,
+    );
 
     return {
-      content: await aiclient.generateSystemPromptContent(
-        systemPrompt,
-        prompt,
-        jsonResponse,
-      ),
+      content: content,
       generatedPrompt: prompt,
-      aiProvider: "openai",
-      aiModel: "gpt-4o-mini",
+      aiProvider: aiData.provider,
+      aiModel: aiData.model,
     }
   }
 
@@ -285,13 +286,14 @@ export class CampaignService {
       4. Make it relevant to the content
     `;
 
-    const openaiProvider = new FallbackAiProvider({
+    const aiclient = new FallbackAiProvider({
       openaiKey: openaiApiKey,
       claudeKey: anthropicApiKey,
     });
     const systemPrompt = "You are an expert in writing email subject lines that maximize open rates.";
+    const result: { content: string } = await aiclient.generateSystemPromptContent(systemPrompt, prompt);
 
-    return await openaiProvider.generateSystemPromptContent(systemPrompt, prompt);
+    return result.content;
   }
 
   static async updateCampaignMetrics(
@@ -449,8 +451,9 @@ export class CampaignService {
       openaiKey: openaiApiKey,
     });
     const systemPrompt = "You are an expert email copywriter skilled at following specific instructions while maintaining consistent tone and style.";
+    const result: { content: string } = await aiclient.generateSystemPromptContent(systemPrompt, prompt);
 
-    return await aiclient.generateSystemPromptContent(systemPrompt, prompt);
+    return result.content;
   }
 
   static async processCampaignSchedule(campaign: ICampaign): Promise<void> {

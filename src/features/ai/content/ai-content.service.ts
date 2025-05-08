@@ -140,10 +140,12 @@ export class AIContentService {
     `;
 
     const aiclient = new FallbackAiProvider({});
-		return await aiclient.generateSystemPromptContent(
+		const result: { content: string } = await aiclient.generateSystemPromptContent(
       "You are a skilled communications specialist focusing on authentic messaging. Avoid using any spam trigger words or phrases that could affect email deliverability.",
       prompt
     );
+
+		return result.content;
 	}
 
 	private static async generateSubject(content: string): Promise<string> {
@@ -181,11 +183,12 @@ export class AIContentService {
     `;
 
     const aiclient = new FallbackAiProvider({});
-
-    return await aiclient.generateSystemPromptContent(
+    const result: { content: string } = await aiclient.generateSystemPromptContent(
       "You are a communications specialist focused on creating relevant, professional message openings. Avoid any terms that could trigger spam filters.",
       prompt
     );
+
+		return result.content;
   }
 
   static async updateContentPerformance(
@@ -296,14 +299,11 @@ export class AIContentService {
     `;
 
     const aiclient = new FallbackAiProvider({});
-
-    const completion = await aiclient.generateSystemPromptContent(
+    const completion: { content: string } = await aiclient.generateSystemPromptContent(
       "You are a product categorization expert focused on accurate, professional descriptions. Avoid marketing language and spam trigger words.",
       prompt
     );
-
-    const generatedTags =
-      completion.split(",") || [];
+    const generatedTags =completion.content.split(",") || [];
     const tags = generatedTags.map((tag) => tag.trim().toLowerCase());
 
     return tags.filter((tag) => !findSpamKeywords(tag).length);

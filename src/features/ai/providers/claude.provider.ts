@@ -64,7 +64,13 @@ export class ClaudeProvider {
         response = response.replace(/```json\n/, "").replace(/\n```$/, "");
       }
 
-      return response;
+      return {
+        content: response,
+        aiData: {
+          provider: "claude",
+          model: CLAUDE_MODEL || "claude-3-sonnet-latest",
+        }
+      };
     } catch (ClaudeErr) {
       logger.warn("Claude failed [catch an error]:", ClaudeErr);
       throw new Error(`Claude failed [catch an error]: ${ClaudeErr}`);
@@ -76,7 +82,7 @@ export class ClaudeProvider {
    */
   public async generateCompletion(
     prompt: string,
-  ): Promise<string> {
+  ): Promise<{content: string, aiData: {provider: string, model: string}}> {
     return await this.runMessage(prompt);
   }
 
@@ -88,7 +94,7 @@ export class ClaudeProvider {
     format: string,
     base64Image: string,
     systemPrompt?: string,
-  ): Promise<string> {
+  ): Promise<{content: string, aiData: {provider: string, model: string}}> {
     try {
       return await this.runMessage(
         [
@@ -115,7 +121,7 @@ export class ClaudeProvider {
     systemPrompt: string,
     prompt: string,
     jsonResponse?: boolean
-  ): Promise<string> {
+  ): Promise<{content: string, aiData: {provider: string, model: string}}> {
     try {
       return await this.runMessage(prompt, systemPrompt, 1000, 0.7, jsonResponse);
     } catch (error) {

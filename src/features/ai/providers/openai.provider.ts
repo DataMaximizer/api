@@ -32,7 +32,18 @@ export class OpenAIProvider {
     });
   }
 
-  private async runMessage(content: MessageContent | MessageContent[], assistantInstruction?: string | null, maxToken?: number, temperature?: number, jsonResponse?: boolean) {
+  private async runMessage(
+    content: MessageContent | MessageContent[],
+    assistantInstruction?: string | null,
+    maxToken?: number | null,
+    temperature?: number,
+    jsonResponse?: boolean
+  ): Promise<{
+    content: string, 
+    aiData: {
+      provider: string, 
+      model: string
+  }}> {
     try {
       const assistantId = OPENAI_ASSISTANT_ID;
       const apiPath = OPENAI_API_ASSISTANT_REF || 'beta.threads';
@@ -45,35 +56,68 @@ export class OpenAIProvider {
       const run = await threadsApi.runs.create(thread.id, {
         assistant_id: assistantId,
         instructions: assistantInstruction || undefined,
-        max_prompt_tokens: maxToken || undefined,
+        max_prompt_tokens: maxToken || 10000,
         temperature: temperature || undefined,
         response_format: jsonResponse ? { type: "json_object" } : undefined
       });
 
       let runStatus = run.status;
       let runError = "";
-      while (runStatus !== "completed" && runStatus !== "failed" && runStatus !== "cancelled") {
+      let runIncompleteReason = "";
+      let runModel = run.model;
+      while (runStatus !== "completed" && runStatus !== "failed" && runStatus !== "cancelled" && runStatus !== "incomplete") {
         await new Promise(resolve => global.setTimeout(resolve, 1000));
         const updatedRun = await threadsApi.runs.retrieve(thread.id, run.id);
         runStatus = updatedRun.status;
         runError = updatedRun.last_error?.message || "";
+        runIncompleteReason = updatedRun.incomplete_details?.reason || "";
+      }
+
+      if (runStatus === "incomplete") {
+        logger.info(`OpenAI Assistant run incomplete due to ${runIncompleteReason}`);
+        throw new Error(`OpenAI Assistant run incomplete due to ${runIncompleteReason}`);
       }
 
       if (runStatus === "failed" || runStatus === "cancelled") {
         logger.error("OpenAI Assistant failed[runStatus]", runStatus);
+        throw new Error(`OpenAI Assistant failed [runStatus]: ${runStatus}`);
       }
 
       const messages = await threadsApi.messages.list(thread.id);
-      const assistantMessage = messages.data.find((msg: { role: string; content: { text: { value: string; }; }; }) => msg.role === "assistant");
-
-      if (!assistantMessage) {
-        throw new Error("No assistant message found.");
+      try {
+        const assistantMessage = messages.data.find((msg: { role: string; content: { text: { value: string; }; }; }) => msg.role === "assistant");
+  
+        if (!assistantMessage) {
+          throw new Error("No assistant message found.");
+        }
+  
+        let clearContent = assistantMessage.content.map((part: { text: { value: string; }; }) => {
+          if ("text" in part) {
+            if (part.text.value.startsWith("```json")) {
+              return part.text.value.replace(/^```json\s*|```$/g, "")
+            } else {
+              return part.text.value
+            }
+          } else {
+            return ""
+          }
+        });
+  
+        if (!jsonResponse) {
+          clearContent = clearContent.join("\n").trim();
+        }
+  
+        return {
+          content: clearContent,
+          aiData: {
+            provider: "openai",
+            model: `assistant: ${runModel}`,
+          }
+        }
+      } catch (error) {
+        logger.error(`OpenAI Assistant failed to process the response message: ${JSON.stringify(messages)}`);
+        throw new Error(`OpenAI Assistant failed to process the response message: ${JSON.stringify(messages)}`);
       }
-
-      return assistantMessage.content
-        .map((part: { text: { value: string; }; }) => ("text" in part ? part.text.value : ""))
-        .join("\n")
-        .trim();
     } catch (openaiErr) {
       logger.warn("OpenAI Assistant failed [catch an error]:", openaiErr);
       throw new Error(`OpenAI Assistant failed [catch an error]: ${openaiErr}`);
@@ -85,7 +129,7 @@ export class OpenAIProvider {
    */
   public async generateCompletion(
     prompt: string,
-  ): Promise<string> {
+  ): Promise<{content: string, aiData: {provider: string, model: string}}> {
     const content = {
       role: "user",
       content: prompt
@@ -101,7 +145,8 @@ export class OpenAIProvider {
   public async extractTextFromImage(
     prompt: string,
     imageUrl: string,
-  ): Promise<string> {
+    systemPrompt?: string
+  ): Promise<{content: string, aiData: {provider: string, model: string}}> {
     try {
       const content = {
         role: 'user',
@@ -112,7 +157,7 @@ export class OpenAIProvider {
       };
 
       logger.info("extractTextFromImage", content);
-      return await this.runMessage(content, null, 1000);
+      return await this.runMessage(content, systemPrompt, null, 0.7);
     } catch (error) {
       logger.error('OpenAI Vision error:', error);
       throw error;
@@ -126,7 +171,7 @@ export class OpenAIProvider {
     systemPrompt: string,
     prompt: string,
     jsonResponse?: boolean
-  ): Promise<string> {
+  ): Promise<{content: string, aiData: {provider: string, model: string}}> {
     try {
       const content = {
         role: 'user',
@@ -134,7 +179,7 @@ export class OpenAIProvider {
       };
 
       logger.info("generateSystemPromptContent", content);
-      return await this.runMessage(content, systemPrompt, 1000, 0.7, jsonResponse);
+      return await this.runMessage(content, systemPrompt, null, 0.7, jsonResponse);
     } catch (error) {
       logger.error('OpenAI email generation error:', error);
       throw error;

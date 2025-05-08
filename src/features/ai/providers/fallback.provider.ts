@@ -12,7 +12,7 @@ export class FallbackAiProvider implements AIInterface {
     this.fallback = new ClaudeProvider(user, claudeKey);
   }
 
-  async generateCompletion(prompt: string): Promise<string> {
+  async generateCompletion(prompt: string): Promise<{content: string, aiData: {provider: string, model: string}}> {
     try {
       return await this.primary.generateCompletion(prompt);
     } catch (err) {
@@ -25,13 +25,13 @@ export class FallbackAiProvider implements AIInterface {
     formatOrImageUrl: string,
     base64Image?: string,
     systemPrompt?: string
-  ): Promise<string> {
+  ): Promise<{content: string, aiData: {provider: string, model: string}}> {
     try {
       if (base64Image) {
         const fileImage = await this.base64ToFile(base64Image);
-        return await this.primary.extractTextFromImage(prompt, fileImage);
+        return await this.primary.extractTextFromImage(prompt, fileImage, systemPrompt);
       } else {
-        return await this.primary.extractTextFromImage(prompt, formatOrImageUrl);
+        return await this.primary.extractTextFromImage(prompt, formatOrImageUrl, systemPrompt);
       }
     } catch (err) {
       if (base64Image) {
@@ -47,7 +47,7 @@ export class FallbackAiProvider implements AIInterface {
     systemPrompt: string,
     prompt: string,
     jsonResponse?: boolean
-  ): Promise<string> {
+  ): Promise<{content: string, aiData: {provider: string, model: string}}> {
     try {
       return await this.primary.generateSystemPromptContent(systemPrompt, prompt, jsonResponse);
     } catch (err) {

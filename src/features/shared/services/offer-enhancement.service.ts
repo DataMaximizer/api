@@ -111,12 +111,12 @@ export class OfferEnhancementService {
     `;
 
     const aiclient = new FallbackAiProvider({});
-
-    const response = JSON.parse(await aiclient.generateSystemPromptContent(
+    const result: { content: string } = await aiclient.generateSystemPromptContent(
       "You are an e-commerce marketing expert specializing in product descriptions and categorization.",
       prompt,
       true
-    )) || {};
+    );
+    const response = JSON.parse(result.content) || {};
 
     return {
       description: response.description || offer.description || "",
@@ -142,11 +142,12 @@ export class OfferEnhancementService {
     `;
 
     const aiclient = new FallbackAiProvider({});
-    const response = JSON.parse(await aiclient.generateSystemPromptContent(
+    const result: { content: string } = await aiclient.generateSystemPromptContent(
       "You are a product categorization expert. Return only the requested category names as a JSON array.",
       prompt,
       true
-    )) || [];
+    );
+    const response = JSON.parse(result.content) || [];
 
     return response.categories || [];
   }
