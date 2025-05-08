@@ -2,7 +2,7 @@ export interface AIInterface {
   /**
    * Generate a text completion from a prompt.
    */
-  generateCompletion(prompt: string): Promise<string>;
+  generateCompletion(prompt: string): Promise<{content: string, aiData: {provider: string, model: string}}>;
 
   /**
    * Extract text from an image.
@@ -16,7 +16,7 @@ export interface AIInterface {
     formatOrImageUrl: string,
     base64Image?: string,
     systemPrompt?: string
-  ): Promise<string>;
+  ): Promise<{content: string, aiData: {provider: string, model: string}}>;
 
   /**
    * Generate content using a system prompt and user prompt.
@@ -28,5 +28,5 @@ export interface AIInterface {
     systemPrompt: string,
     prompt: string,
     jsonResponse?: boolean
-  ): Promise<string>;
+  ): Promise<{content: string, aiData: {provider: string, model: string}}>;
 } 

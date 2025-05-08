@@ -177,7 +177,8 @@ export class WritingStyleOptimizationAgent {
     `;
 
     const aiclient = new FallbackAiProvider({});
-    const selectedStyle = await aiclient.generateCompletion(prompt);
+    const result: { content: string } = await aiclient.generateCompletion(prompt);
+    const selectedStyle = result.content;
 
     // Validate that the returned style is one of the available options.
     const matchingStyle = availableRecommendedStyles.find(
@@ -460,93 +461,11 @@ export class WritingStyleOptimizationAgent {
               ...styleOptions,
             }));
           } catch (error: any) {
-            logger.error(
-              `Error parsing email content for offer ${offerId} with ${aiProvider}:`,
-              error
-            );
-
-            // Try with fallback AI provider
-            try {
-              logger.info(
-                `Attempting fallback with ${
-                  aiProvider === "openai" ? "claude" : "openai"
-                } for offer ${offerId}`
-              );
-
-              const fallbackProvider =
-                aiProvider === "openai"
-                  ? ("claude" as const)
-                  : ("openai" as const);
-              const fallbackEmailResult =
-                await CampaignService.generateEmailContent(
-                  offer,
-                  styleOptions.copywritingStyle,
-                  styleOptions.tone,
-                  styleOptions.personality,
-                  styleOptions.writingStyle,
-                  audience,
-                  "{subscriberName}",
-                  true,
-                  fallbackProvider,
-                  openAiKey,
-                  claudeKey
-                );
-
-              // Parse the fallback content
-              const parsedContent = JSON.parse(fallbackEmailResult.content);
-              const currentTimestamp = new Date().getTime();
-              const campaignName = `${styleOptions.copywritingStyle} - ${offer.name} - ${currentTimestamp} (Fallback)`;
-
-              // Create campaign with fallback content
-              const campaign = await this.generateCampaign(
-                {
-                  name: campaignName,
-                  content: parsedContent.body,
-                  subject: parsedContent.subject,
-                  framework: styleOptions.copywritingStyle,
-                  tone: styleOptions.tone,
-                  writingStyle: styleOptions.writingStyle,
-                  personality: styleOptions.personality,
-                  generatedPrompt: fallbackEmailResult.generatedPrompt,
-                  aiProvider: fallbackEmailResult.aiProvider,
-                  aiModel: fallbackEmailResult.aiModel,
-                },
-                userId,
-                offerId,
-                smtpProviderId,
-                campaignProcessId
-              );
-
-              // Return data using the fallback provider's content
-              return offerSubscribers.map((subscriber: { id: any; email: any; }) => ({
-                offerId,
-                offerName: offer.name,
-                offerUrl: offer.url,
-                campaignId: campaign.id,
-                campaignName,
-                subscriberId: subscriber.id,
-                subscriberEmail: subscriber.email,
-                subject: parsedContent.subject,
-                content: parsedContent.body,
-                senderName,
-                senderEmail,
-                aiProvider: fallbackProvider,
-                generatedPrompt: fallbackEmailResult.generatedPrompt,
-                aiModel: fallbackEmailResult.aiModel,
-                ...styleOptions,
-              }));
-            } catch (fallbackError: any) {
-              logger.error(
-                `Fallback AI provider also failed for offer ${offerId}. Original error: ${error.message}, Fallback error: ${fallbackError.message}`
-              );
-              throw new Error(
-                `Both AI providers failed to generate content for offer ${offerId}. Please check your API keys and try again.`
-              );
-            }
+            logger.error(`Error parsing email content for offer ${offerId} with ${aiProvider}:`, error);
+            throw new Error(`Error parsing email content for offer ${offerId} with ${aiProvider}: ${error}`);
           }
         })
       );
-
       results.push(...batchResults.filter((result: string | any[]) => result.length > 0));
     }
 
@@ -596,7 +515,8 @@ export class WritingStyleOptimizationAgent {
       Options: ${availableRecommendedStyles.join(", ")}
     `;
     const aiclient = new FallbackAiProvider({});
-    const completion = await aiclient.generateCompletion(prompt);
+    const result: { content: string } = await aiclient.generateCompletion(prompt);
+    const completion = result.content;
 
     return {
       success: (completion === "Assistant failed to generate completion")?false:true,

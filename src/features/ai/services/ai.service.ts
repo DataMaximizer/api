@@ -86,7 +86,9 @@ export class AIService {
 
       const aiclient = new FallbackAiProvider({});
       const prompt = "Extract all text from this image. Return only the extracted text without any additional commentary.";
-      return await aiclient.extractTextFromImage(prompt, content) || "";
+      const result: { content: string } = await aiclient.extractTextFromImage(prompt, content);
+      
+      return result.content || "";
     } catch (error) {
       console.error("Error extracting text with OpenAI:", error);
       throw new Error("Failed to extract text with OpenAI");
@@ -132,15 +134,14 @@ export class AIService {
 
       // Initialize Anthropic client
       const client = new FallbackAiProvider({});
-
-      // Create the message with the image
-
-      return await client.extractTextFromImage(
+      const result: { content: string } = await client.extractTextFromImage(
         "Please extract and transcribe all visible text from this image. Only return the exact text you see, with no additional commentary or explanations.",
         format,
         base64Image,
         "You are an OCR system. Your only function is to output the text visible in images. Extract and transcribe all visible text from the provided image. Return only the extracted text without any commentary, explanations, or refusals."
       );
+
+      return result.content || "";
     } catch (error: any) {
       console.error("Error extracting text with Claude:", error);
 

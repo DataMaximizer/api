@@ -171,13 +171,11 @@ export class AffiliateService {
       `;
 
       const aiclient = new FallbackAiProvider({});
-
-      const result = await aiclient.generateSystemPromptContent(
+      const result:{ content: string } = await aiclient.generateSystemPromptContent(
         "You are a product analysis expert. Provide concise, accurate information focused on key selling points and target audience.",
         prompt
       );
-
-      const sections = result.split("\n\n");
+      const sections = result.content.split("\n\n");
       const benefitsSection =
         sections.find((s) => s.startsWith("Benefits:")) || "";
       const benefits = benefitsSection
@@ -232,13 +230,12 @@ export class AffiliateService {
       `;
 
       const aiclient = new FallbackAiProvider({});
-
-      const completion = await aiclient.generateSystemPromptContent(
+      const completion: { content:string } = await aiclient.generateSystemPromptContent(
         "You are a product tagging expert. Return only the requested tags, nothing else.",
         prompt
       );
+      const tags = completion.content.split(",") || [];
 
-      const tags = completion.split(",") || [];
       return tags
         .map((tag: string) => tag.trim().toLowerCase())
         .filter((tag: string) => tag.length > 0)
@@ -505,14 +502,13 @@ export class AffiliateService {
     `;
 
     const aiclient = new FallbackAiProvider({});
-
-    const response = await aiclient.generateSystemPromptContent(
+    const response: { content: string } = await aiclient.generateSystemPromptContent(
       "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
       prompt,
       true
     );
 
-    return JSON.parse(response) as GeneratedContent;
+    return JSON.parse(response.content) as GeneratedContent;
   }
 
   /**

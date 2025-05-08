@@ -176,13 +176,12 @@ export class UrlAnalysisService {
 
     try {
       const aiclient = new FallbackAiProvider({ claudeKey: anthropicApiKey });
-
-      const content = JSON.parse(await aiclient.generateSystemPromptContent(
+      const result: { content: string } = await aiclient.generateSystemPromptContent(
         "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
         prompt,
         true
-      )) as GeneratedContent;
-
+      );
+      const content = JSON.parse(result.content) as GeneratedContent;
       const requiredFields: (keyof GeneratedContent)[] = [
         "name",
         "description",
