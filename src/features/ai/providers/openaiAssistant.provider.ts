@@ -10,7 +10,7 @@ export interface MessageContent {
 
 export class OpenAIAssistantProvider {
   private openai: OpenAI;
-  private readonly defaultModel = 'gpt-4-turbo-preview';
+  private readonly defaultModel = 'gpt-4o-mini';
 
   public constructor(user?: IUser, key?: string) {
     if (user) {
