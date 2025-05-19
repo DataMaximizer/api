@@ -64,8 +64,8 @@ export class OpenAIProvider {
           }
         }
       } catch (error) {
-        logger.error(`OpenAI Assistant failed to process the response message: ${jsonResponse ? JSON.stringify(messages) : messages}`);
-        throw new Error(`OpenAI Assistant failed to process the response message: ${jsonResponse ? JSON.stringify(messages) : messages}`);
+        logger.error("OpenAI Assistant failed to process the response message:", error);
+        throw new Error(`OpenAI Assistant failed to process the response message: ${error instanceof Error ? error.message : String(error)}`);
       }
     } catch (openaiErr) {
       logger.warn("OpenAI Assistant failed [catch an error]:", openaiErr);
