@@ -193,7 +193,7 @@ export class AffiliateController {
       const affiliateService = new AffiliateService();
       const generatedContent = await affiliateService.generateOfferFromImage(
         req.file.buffer,
-        aiProvider as "openai" | "claude",
+        "openai",
         apiKeys.openAiKey,
         apiKeys.claudeKey
       );

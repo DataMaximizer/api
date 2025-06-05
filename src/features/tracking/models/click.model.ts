@@ -49,9 +49,5 @@ const clickSchema = new Schema(
 clickSchema.index({ subscriberId: 1, campaignId: 1, timestamp: -1 });
 clickSchema.index({ timestamp: -1 });
 clickSchema.index({ linkId: 1 });
-clickSchema.index(
-  { subscriberId: 1, campaignId: 1, linkId: 1, timestamp: 1 },
-  { unique: true }
-);
 
 export const Click = mongoose.model<IClick>("Click", clickSchema);

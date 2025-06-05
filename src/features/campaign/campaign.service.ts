@@ -13,7 +13,6 @@ import { Subscriber } from "../subscriber/models/subscriber.model";
 import { IAddress } from "../user/models/user.model";
 import { CampaignProcess } from "../ai/models/campaign-process.model";
 import { PromptService } from "../prompt/prompt.service";
-import { OpenAIProvider } from "../ai/providers/openai.provider";
 import { FallbackAiProvider } from "../ai/providers/fallback.provider";
 
 const COPYWRITING_FRAMEWORKS = [
@@ -246,11 +245,12 @@ export class CampaignService {
       openaiKey: openaiApiKey,
       claudeKey: anthropicApiKey,
     });
-    const systemPrompt = "You are an expert email copywriter. Generate engaging, persuasive email content that drives action.";
+    const systemPrompt =
+      "You are an expert email copywriter. Generate engaging, persuasive email content that drives action.";
     const { content, aiData } = await aiclient.generateSystemPromptContent(
       systemPrompt,
       prompt,
-      jsonResponse,
+      jsonResponse
     );
 
     return {
@@ -258,7 +258,7 @@ export class CampaignService {
       generatedPrompt: prompt,
       aiProvider: aiData.provider,
       aiModel: aiData.model,
-    }
+    };
   }
 
   private static async generateEmailSubject(
@@ -290,8 +290,10 @@ export class CampaignService {
       openaiKey: openaiApiKey,
       claudeKey: anthropicApiKey,
     });
-    const systemPrompt = "You are an expert in writing email subject lines that maximize open rates.";
-    const result: { content: string } = await aiclient.generateSystemPromptContent(systemPrompt, prompt);
+    const systemPrompt =
+      "You are an expert in writing email subject lines that maximize open rates.";
+    const result: { content: string } =
+      await aiclient.generateSystemPromptContent(systemPrompt, prompt);
 
     return result.content;
   }
@@ -450,8 +452,10 @@ export class CampaignService {
     const aiclient = new FallbackAiProvider({
       openaiKey: openaiApiKey,
     });
-    const systemPrompt = "You are an expert email copywriter skilled at following specific instructions while maintaining consistent tone and style.";
-    const result: { content: string } = await aiclient.generateSystemPromptContent(systemPrompt, prompt);
+    const systemPrompt =
+      "You are an expert email copywriter skilled at following specific instructions while maintaining consistent tone and style.";
+    const result: { content: string } =
+      await aiclient.generateSystemPromptContent(systemPrompt, prompt);
 
     return result.content;
   }

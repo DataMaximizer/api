@@ -1,10 +1,7 @@
 import Tesseract, { createWorker, PSM } from "tesseract.js";
 import axios from "axios";
 import { Anthropic } from "@anthropic-ai/sdk";
-import { TextBlock } from "@anthropic-ai/sdk/resources";
 import sharp from "sharp";
-import { OpenAIProvider } from "../providers/openai.provider";
-import { ClaudeProvider } from "../providers/claude.provider";
 import { FallbackAiProvider } from "../providers/fallback.provider";
 
 export class AIService {
@@ -85,9 +82,13 @@ export class AIService {
           : `data:image/jpeg;base64,${base64Image}`; // Base64
 
       const aiclient = new FallbackAiProvider({});
-      const prompt = "Extract all text from this image. Return only the extracted text without any additional commentary.";
-      const result: { content: string } = await aiclient.extractTextFromImage(prompt, content);
-      
+      const prompt =
+        "Extract all text from this image. Return only the extracted text without any additional commentary.";
+      const result: { content: string } = await aiclient.extractTextFromImage(
+        prompt,
+        content
+      );
+
       return result.content || "";
     } catch (error) {
       console.error("Error extracting text with OpenAI:", error);
@@ -101,9 +102,7 @@ export class AIService {
    * @param anthropicApiKey - Anthropic API key
    * @returns Promise containing the extracted text
    */
-  async extractTextWithClaude(
-    image: Buffer | string,
-  ): Promise<string> {
+  async extractTextWithClaude(image: Buffer | string): Promise<string> {
     try {
       // Convert to buffer for processing if it's not already
       let imageBuffer: Buffer;

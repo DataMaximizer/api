@@ -9,8 +9,6 @@ import { logger } from "@config/logger";
 import { load } from "cheerio";
 import { OfferEnhancementService } from "@features/shared/services/offer-enhancement.service";
 import { CacheService } from "@core/services/cache.service";
-import { Click } from "../tracking/models/click.model";
-import mongoose from "mongoose";
 import { Campaign } from "../campaign/models/campaign.model";
 import {
   Commission,
@@ -22,6 +20,7 @@ import { GeneratedContent } from "../url-analysis/url-analysis.service";
 import { aiService } from "../ai/services/ai.service";
 import { Subscriber } from "../subscriber/models/subscriber.model";
 import { FallbackAiProvider } from "../ai/providers/fallback.provider";
+import { Click } from "../tracking/models/click.model";
 
 export class AffiliateService {
   private static CACHE_TTL = 3600; // 1 hour
@@ -53,19 +52,12 @@ export class AffiliateService {
     }
 
     if (offer.url) {
-      const click = await Click.create({
-        subscriberId: offer.userId,
-        campaignId: offer._id,
-        linkId: offer._id as string,
-        timestamp: new Date(),
-      });
-
-      if (!offer.url.includes("{clickId}")) {
+      try {
         const urlObj = new URL(offer.url);
-        urlObj.searchParams.append("clickId", click._id as string);
+        urlObj.searchParams.set("clickId", "{clickId}");
         offer.url = urlObj.toString();
-      } else {
-        offer.url = offer.url.replace("{clickId}", click._id as string);
+      } catch (error) {
+        logger.error("Error parsing or modifying offer URL:", error);
       }
     }
 
@@ -171,10 +163,11 @@ export class AffiliateService {
       `;
 
       const aiclient = new FallbackAiProvider({});
-      const result:{ content: string } = await aiclient.generateSystemPromptContent(
-        "You are a product analysis expert. Provide concise, accurate information focused on key selling points and target audience.",
-        prompt
-      );
+      const result: { content: string } =
+        await aiclient.generateSystemPromptContent(
+          "You are a product analysis expert. Provide concise, accurate information focused on key selling points and target audience.",
+          prompt
+        );
       const sections = result.content.split("\n\n");
       const benefitsSection =
         sections.find((s) => s.startsWith("Benefits:")) || "";
@@ -230,10 +223,11 @@ export class AffiliateService {
       `;
 
       const aiclient = new FallbackAiProvider({});
-      const completion: { content:string } = await aiclient.generateSystemPromptContent(
-        "You are a product tagging expert. Return only the requested tags, nothing else.",
-        prompt
-      );
+      const completion: { content: string } =
+        await aiclient.generateSystemPromptContent(
+          "You are a product tagging expert. Return only the requested tags, nothing else.",
+          prompt
+        );
       const tags = completion.content.split(",") || [];
 
       return tags
@@ -412,10 +406,20 @@ export class AffiliateService {
     openaiApiKey?: string,
     anthropicApiKey?: string
   ): Promise<Partial<IAffiliateOffer>> {
-    const text = await aiService.extractTextWithClaude(
-      image,
-      anthropicApiKey as string
-    );
+    let text: string;
+
+    if (aiProvider === "openai") {
+      if (!openaiApiKey) {
+        throw new Error(
+          "OpenAI API key is required for image text extraction with OpenAI provider."
+        );
+      }
+      // Assuming aiService has an extractTextWithOpenAI method
+      text = await aiService.extractTextWithOpenAI(image, openaiApiKey);
+    } else {
+      text = await aiService.extractTextWithClaude(image);
+    }
+
     const generatedContent = await this.generateOfferFromText(
       text,
       aiProvider,
@@ -502,11 +506,12 @@ export class AffiliateService {
     `;
 
     const aiclient = new FallbackAiProvider({});
-    const response: { content: string } = await aiclient.generateSystemPromptContent(
-      "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
-      prompt,
-      true
-    );
+    const response: { content: string } =
+      await aiclient.generateSystemPromptContent(
+        "You are an e-commerce expert specializing in product listings and marketing content. Always provide all required fields in your response. Respond with valid JSON only.",
+        prompt,
+        true
+      );
 
     return JSON.parse(response.content) as GeneratedContent;
   }
