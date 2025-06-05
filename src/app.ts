@@ -36,6 +36,7 @@ import { userRouter } from "./features/user/user.routes";
 import contentTemplateRoutes from "@features/email/templates/content-template.routes";
 import networkRoutes from "./features/network/network.routes";
 import emailOptimizationRoutes from "./features/ai/routes/email-optimization.routes";
+import emailTemplateRoutes from "@features/email/templates/email-template.routes";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -103,8 +104,7 @@ app.use("/api/forms", formRoutes);
 app.use("/api/subscribers", subscriberRoutes);
 app.use("/api/metrics/track", trackingRoutes);
 app.use("/api/automated-email", automatedEmailRoutes);
-app.use("/api/email/templates", contentTemplateRoutes);
-
+app.use("/api/email/templates", emailTemplateRoutes);
 app.use("/api/metrics", metricsRoutes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/profile", profileRoutes);
