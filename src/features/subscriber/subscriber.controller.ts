@@ -753,7 +753,7 @@ export class SubscriberController {
   ): Promise<void> {
     try {
       const { uid, key, listId } = req.query;
-      const { name, email } = req.body;
+      const { name, email, customData } = req.body;
 
       if (!uid || !key) {
         res.status(401).json({
@@ -816,7 +816,7 @@ export class SubscriberController {
       const subscriberData: Partial<ISubscriber> = {
         email: email.toLowerCase(),
         userId: owner.id,
-        data: { name: name || "" },
+        data: { name: name || "", ...(customData || {}) },
         status: "active",
         lists: [list._id as unknown as Types.ObjectId],
         metadata: {
@@ -854,7 +854,10 @@ export class SubscriberController {
     }
   }
 
-  static async deleteSubscribers(req: AuthRequest, res: Response): Promise<void> {
+  static async deleteSubscribers(
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> {
     try {
       if (!req.user?._id) {
         res.status(401).json({ success: false, error: "Unauthorized" });

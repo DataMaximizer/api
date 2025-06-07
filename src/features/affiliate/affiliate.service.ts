@@ -53,9 +53,11 @@ export class AffiliateService {
 
     if (offer.url) {
       try {
-        const urlObj = new URL(offer.url);
-        urlObj.searchParams.set("clickId", "{clickId}");
-        offer.url = urlObj.toString();
+        if (!offer.url.includes("{clickId}")) {
+          const urlObj = new URL(offer.url);
+          urlObj.searchParams.set("clickId", "{clickId}");
+          offer.url = urlObj.toString();
+        }
       } catch (error) {
         logger.error("Error parsing or modifying offer URL:", error);
       }
