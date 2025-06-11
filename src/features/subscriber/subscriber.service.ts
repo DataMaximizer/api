@@ -84,7 +84,39 @@ export class SubscriberService {
 
   static async getLists(userId: string) {
     try {
-      return await SubscriberList.find({ userId }).sort({ createdAt: -1 });
+      return await SubscriberList.aggregate([
+        {
+          $match: {
+            userId: new Types.ObjectId(userId),
+          },
+        },
+        {
+          $lookup: {
+            from: "subscribers",
+            localField: "_id",
+            foreignField: "lists",
+            as: "subscribers",
+          },
+        },
+        {
+          $addFields: {
+            subscriberCount: { $size: "$subscribers" },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            description: 1,
+            createdAt: 1,
+            tags: 1,
+            subscriberCount: 1,
+          },
+        },
+        {
+          $sort: { createdAt: -1 },
+        },
+      ]);
     } catch (error) {
       logger.error("Error fetching lists:", error);
       throw error;
@@ -282,24 +314,27 @@ export class SubscriberService {
     }
   }
 
-  static async deleteSubscribers(userId: string, subscriberIds: string[]): Promise<void> {
+  static async deleteSubscribers(
+    userId: string,
+    subscriberIds: string[]
+  ): Promise<void> {
     try {
       // Convert string IDs to ObjectIds
-      const objectIds = subscriberIds.map(id => new Types.ObjectId(id));
+      const objectIds = subscriberIds.map((id) => new Types.ObjectId(id));
 
       // Find subscribers to get their list IDs
       const subscribers = await Subscriber.find({
         _id: { $in: objectIds },
-        userId: new Types.ObjectId(userId)
-      }).select('lists');
+        userId: new Types.ObjectId(userId),
+      }).select("lists");
 
       // Get unique list IDs
-      const listIds = [...new Set(subscribers.flatMap(sub => sub.lists))];
+      const listIds = [...new Set(subscribers.flatMap((sub) => sub.lists))];
 
       // Delete subscribers
       await Subscriber.deleteMany({
         _id: { $in: objectIds },
-        userId: new Types.ObjectId(userId)
+        userId: new Types.ObjectId(userId),
       });
 
       // Update subscriber counts in lists
