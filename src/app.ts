@@ -26,6 +26,7 @@ import {
   redirectRoutes,
   analyticsRoutes,
   promptRoutes,
+  automationRoutes,
 } from "./routes";
 
 import { SchedulerService } from "@features/shared/services/scheduler.service";
@@ -37,6 +38,7 @@ import contentTemplateRoutes from "@features/email/templates/content-template.ro
 import networkRoutes from "./features/network/network.routes";
 import emailOptimizationRoutes from "./features/ai/routes/email-optimization.routes";
 import emailTemplateRoutes from "@features/email/templates/email-template.routes";
+import { automationEngine } from "@features/automation/services/automation-engine.service";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -113,6 +115,7 @@ app.use("/api/networks", networkRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/ai/email-optimization", emailOptimizationRoutes);
 app.use("/api/prompts", promptRoutes);
+app.use("/api/automations", automationRoutes);
 
 app.get(
   "/api/admin/dashboard",
@@ -136,6 +139,8 @@ const startServer = async (): Promise<void> => {
     await connectDB();
     //await CacheService.initialize();
 
+    // Initialize core singleton services
+    automationEngine.initialize();
     SchedulerService.initializeScheduledTasks();
 
     // Initialize the email optimization scheduled task service

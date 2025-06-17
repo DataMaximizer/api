@@ -13,6 +13,7 @@ import {
 } from "@features/subscriber/models/subscriber-list.model";
 import { Types } from "mongoose";
 import { BlockedEmail } from "./models/blocked-email.model";
+import { eventBus, EventType } from "@core/events/event-bus";
 
 interface AuthRequest extends Request {
   user?: IUser;
@@ -840,6 +841,12 @@ export class SubscriberController {
       const subscriber = await SubscriberService.addWebhookSubscriber(
         subscriberData
       );
+
+      eventBus.emitEvent(EventType.NEW_LEAD, {
+        subscriberId: subscriber.id,
+        userId: subscriber.userId.toString(),
+        email: subscriber.email,
+      });
 
       res.status(201).json({
         success: true,

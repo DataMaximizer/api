@@ -17,6 +17,7 @@ import redirectRoutes from "@features/tracking/redirect.route";
 import analyticsRoutes from "@features/analytics/analytics.routes";
 import promptRoutes from "@features/prompt/prompt.routes";
 import emailTemplateRoutes from "@features/email/templates/email-template.routes";
+import automationRoutes from "@features/automation/automation.routes";
 
 export {
   authRoutes,
@@ -37,5 +38,6 @@ export {
   redirectRoutes,
   analyticsRoutes,
   promptRoutes,
+  automationRoutes,
   emailTemplateRoutes,
 };
