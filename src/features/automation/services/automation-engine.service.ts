@@ -11,6 +11,19 @@ import { EmailTemplate } from "@features/email/templates/email-template.model";
 import { TemplateRenderService } from "@features/email/templates/template-render.service";
 import { AutomationLogService } from "./automation-log.service";
 import { Types } from "mongoose";
+import { IAutomationExecution } from "../models/automation-execution.model";
+import { workflowSchedulerService } from "./workflow-scheduler.service";
+import { Click } from "@features/tracking/models/click.model";
+import { User, IUser } from "@features/user/models/user.model";
+import { EmailTemplateService } from "@features/email/templates/email-template.service";
+
+interface IEditorStep {
+  id: string;
+  type: string;
+  parentId?: string;
+}
+
+const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:5000";
 
 /**
  * AutomationEngine wires domain events to user-defined automations. When an
@@ -52,49 +65,79 @@ export class AutomationEngine {
     eventType: EventType,
     payload: any
   ): Promise<void> {
-    const automations = await Automation.find({
+    const query: any = {
       isEnabled: true,
       "trigger.type": eventType,
-    });
+    };
+
+    // For new leads, we must scope the query to the correct user
+    if (eventType === EventType.NEW_LEAD && payload.userId) {
+      query.userId = payload.userId;
+    }
+
+    const automations = await Automation.find(query);
 
     if (automations.length === 0) {
       return;
     }
 
+    const filteredAutomations = automations.filter((automation) => {
+      if (eventType === EventType.NEW_LEAD) {
+        const triggerListId = (automation.trigger.params as any)?.listId;
+        // If the trigger specifies a list, the payload must include it.
+        if (triggerListId) {
+          return payload.lists?.includes(triggerListId);
+        }
+      }
+      // For other event types or if no listId is specified, run the automation.
+      return true;
+    });
+
     logger.info(
-      `AutomationEngine: Executing ${automations.length} automation(s) for event ${eventType}`
+      `AutomationEngine: Executing ${filteredAutomations.length} automation(s) for event ${eventType}`
     );
 
-    for (const automation of automations) {
+    for (const automation of filteredAutomations) {
       await this.executeAutomation(automation, payload);
     }
+  }
+
+  public async resumeAutomation(
+    execution: IAutomationExecution
+  ): Promise<void> {
+    const automation = await Automation.findById(execution.automationId);
+    if (!automation) {
+      throw new Error(
+        `Automation ${execution.automationId} not found for resumed execution.`
+      );
+    }
+    await this.runWorkflow(
+      automation,
+      execution.subscriberId.toString(),
+      execution.currentNodeId
+    );
   }
 
   private async executeAutomation(
     automation: IAutomation,
     payload: any
   ): Promise<void> {
-    if (!automation.nodes || automation.nodes.length === 0) {
-      logger.warn(`Automation [${automation.name}] has no nodes to execute.`);
-      return;
-    }
-
-    // Find the starting node.
-    // This assumes the first node connected to the trigger is the start.
-    // A more robust solution might store a dedicated `startNodeId`.
-    const triggerId = automation.trigger.id;
-    const startNode = (automation.editorData as any)?.steps?.find(
-      (step: any) => step.parentId === triggerId
-    );
-
+    const startNode = this.findStartNode(automation);
     if (!startNode) {
       logger.error(
         `Automation [${automation.name}] has no start node defined.`
       );
       return;
     }
+    await this.runWorkflow(automation, payload.subscriberId, startNode.id);
+  }
 
-    let currentNodeId: string | undefined = startNode.id;
+  private async runWorkflow(
+    automation: IAutomation,
+    subscriberId: string,
+    startNodeId: string
+  ) {
+    let currentNodeId: string | undefined = startNodeId;
     while (currentNodeId) {
       const currentNode = automation.nodes.find(
         (node) => node.id === currentNodeId
@@ -106,22 +149,35 @@ export class AutomationEngine {
         break;
       }
 
-      const nextNodeId = await this.executeNode(
-        currentNode,
-        payload,
-        automation
-      );
-      currentNodeId = nextNodeId;
+      const payload = { subscriberId }; // Ensure payload is consistent
+      const result = await this.executeNode(currentNode, payload, automation);
+
+      // if result is null, it means the workflow has been paused by a delay
+      if (result === null) {
+        break;
+      }
+      currentNodeId = result;
     }
+  }
+
+  private findStartNode(automation: IAutomation): IEditorStep | undefined {
+    if (!automation.nodes || automation.nodes.length === 0) {
+      logger.warn(`Automation [${automation.name}] has no nodes to execute.`);
+      return undefined;
+    }
+    const triggerId = automation.trigger.id;
+    return (automation.editorData as any)?.steps?.find(
+      (step: any) => step.parentId === triggerId
+    );
   }
 
   private async executeNode(
     node: IWorkflowNode,
     payload: any,
     automation: IAutomation
-  ): Promise<string | undefined> {
+  ): Promise<(string | undefined) | null> {
     logger.info(
-      `AutomationEngine: [${automation.name}] executing node ${node.type} (${node.label})`,
+      `AutomationEngine: [${automation.name}] executing node ${node.type} (${node.label}) for subscriber ${payload.subscriberId}`,
       {
         params: node.params,
         payload,
@@ -134,19 +190,15 @@ export class AutomationEngine {
         return node.next;
 
       case "DELAY":
-        // In a real implementation, this would trigger an email service or a scheduler.
-        return node.next;
-
-      case "CONDITION":
-        // This is a placeholder for real condition evaluation.
-        // For now, we'll just log and follow the 'true' branch for demonstration.
-        const result = true; // Placeholder
-        logger.info(
-          `AutomationEngine: [${
-            automation.name
-          }] condition evaluated to ${result.toString()}`
-        );
-        return node.branches?.[result.toString() as "true" | "false"];
+        if (node.next) {
+          await workflowSchedulerService.schedule(
+            automation.id,
+            payload.subscriberId,
+            node.next,
+            node.params
+          );
+        }
+        return null; // Pause execution
 
       case "END":
         logger.info(`AutomationEngine: [${automation.name}] reached end node.`);
@@ -189,6 +241,39 @@ export class AutomationEngine {
         throw new Error(`Subscriber ${payload.subscriberId} not found.`);
       }
 
+      // Fetch user profile to get unsubscribe details
+      const user = (await User.findById(automation.userId).lean()) as IUser;
+      if (!user || !user.address) {
+        throw new Error(
+          `User profile or address for ${automation.userId} not found.`
+        );
+      }
+
+      const click = await Click.create({
+        subscriberId: subscriber._id,
+        automationId: automation._id,
+        nodeId: node.id,
+      });
+
+      let finalHtml = htmlContent;
+
+      // Use existing tracking service. Pass an empty string for campaignId.
+      finalHtml = EmailTemplateService.addTrackingToTemplate(
+        finalHtml,
+        subscriber._id.toString(),
+        "", // campaignId
+        click.id
+      );
+
+      // Add unsubscribe footer
+      finalHtml = EmailTemplateService.addUnsubscribeToTemplate(
+        finalHtml,
+        click.id,
+        user.companyUrl || "",
+        user.address,
+        user.companyName
+      );
+
       const provider = await SmtpService.getAdminProvider();
       if (!provider) {
         throw new Error(`No admin SMTP provider configured.`);
@@ -198,7 +283,7 @@ export class AutomationEngine {
         providerId: provider.id,
         to: subscriber.email,
         subject,
-        html: htmlContent,
+        html: finalHtml,
         senderEmail: selectedSender,
       });
 

@@ -39,6 +39,7 @@ import networkRoutes from "./features/network/network.routes";
 import emailOptimizationRoutes from "./features/ai/routes/email-optimization.routes";
 import emailTemplateRoutes from "@features/email/templates/email-template.routes";
 import { automationEngine } from "@features/automation/services/automation-engine.service";
+import { workflowSchedulerService } from "@features/automation/services/workflow-scheduler.service";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -141,6 +142,7 @@ const startServer = async (): Promise<void> => {
 
     // Initialize core singleton services
     automationEngine.initialize();
+    workflowSchedulerService.initialize();
     SchedulerService.initializeScheduledTasks();
 
     // Initialize the email optimization scheduled task service

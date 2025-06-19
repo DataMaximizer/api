@@ -842,10 +842,13 @@ export class SubscriberController {
         subscriberData
       );
 
+      const availableLists = await SubscriberList.find({ userId: owner.id });
+
       eventBus.emitEvent(EventType.NEW_LEAD, {
         subscriberId: subscriber.id,
-        userId: subscriber.userId.toString(),
+        userId: owner.id,
         email: subscriber.email,
+        lists: availableLists?.map((t) => t.id) || [],
       });
 
       res.status(201).json({

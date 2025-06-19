@@ -1,8 +1,11 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
+import { eventBus, EventType } from "@core/events/event-bus";
 
 export interface IClick extends Document {
   subscriberId: Types.ObjectId;
-  campaignId: Types.ObjectId;
+  campaignId?: Types.ObjectId;
+  automationId?: Types.ObjectId;
+  nodeId?: string;
   linkId: string;
   timestamp: Date;
   metadata?: {
@@ -24,11 +27,18 @@ const clickSchema = new Schema(
     campaignId: {
       type: Schema.Types.ObjectId,
       ref: "Campaign",
-      required: true,
+      required: false,
+    },
+    automationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Automation",
+    },
+    nodeId: {
+      type: String,
     },
     linkId: {
       type: String,
-      required: true,
+      required: false,
     },
     timestamp: {
       type: Date,
