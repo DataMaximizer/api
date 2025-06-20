@@ -1,15 +1,8 @@
 import { z } from "zod";
-import {
-  CampaignType,
-  CampaignStatus,
-} from "@features/campaign/models/campaign.model";
-import {
-  ContentFramework,
-  WritingTone,
-} from "@features/ai/models/ai-content.model";
+import { CampaignStatus } from "@features/campaign/models/campaign.model";
 
 export const createCampaignSchema = z.object({
-  offerId: z.string().min(1, "Offer ID is required"),
+  offerId: z.string().optional(),
   content: z.string().min(1, "Content is required"),
   subject: z.string().min(1, "Subject is required"),
   framework: z.string().optional(),

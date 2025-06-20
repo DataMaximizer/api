@@ -33,7 +33,9 @@ export interface ICampaign extends Document {
   type: CampaignType;
   status: CampaignStatus;
   userId: Schema.Types.ObjectId;
-  offerId: Schema.Types.ObjectId;
+  offerId?: Schema.Types.ObjectId;
+  automationId?: Schema.Types.ObjectId;
+  nodeId?: string;
   subscriberIds: Schema.Types.ObjectId[];
   campaignProcessId?: Schema.Types.ObjectId;
   subject: string;
@@ -77,7 +79,13 @@ const campaignSchema = new Schema<ICampaign>(
     offerId: {
       type: Schema.Types.ObjectId,
       ref: "AffiliateOffer",
-      required: true,
+    },
+    automationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Automation",
+    },
+    nodeId: {
+      type: String,
     },
     subscriberIds: { type: [Schema.Types.ObjectId], ref: "Subscriber" },
     campaignProcessId: {

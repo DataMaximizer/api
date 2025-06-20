@@ -16,6 +16,13 @@ import { workflowSchedulerService } from "./workflow-scheduler.service";
 import { Click } from "@features/tracking/models/click.model";
 import { User, IUser } from "@features/user/models/user.model";
 import { EmailTemplateService } from "@features/email/templates/email-template.service";
+import { CampaignService } from "@features/campaign/campaign.service";
+import {
+  CampaignStatus,
+  CampaignType,
+  Campaign,
+} from "@features/campaign/models/campaign.model";
+import { SmtpProvider } from "@features/email/smtp/models/smtp.model";
 
 interface IEditorStep {
   id: string;
@@ -200,6 +207,9 @@ export class AutomationEngine {
         }
         return null; // Pause execution
 
+      case "CONDITION":
+        return await this.handleConditionNode(node, payload, automation);
+
       case "END":
         logger.info(`AutomationEngine: [${automation.name}] reached end node.`);
         return undefined;
@@ -210,6 +220,81 @@ export class AutomationEngine {
         );
         return node.next;
     }
+  }
+
+  private findPreviousNode(
+    currentNodeId: string,
+    automation: IAutomation
+  ): IWorkflowNode | undefined {
+    // This is a naive implementation that only checks immediate parents.
+    // A full graph traversal might be needed for complex workflows.
+    for (const potentialParent of automation.nodes) {
+      if (potentialParent.next === currentNodeId) {
+        return potentialParent;
+      }
+      if (potentialParent.branches) {
+        if (
+          potentialParent.branches.true === currentNodeId ||
+          potentialParent.branches.false === currentNodeId
+        ) {
+          return potentialParent;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  private async handleConditionNode(
+    node: IWorkflowNode,
+    payload: any,
+    automation: IAutomation
+  ): Promise<string | undefined> {
+    const { conditionType, emailAction, emailScope } = node.params;
+    let conditionMet = false;
+
+    if (
+      conditionType === "emailAction" &&
+      emailAction === "opened" &&
+      emailScope === "previousEmail"
+    ) {
+      // Find the node that executed before this condition node
+      let previousNode = this.findPreviousNode(node.id, automation);
+
+      // Traverse backwards if the immediate previous node is not an email node
+      const visitedNodeIds = new Set<string>();
+      while (
+        previousNode &&
+        previousNode.type !== "EMAIL" &&
+        !visitedNodeIds.has(previousNode.id)
+      ) {
+        visitedNodeIds.add(previousNode.id);
+        previousNode = this.findPreviousNode(previousNode.id, automation);
+      }
+
+      if (previousNode && previousNode.type === "EMAIL") {
+        const campaign = await Campaign.findOne({
+          automationId: automation._id,
+          nodeId: previousNode.id,
+          subscriberIds: payload.subscriberId,
+        }).sort({ createdAt: -1 });
+
+        // The user's changes to the file show that campaign metrics exist.
+        // I'll assume a tracking service updates them.
+        if (campaign && campaign.metrics && campaign.metrics.totalOpens > 0) {
+          conditionMet = true;
+        }
+      } else {
+        logger.warn(
+          `Automation [${automation.name}]: Could not find a previous email node for condition node ${node.id}. Defaulting to false.`
+        );
+      }
+    } else {
+      logger.warn(
+        `Automation [${automation.name}]: Unknown condition type in node ${node.id}. Defaulting to false.`
+      );
+    }
+
+    return conditionMet ? node.branches?.true : node.branches?.false;
   }
 
   private async handleEmailNode(
@@ -255,13 +340,31 @@ export class AutomationEngine {
         nodeId: node.id,
       });
 
+      const provider = await SmtpService.getAdminProvider();
+      if (!provider) {
+        throw new Error(`No admin SMTP provider configured.`);
+      }
+
       let finalHtml = htmlContent;
+
+      const campaign = await CampaignService.createCampaign({
+        name: `Automation: ${automation.name} - ${node.label}`,
+        type: CampaignType.EMAIL,
+        status: CampaignStatus.COMPLETED,
+        userId: automation.userId as any,
+        automationId: automation._id as any,
+        nodeId: node.id,
+        subscriberIds: [new Types.ObjectId(payload.subscriberId)] as any,
+        subject: subject,
+        content: htmlContent,
+        smtpProviderId: provider.id,
+      });
 
       // Use existing tracking service. Pass an empty string for campaignId.
       finalHtml = EmailTemplateService.addTrackingToTemplate(
         finalHtml,
         subscriber._id.toString(),
-        "", // campaignId
+        campaign.id,
         click.id
       );
 
@@ -273,11 +376,6 @@ export class AutomationEngine {
         user.address,
         user.companyName
       );
-
-      const provider = await SmtpService.getAdminProvider();
-      if (!provider) {
-        throw new Error(`No admin SMTP provider configured.`);
-      }
 
       await SmtpService.sendEmail({
         providerId: provider.id,

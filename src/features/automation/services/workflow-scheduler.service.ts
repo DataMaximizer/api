@@ -164,13 +164,8 @@ export class WorkflowSchedulerService {
         resume.setDate(now.getDate() + finalDaysToAdd);
         resume.setHours(resumeHour, resumeMinute, 0, 0);
         break;
-      // 'customField' require more complex logic
-      // and potentially access to subscriber data.
-      // For now, we'll make them default to a short delay.
-      case "customField":
       default:
-        resume.setMinutes(now.getMinutes() + 5); // Default to 5 mins
-        break;
+        throw new Error(`Invalid delay type: ${delayType}`);
     }
     return resume;
   }
