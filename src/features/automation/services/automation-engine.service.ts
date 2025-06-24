@@ -3,6 +3,7 @@ import {
   Automation,
   IAutomation,
   IWorkflowNode,
+  AutomationStatus,
 } from "../models/automation.model";
 import { logger } from "@config/logger";
 import { SmtpService } from "@features/email/smtp/smtp.service";
@@ -75,6 +76,7 @@ export class AutomationEngine {
     const query: any = {
       isEnabled: true,
       "trigger.type": eventType,
+      status: AutomationStatus.ACTIVE,
     };
 
     // For new leads, we must scope the query to the correct user

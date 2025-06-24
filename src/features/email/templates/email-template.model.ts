@@ -3,9 +3,21 @@ import mongoose, { Document, Schema } from "mongoose";
 // Block-based template interfaces
 export interface ITemplateBlock {
   id: string;
-  type: "header" | "text" | "button" | "footer" | "image" | "divider";
+  type:
+    | "header"
+    | "text"
+    | "button"
+    | "footer"
+    | "image"
+    | "divider"
+    | "column";
   content: Record<string, any>;
   styles: Record<string, any>;
+}
+
+export interface IColumn {
+  id: string;
+  blocks: ITemplateBlock[];
 }
 
 export interface ITemplateGlobalStyles {
@@ -27,6 +39,7 @@ export interface ITemplateGlobalStyles {
     gap: string;
     blockSpacing: string;
   };
+  updatedAt: Date;
 }
 
 export interface ITemplateMetadata {
@@ -51,14 +64,28 @@ export interface IEmailTemplate extends Document {
   updatedAt: Date;
 }
 
-const templateBlockSchema = new Schema<ITemplateBlock>({
+const templateBlockSchema = new Schema<ITemplateBlock>();
+
+templateBlockSchema.add({
   id: { type: String, required: true },
   type: {
     type: String,
-    enum: ["header", "text", "button", "footer", "image", "divider"],
+    enum: ["header", "text", "button", "footer", "image", "divider", "column"],
     required: true,
   },
-  content: { type: Schema.Types.Mixed, required: true },
+  content: {
+    type: Schema.Types.Mixed,
+    required: true,
+    validate: {
+      validator: function (this: ITemplateBlock, value: any) {
+        if (this.type === "column") {
+          return value.columns && Array.isArray(value.columns);
+        }
+        return true;
+      },
+      message: "Column type block must have a `columns` array in content.",
+    },
+  },
   styles: { type: Schema.Types.Mixed, required: true },
 });
 
@@ -81,6 +108,7 @@ const templateGlobalStylesSchema = new Schema<ITemplateGlobalStyles>({
     gap: { type: String, default: "16px" },
     blockSpacing: { type: String, default: "24px" },
   },
+  updatedAt: { type: Date, default: Date.now },
 });
 
 const templateMetadataSchema = new Schema<ITemplateMetadata>({

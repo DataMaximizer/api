@@ -14,6 +14,12 @@ export interface IWorkflowNode {
   };
 }
 
+export enum AutomationStatus {
+  ACTIVE = "Active",
+  DRAFT = "Draft",
+  PAUSED = "Paused",
+}
+
 const workflowNodeSchema = new Schema<IWorkflowNode>(
   {
     id: { type: String, required: true },
@@ -37,6 +43,7 @@ export interface IAutomation extends Document {
   userId: Types.ObjectId;
   name: string;
   isEnabled: boolean;
+  status: AutomationStatus;
   trigger: {
     id: string;
     type: EventType;
@@ -53,6 +60,11 @@ const automationSchema = new Schema<IAutomation>(
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     name: { type: String, required: true },
     isEnabled: { type: Boolean, default: true },
+    status: {
+      type: String,
+      enum: Object.values(AutomationStatus),
+      default: AutomationStatus.DRAFT,
+    },
     trigger: {
       id: { type: String, required: true },
       type: { type: String, enum: Object.values(EventType), required: true },
