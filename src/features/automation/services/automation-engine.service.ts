@@ -328,6 +328,15 @@ export class AutomationEngine {
         throw new Error(`Subscriber ${payload.subscriberId} not found.`);
       }
 
+      // Variable replacement
+      const processedSubject = subject
+        .replace(/@Sub Name/g, (subscriber.data as any)?.name || "")
+        .replace(/@Sub Id/g, subscriber._id.toString());
+
+      htmlContent = htmlContent
+        .replace(/@Sub Name/g, (subscriber.data as any)?.name || "")
+        .replace(/@Sub Id/g, subscriber._id.toString());
+
       // Fetch user profile to get unsubscribe details
       const user = (await User.findById(automation.userId).lean()) as IUser;
       if (!user || !user.address) {
@@ -357,7 +366,7 @@ export class AutomationEngine {
         automationId: automation._id as any,
         nodeId: node.id,
         subscriberIds: [new Types.ObjectId(payload.subscriberId)] as any,
-        subject: subject,
+        subject: processedSubject,
         content: htmlContent,
         smtpProviderId: provider.id,
       });
@@ -382,7 +391,7 @@ export class AutomationEngine {
       await SmtpService.sendEmail({
         providerId: provider.id,
         to: subscriber.email,
-        subject,
+        subject: processedSubject,
         html: finalHtml,
         senderEmail: selectedSender,
       });

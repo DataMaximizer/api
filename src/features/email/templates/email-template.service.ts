@@ -25,8 +25,9 @@ export class EmailTemplateService {
     }" width="1" height="1" style="display:none;" alt="" />`;
   }
 
-  static generateTrackingLink(clickId: string): string {
-    return `${this.REDIRECT_URL}/api/redirect?clickId=${clickId}`;
+  static generateTrackingLink(clickId: string, originalUrl: string): string {
+    const encodedUrl = encodeURIComponent(originalUrl);
+    return `${this.REDIRECT_URL}/api/redirect?clickId=${clickId}&url=${encodedUrl}`;
   }
 
   static generateUnsubscribeLink(clickId: string, websiteUrl: string): string {
@@ -39,17 +40,18 @@ export class EmailTemplateService {
     campaignId: string,
     clickId: string
   ): string {
-    const trackingPixel = this.generateTrackingPixel(subscriberId, campaignId);
-
     let contentWithTrackedLinks = content.replace(
-      /<a\s+href=(['"])([^'"]+)\1([^>]*)>/g,
-      (match, quote, url, rest) => {
-        const trackedUrl = this.generateTrackingLink(clickId);
-        return `<a href=${quote}${trackedUrl}${quote}${rest}>`;
+      /(<a\s+[^>]*?href=)(['"])([^'"]+)\2/g,
+      (match, before, quote, url) => {
+        const trackedUrl = this.generateTrackingLink(clickId, url);
+        return `${before}${quote}${trackedUrl}${quote}`;
       }
     );
 
-    contentWithTrackedLinks += trackingPixel;
+    contentWithTrackedLinks += this.generateTrackingPixel(
+      subscriberId,
+      campaignId
+    );
 
     return contentWithTrackedLinks;
   }

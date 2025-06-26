@@ -56,8 +56,6 @@ export class AutomationService {
       const mappedTriggerType = triggerTypeMap[(updates.trigger as any).type];
       if (mappedTriggerType) {
         updates.trigger.type = mappedTriggerType;
-      } else {
-        delete (updates as any).trigger.type;
       }
     }
     return await Automation.findOneAndUpdate(

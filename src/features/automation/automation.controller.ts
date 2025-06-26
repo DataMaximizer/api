@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AutomationService } from "./automation.service";
 import { logger } from "@config/logger";
 import { IUser } from "@features/user/models/user.model";
+import { SmtpService } from "@features/email/smtp/smtp.service";
 
 interface AuthRequest extends Request {
   user?: IUser;
@@ -127,6 +128,45 @@ export class AutomationController {
       res
         .status(400)
         .json({ success: false, error: "Failed to delete automation" });
+    }
+  }
+
+  static async sendTestEmail(req: Request, res: Response): Promise<void> {
+    try {
+      const { from, to, subject, html } = req.body;
+
+      if (!from || !to || !subject || !html) {
+        res.status(400).json({
+          success: false,
+          message: "from, to, subject, and html are required",
+        });
+        return;
+      }
+
+      const provider = await SmtpService.getAdminProvider();
+      if (!provider) {
+        throw new Error("No admin SMTP provider configured.");
+      }
+
+      await SmtpService.sendEmail({
+        providerId: provider.id,
+        to,
+        subject,
+        html,
+        senderEmail: from,
+      });
+
+      res.json({
+        success: true,
+        message: "Test email sent successfully",
+      });
+    } catch (error) {
+      logger.error("Error sending generic test email:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to send test email",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     }
   }
 }

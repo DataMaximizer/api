@@ -28,4 +28,6 @@ router.put(
 
 router.delete("/:id", authenticate, AutomationController.deleteAutomation);
 
+router.post("/test-email", authenticate, AutomationController.sendTestEmail);
+
 export default router;
