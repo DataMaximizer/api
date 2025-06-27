@@ -243,9 +243,6 @@ export class AffiliateService {
   }
 
   static async updateOffer(id: string, updateData: Partial<IAffiliateOffer>) {
-    const offer = await AffiliateOffer.findById(id);
-    if (!offer) throw new Error("Offer not found");
-
     if (updateData.parameters) {
       updateData.parameters = updateData.parameters.map((param) => ({
         type: param.type,
@@ -254,16 +251,22 @@ export class AffiliateService {
       }));
     }
 
-    if (updateData.url && updateData.url !== offer.url) {
-      offer.url = updateData.url;
+    const offer = await AffiliateOffer.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!offer) {
+      throw new Error("Offer not found");
     }
 
-    Object.assign(offer, updateData);
     await Promise.all([
       CacheService.del(`${this.CACHE_PREFIX}:*`),
       CacheService.del(`${this.CACHE_PREFIX}:single:${JSON.stringify({ id })}`),
     ]);
-    return offer.save();
+
+    return offer;
   }
 
   static async getOffers(
@@ -527,7 +530,7 @@ export class AffiliateService {
   static async getOfferReports(userId: string) {
     try {
       // Find all offers for the user
-      const offers = await AffiliateOffer.find({
+      const offers: IAffiliateOffer[] = await AffiliateOffer.find({
         userId,
       }).lean();
 
@@ -641,13 +644,12 @@ export class AffiliateService {
   static async getOfferAnalytics(userId: string, offerId?: string) {
     try {
       // Find offers based on the query parameters
-      const offerQuery: any = { userId };
-      let offers: any[] = [];
+      const offerQuery: FilterQuery<IAffiliateOffer> = { userId };
+      let offers: IAffiliateOffer[] = [];
 
       if (offerId) {
         offers = await AffiliateOffer.find({
           _id: offerId,
-          userId,
         }).lean();
       } else {
         offers = await AffiliateOffer.find(offerQuery).lean();

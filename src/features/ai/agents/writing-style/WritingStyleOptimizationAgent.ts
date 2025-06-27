@@ -123,7 +123,9 @@ export class WritingStyleOptimizationAgent {
         // Case 2: performance exists but the first record conversion rate is lower than threshold.
         // Use GPT's recommendation for the best style.
         recommendedStyle =
-          await WritingStyleOptimizationAgent.getBestFittingWritingStyle(productDescription);
+          await WritingStyleOptimizationAgent.getBestFittingWritingStyle(
+            productDescription
+          );
         personalizationMessage = `INSTRUCTIONS:
 - Compose an email using a "${recommendedStyle}" writing style.
 `;
@@ -164,7 +166,7 @@ export class WritingStyleOptimizationAgent {
    * @returns A promise that resolves to the chosen writing style.
    */
   static async getBestFittingWritingStyle(
-    productDescription: string,
+    productDescription: string
   ): Promise<string> {
     // Build a prompt instructing GPT to choose one of the styles.
     const prompt = `
@@ -177,7 +179,9 @@ export class WritingStyleOptimizationAgent {
     `;
 
     const aiclient = new FallbackAiProvider({});
-    const result: { content: string } = await aiclient.generateCompletion(prompt);
+    const result: { content: string } = await aiclient.generateCompletion(
+      prompt
+    );
     const selectedStyle = result.content;
 
     // Validate that the returned style is one of the available options.
@@ -352,7 +356,7 @@ export class WritingStyleOptimizationAgent {
         offerToSubscribersMap.set(offer.id, []);
       }
 
-      const subscriber = subscribers.find((s: { id: string; }) => s.id === subscriberId);
+      const subscriber = subscribers.find((s) => s.id === subscriberId);
       if (subscriber) {
         offerToSubscribersMap.get(offer.id)!.push(subscriber);
       }
@@ -389,7 +393,7 @@ export class WritingStyleOptimizationAgent {
 
       const batchResults = await Promise.all(
         offerBatch.map(async ([offerId, offerSubscribers]) => {
-          const offer = offers.find((o: { id: string; }) => o.id === offerId);
+          const offer = offers.find((o) => o.id === offerId);
           if (!offer) {
             throw new Error(
               `Offer with ID ${offerId} not found in available offers`
@@ -443,7 +447,7 @@ export class WritingStyleOptimizationAgent {
             );
 
             // Return data for each subscriber assigned to this offer
-            return offerSubscribers.map((subscriber: { id: any; email: any; }) => ({
+            return offerSubscribers.map((subscriber) => ({
               offerId,
               offerName: offer.name,
               offerUrl: offer.url,
@@ -461,43 +465,42 @@ export class WritingStyleOptimizationAgent {
               ...styleOptions,
             }));
           } catch (error: any) {
-            logger.error(`Error parsing email content for offer ${offerId} with ${aiProvider}:`, error);
-            throw new Error(`Error parsing email content for offer ${offerId} with ${aiProvider}: ${error}`);
+            logger.error(
+              `Error parsing email content for offer ${offerId} with ${aiProvider}:`,
+              error
+            );
+            throw new Error(
+              `Error parsing email content for offer ${offerId} with ${aiProvider}: ${error}`
+            );
           }
         })
       );
-      results.push(...batchResults.filter((result: string | any[]) => result.length > 0));
+      results.push(
+        ...batchResults.filter((result: string | any[]) => result.length > 0)
+      );
     }
 
-    // Send emails in batches to avoid overwhelming the system
-    const SEND_BATCH_SIZE = 10;
     const allEmails = results.flatMap((r) => r);
 
     logger.info(`Sending ${allEmails.length} emails to subscribers`);
 
-    for (let i = 0; i < allEmails.length; i += SEND_BATCH_SIZE) {
-      const batch = allEmails.slice(i, i + SEND_BATCH_SIZE);
-
-      await Promise.all(
-        batch.map((data) =>
-          CampaignService.sendCampaignEmail(
-            data.offerId,
-            data.subscriberId,
-            data.campaignId,
-            smtpProviderId,
-            data.content,
-            data.subject,
-            websiteUrl,
-            user?.address as IAddress,
-            user?.companyName as string,
-            data.senderName,
-            data.senderEmail
-          )
-        )
+    for (let i = 0; i < allEmails.length; i++) {
+      const data = allEmails[i];
+      await CampaignService.sendCampaignEmail(
+        data.offerId,
+        data.subscriberId,
+        data.campaignId,
+        smtpProviderId,
+        data.content,
+        data.subject,
+        websiteUrl,
+        user?.address as IAddress,
+        user?.companyName as string,
+        data.senderName,
+        data.senderEmail
       );
 
-      // Add a small delay between sending batches
-      if (i + SEND_BATCH_SIZE < allEmails.length) {
+      if (i < allEmails.length - 1) {
         await new Promise((resolve) => global.setTimeout(resolve, 1000));
       }
     }
@@ -515,13 +518,15 @@ export class WritingStyleOptimizationAgent {
       Options: ${availableRecommendedStyles.join(", ")}
     `;
     const aiclient = new FallbackAiProvider({});
-    const result: { content: string } = await aiclient.generateCompletion(prompt);
+    const result: { content: string } = await aiclient.generateCompletion(
+      prompt
+    );
     const completion = result.content;
 
     return {
-      success: (completion === "Assistant failed to generate completion")?false:true,
+      success:
+        completion === "Assistant failed to generate completion" ? false : true,
       response: completion,
     };
   }
-  
 }

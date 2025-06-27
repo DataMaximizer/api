@@ -345,12 +345,6 @@ export class AutomationEngine {
         );
       }
 
-      const click = await Click.create({
-        subscriberId: subscriber._id,
-        automationId: automation._id,
-        nodeId: node.id,
-      });
-
       const provider = await SmtpService.getAdminProvider();
       if (!provider) {
         throw new Error(`No admin SMTP provider configured.`);
@@ -370,6 +364,15 @@ export class AutomationEngine {
         content: htmlContent,
         smtpProviderId: provider.id,
       });
+
+      const click = await Click.create({
+        subscriberId: subscriber._id,
+        automationId: automation._id,
+        nodeId: node.id,
+        campaignId: campaign.id,
+      });
+
+      finalHtml = finalHtml.replace(/clickId/g, click.id.toString());
 
       // Use existing tracking service. Pass an empty string for campaignId.
       finalHtml = EmailTemplateService.addTrackingToTemplate(

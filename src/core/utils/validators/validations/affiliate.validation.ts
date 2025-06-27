@@ -1,3 +1,4 @@
+import { OfferStatus } from "@/features/affiliate/models/affiliate-offer.model";
 import { z } from "zod";
 
 export const createOfferSchema = z.object({
@@ -8,6 +9,7 @@ export const createOfferSchema = z.object({
   commissionRate: z.number().min(0).max(100),
   userCommissionRate: z.number().min(0).max(100).optional(),
   networkId: z.string(),
+  status: z.nativeEnum(OfferStatus),
 });
 
 export const updateOfferSchema = createOfferSchema.partial();
