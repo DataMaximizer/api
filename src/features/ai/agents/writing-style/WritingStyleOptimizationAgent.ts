@@ -507,26 +507,4 @@ export class WritingStyleOptimizationAgent {
 
     return results;
   }
-
-  public static async testCompletion() {
-    const prompt = `
-      Given the following product description:
-      This is a test for a description of a product.
-      
-      Which writing style from the following list best fits the product for a marketing email?
-      Please choose only one exact writing style from the options below and respond with only the style name.
-      Options: ${availableRecommendedStyles.join(", ")}
-    `;
-    const aiclient = new FallbackAiProvider({});
-    const result: { content: string } = await aiclient.generateCompletion(
-      prompt
-    );
-    const completion = result.content;
-
-    return {
-      success:
-        completion === "Assistant failed to generate completion" ? false : true,
-      response: completion,
-    };
-  }
 }

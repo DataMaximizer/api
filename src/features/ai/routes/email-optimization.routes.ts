@@ -71,10 +71,11 @@ router.post(
   EmailOptimizationController.sendWinningEmail
 );
 
-router.post(
-  "/test-completion",
-  authenticate,
-  AIConfigController.testCompletion
-);
+/**
+ * @route POST /api/ai/email-optimization/test-assistant
+ * @desc Tests the file assistant
+ * @access Private
+ */
+router.post("/test-assistant", EmailOptimizationController.testFileAssistant);
 
 export default router;

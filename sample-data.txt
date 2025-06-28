@@ -1,0 +1,72 @@
+Marketing Email Writing Guide for AI Agents
+===========================================
+
+Objective:
+----------
+Create marketing emails that engage recipients, build trust, and encourage them to take a specific action (e.g., click a link, sign up, or purchase). Emails should be relevant, persuasive, and personalized, while maintaining professionalism.
+
+1. Understand the Target Audience
+---------------------------------
+- Identify the segment (e.g., new users, returning customers).
+- Tailor tone, language, and offers to match their interests and behavior.
+- Personalize with name and reference past activity if possible.
+
+2. Craft a Compelling Subject Line
+----------------------------------
+- Keep it concise (ideally under 50 characters).
+- Offer a clear benefit or create curiosity.
+- Avoid spam triggers like “Free!!!” or excessive punctuation.
+- A/B test subject lines to learn what performs best.
+
+Examples:
+- "Your 20% Discount Is Waiting"
+- "Ready to Level Up Your Workflow?"
+
+3. Write a Strong Opening
+--------------------------
+- Hook the reader with the first sentence.
+- Reinforce why the email is worth their attention.
+
+4. Focus on One Clear Message
+-----------------------------
+- Stick to one main goal or topic.
+- Avoid clutter or multiple calls to action (CTAs).
+- Use short paragraphs and bullet points for readability.
+
+5. Use a Clear and Compelling CTA
+---------------------------------
+- Make the CTA prominent and action-oriented (e.g., “Get Started”).
+- Place CTA above the fold and again at the end.
+- Ensure all links and buttons are functional and mobile-friendly.
+
+6. Use Trust Signals
+---------------------
+- Include reviews, testimonials, or guarantees where appropriate.
+- Provide clear links to privacy policies and easy unsubscribe options.
+
+7. Optimize for Mobile Devices
+------------------------------
+- Use responsive design.
+- Keep copy short and easy to scan on phones and tablets.
+- Make buttons large enough to tap easily.
+
+8. A/B Test and Optimize
+------------------------
+- Test subject lines, content, images, CTAs, and send times.
+- Monitor metrics: open rate, click-through rate (CTR), conversions, unsubscribes.
+- Use insights to refine future emails.
+
+9. Respect Timing and Frequency
+-------------------------------
+- Send emails based on user behavior and time zones if possible.
+- Avoid over-emailing to prevent fatigue and unsubscribes.
+- Use automation for sequences like welcome emails or abandoned carts.
+
+10. Stay Aligned with Brand Voice
+---------------------------------
+- Maintain consistency in tone, style, and visual identity.
+- Whether casual or formal, keep it clear and professional.
+
+Conclusion:
+-----------
+Follow these best practices to ensure your marketing emails are engaging, actionable, and conversion-focused. Continuous testing and refinement will drive better performance and customer loyalty.

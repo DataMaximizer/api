@@ -327,12 +327,21 @@ export class AIConfigController {
   ): Promise<void> {
     // Set CORS headers first, before any response
     const origin = req.headers.origin;
-    if (origin === "https://app.inboxengine.ai" || origin === "http://localhost:3000") {
+    if (
+      origin === "https://app.inboxengine.ai" ||
+      origin === "http://localhost:3000"
+    ) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-      res.setHeader("Access-Control-Expose-Headers", "Content-Type, Authorization");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization"
+      );
+      res.setHeader(
+        "Access-Control-Expose-Headers",
+        "Content-Type, Authorization"
+      );
     }
 
     // Handle preflight requests
@@ -353,7 +362,12 @@ export class AIConfigController {
     try {
       const token = req.query.token as string;
       if (!token) {
-        res.write(`data: ${JSON.stringify({ type: "error", message: "No token provided" })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({
+            type: "error",
+            message: "No token provided",
+          })}\n\n`
+        );
         res.end();
         return;
       }
@@ -362,7 +376,12 @@ export class AIConfigController {
       const userId = decoded.userId;
 
       if (!userId) {
-        res.write(`data: ${JSON.stringify({ type: "error", message: "No user ID provided" })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({
+            type: "error",
+            message: "No user ID provided",
+          })}\n\n`
+        );
         res.end();
         return;
       }
@@ -379,7 +398,9 @@ export class AIConfigController {
 
       const listener = (update: any) => {
         try {
-          res.write(`data: ${JSON.stringify({ type: "update", campaign: update })}\n\n`);
+          res.write(
+            `data: ${JSON.stringify({ type: "update", campaign: update })}\n\n`
+          );
         } catch (error) {
           // Client disconnected or other write error
           global.clearInterval(heartbeatInterval);
@@ -403,27 +424,14 @@ export class AIConfigController {
         campaignTracker.unsubscribeFromUserUpdates(userId, listener);
         res.end();
       });
-
     } catch (error) {
-      res.write(`data: ${JSON.stringify({ type: "error", message: "Invalid token" })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          type: "error",
+          message: "Invalid token",
+        })}\n\n`
+      );
       res.end();
-    }
-  }
-
-  static async testCompletion(req: Request, res: Response): Promise<void> {
-    try {
-      const result = await WritingStyleOptimizationAgent.testCompletion();
-      
-      res.status(result.success ? 200 : 500).json({
-        success: result.success,
-        data: result.response,
-      });
-    } catch (error) {
-      logger.error("Error testing LLM Assistant:", error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred"
-      });
     }
   }
 }
