@@ -345,7 +345,9 @@ export class AutomationEngine {
         );
       }
 
-      const provider = await SmtpService.getAdminProvider();
+      const provider = await SmtpService.getProvider(
+        automation.userId.toString()
+      );
       if (!provider) {
         throw new Error(`No admin SMTP provider configured.`);
       }

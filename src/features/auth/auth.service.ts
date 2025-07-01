@@ -10,7 +10,7 @@ import { Schema, Types } from "mongoose";
 import { UserService } from "../user/user.service";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const JWT_EXPIRES_IN = "1d";
+const JWT_EXPIRES_IN = "3d";
 const VERIFICATION_TOKEN_EXPIRES_IN = 24 * 60 * 60 * 1000; // 24 hours
 const REFRESH_TOKEN_EXPIRES_IN = 30 * 24 * 60 * 60 * 1000; // 30 days
 const APP_URL = process.env.APP_URL || "http://localhost:3000";

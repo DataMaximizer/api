@@ -4,7 +4,7 @@ import { User, UserType } from "@features/user/models/user.model";
 import { RefreshToken } from "@features/auth/models/refresh-token.model";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const JWT_EXPIRES_IN = "8h";
+const JWT_EXPIRES_IN = "3d";
 const REFRESH_TOKEN_EXPIRES_IN = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export class AdminService {

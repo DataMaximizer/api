@@ -495,6 +495,20 @@ export class SmtpService {
 
     return provider;
   }
+
+  public static async getProvider(userId: string) {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const provider = await SmtpProvider.findOne({
+      userId: user._id,
+    });
+
+    return provider;
+  }
 }
 
 SmtpService.initCleanupInterval();
