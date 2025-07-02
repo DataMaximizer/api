@@ -14,6 +14,9 @@ import { IAddress } from "../user/models/user.model";
 import { CampaignProcess } from "../ai/models/campaign-process.model";
 import { PromptService } from "../prompt/prompt.service";
 import { FallbackAiProvider } from "../ai/providers/fallback.provider";
+import { OpenAIAssistantProvider } from "../ai/providers/openai-assistant.provider";
+
+const EMAIL_MARKETING_ASSISTANT_ID = "asst_exoUF9TEauHAba0BbDYeAUPG";
 
 const COPYWRITING_FRAMEWORKS = [
   "PAS (Problem-Agitate-Solution)",
@@ -241,23 +244,19 @@ export class CampaignService {
       subscriberName
     );
 
-    const aiclient = new FallbackAiProvider({
-      openaiKey: openaiApiKey,
-      claudeKey: anthropicApiKey,
+    const assistantProvider = new OpenAIAssistantProvider({
+      key: openaiApiKey,
     });
-    const systemPrompt =
-      "You are an expert email copywriter. Generate engaging, persuasive email content that drives action.";
-    const { content, aiData } = await aiclient.generateSystemPromptContent(
-      systemPrompt,
-      prompt,
-      jsonResponse
+    const response = await assistantProvider.runAssistant(
+      EMAIL_MARKETING_ASSISTANT_ID,
+      prompt
     );
 
     return {
-      content: content,
+      content: response,
       generatedPrompt: prompt,
-      aiProvider: aiData.provider,
-      aiModel: aiData.model,
+      aiProvider: "openai",
+      aiModel: "gpt-4o-mini",
     };
   }
 

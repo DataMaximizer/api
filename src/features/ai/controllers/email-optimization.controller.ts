@@ -12,8 +12,6 @@ import { SubscriberSegment } from "../models/subscriber-segment.model";
 import { Types } from "mongoose";
 import { EmailOptimizationService } from "../services/email-optimization.service";
 import { Subscriber } from "@features/subscriber/models/subscriber.model";
-import { OpenAIAssistantProvider } from "../providers/openai-assistant.provider";
-import path from "path";
 
 export class EmailOptimizationController {
   /**
@@ -629,37 +627,6 @@ export class EmailOptimizationController {
       logger.error("Error sending winning email:", error);
       res.status(500).json({
         error: "Failed to send winning email",
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  public static async testFileAssistant(
-    req: Request,
-    res: Response
-  ): Promise<void> {
-    try {
-      const assistantProvider = new OpenAIAssistantProvider(req.user);
-      const sampleFilePath = path.join(process.cwd(), "sample-data.txt");
-
-      const assistant = await assistantProvider.createAssistant(
-        "Email Marketing Assistant",
-        "For this task, read the provided file to understand how to write effective marketing emails. You will be given product specifications and must write a marketing email. Your response MUST be a raw JSON object with two keys: 'subject' and 'body'. The 'body' must be the HTML content of the email. Do not include any introductory text, explanations, or markdown formatting like ```json. Your output should be only the JSON object.",
-        "gpt-4o-mini",
-        sampleFilePath,
-        true
-      );
-
-      const response = await assistantProvider.runAssistant(
-        assistant.id,
-        "Write an email marketing for a product with this specs: SmartHydrate Bottle is a 600ml smart water bottle designed for health-conscious individuals, fitness enthusiasts, office workers, and tech-savvy users aged 20 to 45. It helps users maintain healthy hydration habits by tracking water intake in real time and sending glow reminder alerts through its LED base when it's time to drink. The bottle syncs via Bluetooth with a dedicated mobile app on iOS and Android, allowing users to monitor their hydration progress throughout the day. Made with double-insulated stainless steel, it keeps drinks cold for up to 24 hours or hot for up to 12, and includes a USB-C rechargeable battery that lasts up to 5 days per charge. It's leak-proof, BPA-free, and eco-friendly, offering a durable alternative to single-use plastic bottles. SmartHydrate encourages better focus, energy, and overall health by preventing dehydration-related issues. Priced at $49.99, it's currently available online with a 20% launch discount and free shipping for the first 500 customers in the US, Canada, UK, and EU. Learn more or purchase at SmartHydrate.com."
-      );
-
-      res.status(200).json({ success: true, response: JSON.parse(response) });
-    } catch (error) {
-      logger.error("Error testing file assistant:", error);
-      res.status(500).json({
-        error: "Failed to test file assistant",
         message: error instanceof Error ? error.message : String(error),
       });
     }

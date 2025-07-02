@@ -7,7 +7,7 @@ import fs from "fs";
 export class OpenAIAssistantProvider {
   private openai: OpenAI;
 
-  public constructor(user?: IUser, key?: string) {
+  public constructor({ user, key }: { user?: IUser; key?: string }) {
     let apiKey = OPENAI_API_KEY;
     if (user?.openAiKey) {
       apiKey = user.openAiKey;
