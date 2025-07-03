@@ -33,6 +33,7 @@ export interface IOptimizationConfig {
   roundInterval: number; // Time between rounds in minutes (e.g., 1440 = 24 hours)
   campaignName?: string; // Optional campaign name
   waitTimeForMetrics?: number; // Time to wait for metrics collection in minutes (e.g., 60 = 1 hour)
+  templateId?: string;
 }
 
 export class EmailOptimizationOrchestrator {
@@ -69,6 +70,9 @@ export class EmailOptimizationOrchestrator {
       senderName: config.senderName,
       senderEmail: config.senderEmail,
       configuration: config, // Store the complete configuration
+      templateId: config.templateId
+        ? new Types.ObjectId(config.templateId)
+        : undefined,
     });
 
     // Get subscribers from the list
@@ -401,7 +405,8 @@ export class EmailOptimizationOrchestrator {
             config.aiProvider,
             segment.assignedParameters,
             audienceDescription,
-            round.campaignProcessId.toString()
+            round.campaignProcessId.toString(),
+            config.templateId
           );
 
         // Collect campaign IDs

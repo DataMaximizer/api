@@ -6,7 +6,8 @@ import { ITemplateBlock, ITemplateGlobalStyles } from "./email-template.model";
 export class TemplateRenderService {
   static render(
     blocks: ITemplateBlock[],
-    globalStyles: ITemplateGlobalStyles
+    globalStyles: ITemplateGlobalStyles,
+    shouldSanitize: boolean = true
   ): string {
     const bodyStyles = `
       font-family: ${globalStyles.typography.fontFamily};
@@ -19,7 +20,7 @@ export class TemplateRenderService {
     `;
 
     const blockHtml = blocks
-      .map((block) => this.renderBlock(block))
+      .map((block) => this.renderBlock(block, shouldSanitize))
       .join(
         `<div style="height: ${globalStyles.spacing.blockSpacing};"></div>`
       );
@@ -39,36 +40,53 @@ export class TemplateRenderService {
     `;
   }
 
-  private static renderBlock(block: ITemplateBlock): string {
+  private static renderBlock(
+    block: ITemplateBlock,
+    shouldSanitize: boolean = true
+  ): string {
     switch (block.type) {
       case "header":
-        return `<h1 style="${this.getStyles(block.styles)}">${this.sanitize(
-          block.content.text
-        )}</h1>`;
+        return `<h1 style="${this.getStyles(block.styles)}">${
+          shouldSanitize
+            ? this.sanitize(block.content.text)
+            : block.content.text
+        }</h1>`;
       case "text":
-        return `<p style="${this.getStyles(block.styles)}">${this.sanitize(
-          block.content.text
-        )}</p>`;
+        return `<p style="${this.getStyles(block.styles)}">${
+          shouldSanitize
+            ? this.sanitize(block.content.text)
+            : block.content.text
+        }</p>`;
       case "button":
         return `
-          <a href="${this.sanitize(block.content.url)}" style="${this.getStyles(
-          block.styles
-        )}">
-            ${this.sanitize(block.content.text)}
+          <a href="${
+            shouldSanitize
+              ? this.sanitize(block.content.url)
+              : block.content.url
+          }" style="${this.getStyles(block.styles)}">
+            ${
+              shouldSanitize
+                ? this.sanitize(block.content.text)
+                : block.content.text
+            }
           </a>
         `;
       case "image":
-        return `<img src="${this.sanitize(
-          block.content.src
-        )}" alt="${this.sanitize(
-          block.content.alt
-        )}" style="max-width: 100%; ${this.getStyles(block.styles)}" />`;
+        return `<img src="${
+          shouldSanitize ? this.sanitize(block.content.src) : block.content.src
+        }" alt="${
+          shouldSanitize ? this.sanitize(block.content.alt) : block.content.alt
+        }" style="max-width: 100%; ${this.getStyles(block.styles)}" />`;
       case "divider":
         return `<hr style="${this.getStyles(block.styles)}" />`;
       case "footer":
         return `<p style="font-size: 0.8em; color: #888; ${this.getStyles(
           block.styles
-        )}">${this.sanitize(block.content.text)}</p>`;
+        )}">${
+          shouldSanitize
+            ? this.sanitize(block.content.text)
+            : block.content.text
+        }</p>`;
       default:
         return "";
     }

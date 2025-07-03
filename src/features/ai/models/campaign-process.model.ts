@@ -20,6 +20,7 @@ export interface ICampaignProcess extends Document {
   senderName?: string; // Name to display as the sender
   senderEmail?: string; // Email address to use as sender
   configuration?: any; // Store the complete configuration
+  templateId?: string;
   result?: {
     bestParameters?: {
       copywritingStyle: CopywritingStyle;
@@ -87,6 +88,10 @@ const campaignProcessSchema = new Schema(
     smtpProviderId: {
       type: Schema.Types.ObjectId,
       ref: "SmtpProvider",
+    },
+    templateId: {
+      type: Schema.Types.ObjectId,
+      ref: "EmailTemplate",
     },
     senderName: {
       type: String,

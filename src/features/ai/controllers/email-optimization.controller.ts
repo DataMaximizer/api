@@ -44,6 +44,7 @@ export class EmailOptimizationController {
         roundInterval,
         campaignName,
         waitTimeForMetrics,
+        templateId,
       } = req.body;
 
       // Validate required fields
@@ -126,6 +127,7 @@ export class EmailOptimizationController {
           campaignName ||
           `Optimization Process - ${new Date().toLocaleDateString()}`,
         waitTimeForMetrics: finalWaitTimeForMetrics,
+        templateId,
       };
 
       console.log("Optimization config", config);

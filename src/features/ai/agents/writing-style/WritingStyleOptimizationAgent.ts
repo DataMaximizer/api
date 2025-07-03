@@ -22,6 +22,8 @@ import { IAddress, User } from "@/features/user/models/user.model";
 import { UserService } from "@/features/user/user.service";
 import { logger } from "@/config/logger";
 import { FallbackAiProvider } from "../../providers/fallback.provider";
+import { EmailTemplate } from "@/features/email/templates/email-template.model";
+import { TemplateRenderService } from "@/features/email/templates/template-render.service";
 
 export const availableRecommendedStyles = [
   "Formal & Professional",
@@ -250,6 +252,8 @@ export class WritingStyleOptimizationAgent {
    * @param aiProvider - AI provider (openai or claude)
    * @param styleOptions - Writing style options
    * @param audience - Target audience description
+   * @param campaignProcessId - Campaign process ID
+   * @param templateId - Template ID
    * @returns Array of campaign results
    */
   public async startCampaignForSegment(
@@ -267,7 +271,8 @@ export class WritingStyleOptimizationAgent {
       personality: Personality;
     },
     audience: string = "General audience",
-    campaignProcessId: string
+    campaignProcessId: string,
+    templateId?: string
   ): Promise<
     {
       offerId: string;
@@ -283,6 +288,7 @@ export class WritingStyleOptimizationAgent {
       aiProvider: "openai" | "claude";
       generatedPrompt?: string;
       aiModel?: string;
+      templateId?: string;
     }[][]
   > {
     if (!subscriberIds.length) {
@@ -377,6 +383,7 @@ export class WritingStyleOptimizationAgent {
       aiProvider: "openai" | "claude";
       generatedPrompt?: string;
       aiModel?: string;
+      templateId?: string;
     }[][] = [];
 
     // Process offers in batches to avoid rate limiting
@@ -425,6 +432,18 @@ export class WritingStyleOptimizationAgent {
             const parsedContent = JSON.parse(emailResult.content);
             const currentTimestamp = new Date().getTime();
             const campaignName = `${styleOptions.copywritingStyle} - ${offer.name} - ${currentTimestamp}`;
+            let templateHtml = parsedContent.body;
+
+            if (templateId) {
+              const template = await EmailTemplate.findById(templateId);
+              if (template) {
+                templateHtml = TemplateRenderService.render(
+                  template.blocks,
+                  template.globalStyles,
+                  false
+                );
+              }
+            }
 
             // Create campaign
             const campaign = await this.generateCampaign(
@@ -456,7 +475,9 @@ export class WritingStyleOptimizationAgent {
               subscriberId: subscriber.id,
               subscriberEmail: subscriber.email,
               subject: parsedContent.subject,
-              content: parsedContent.body,
+              content: templateHtml
+                .replace("@Sub Name", subscriber.data?.name ?? "")
+                .replace("@AI Text", parsedContent.body),
               senderName,
               senderEmail,
               aiProvider,
