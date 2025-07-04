@@ -217,6 +217,9 @@ export class AffiliateController {
     next: NextFunction
   ): Promise<void> {
     try {
+      const from = req.query.from as string;
+      const to = req.query.to as string;
+
       const reports = await AffiliateService.getOfferReports(
         req.user?._id as string
       );

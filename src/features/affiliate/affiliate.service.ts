@@ -524,38 +524,112 @@ export class AffiliateService {
   /**
    * Get offer reports with metrics for each offer.
    * Sums metrics (sent, opens, clicks, conversions, revenue, unsubscribes) for campaigns related to each offer.
+   * Optionally filters those metrics by a provided date range.
    * @param userId - User ID to filter offers by
+   * @param startDate - (Optional) Start date of the period to analyse. If only this parameter is provided, a single-day period is assumed.
+   * @param endDate - (Optional) End date of the period to analyse. If omitted when startDate is supplied, it defaults to the same day (23:59:59.999).
    * @returns Array of offer reports with metrics
    */
-  static async getOfferReports(userId: string) {
+  static async getOfferReports(
+    userId: string,
+    startDate?: string | Date,
+    endDate?: string | Date
+  ) {
     try {
       // Find all offers for the user
       const offers: IAffiliateOffer[] = await AffiliateOffer.find({
         userId,
-      }).lean();
+      });
 
       if (!offers || offers.length === 0) {
         return [];
       }
 
       // Get all offer IDs
-      const offerIds = offers.map((offer) => offer._id);
+      const offerIds = offers.map((offer) => offer._id as Types.ObjectId);
 
-      // Find all campaigns related to these offers
-      const campaigns = await Campaign.find({
+      // Build campaign filter based on the supplied date range (if any)
+      const campaignFilter: any = {
         offerId: { $in: offerIds },
-      }).lean();
+      };
+
+      // Normalise date inputs (if provided)
+      const parseLocalDate = (dateInput: string | Date): Date => {
+        if (dateInput instanceof Date) return dateInput;
+        // Expected format YYYY-MM-DD coming from the frontend
+        const [y, m, d] = dateInput.split("-").map(Number);
+        return new Date(y, m - 1, d); // constructs a date at local midnight w/o timezone shift
+      };
+
+      let start: Date | undefined;
+      let end: Date | undefined;
+
+      if (startDate) {
+        start = parseLocalDate(startDate);
+        // If only startDate is provided, consider metrics for that single local day
+        if (!endDate) {
+          end = new Date(start);
+          end.setHours(23, 59, 59, 999);
+        }
+      }
+
+      if (endDate) {
+        end = parseLocalDate(endDate);
+        end.setHours(23, 59, 59, 999);
+      }
+
+      // Find all campaigns that match the filter
+      const campaigns = await Campaign.find(campaignFilter);
+
+      if (campaigns.length === 0) {
+        return Array.from(
+          offers.map((offer) => ({
+            id: String(offer._id),
+            name: offer.name,
+            description: offer.description,
+            url: offer.url,
+            status: offer.status,
+            categories: offer.categories,
+            tags: offer.tags,
+            commissionRate: offer.commissionRate,
+            createdAt: offer.createdAt,
+            updatedAt: offer.updatedAt,
+            campaignCount: 0,
+            metrics: {
+              totalSent: 0,
+              totalOpens: 0,
+              totalClicks: 0,
+              totalConversions: 0,
+              totalRevenue: 0,
+              totalUnsubscribes: 0,
+            },
+          }))
+        );
+      }
 
       // Get all campaign IDs to query for unsubscribes
-      const campaignIds = campaigns.map((campaign) => campaign._id);
+      const campaignIds = campaigns.map(
+        (campaign) => campaign._id as Types.ObjectId
+      );
 
-      // Query subscribers who unsubscribed from these campaigns
+      // Build unsubscribe match stage with optional date filtering
+      const unsubscribeMatch: any = {
+        "metadata.unsubscribeCampaignId": { $in: campaignIds },
+        status: "unsubscribed",
+      };
+
+      if (start) {
+        unsubscribeMatch["metadata.unsubscribeDate"] = {
+          $gte: start,
+        };
+        if (end) {
+          unsubscribeMatch["metadata.unsubscribeDate"].$lte = end;
+        }
+      }
+
       const unsubscribes = await Subscriber.aggregate([
         {
-          $match: {
-            "metadata.unsubscribeCampaignId": { $in: campaignIds },
-            status: "unsubscribed",
-          },
+          $match: unsubscribeMatch,
         },
         {
           $group: {
@@ -566,17 +640,17 @@ export class AffiliateService {
       ]);
 
       // Map campaign IDs to unsubscribe counts
-      const unsubscribeMap = new Map();
+      const unsubscribeMap = new Map<string, number>();
       for (const item of unsubscribes) {
         unsubscribeMap.set(item._id.toString(), item.unsubscribeCount);
       }
 
       // Create a map to group campaigns by offer ID and sum metrics
-      const offerReportsMap = new Map();
+      const offerReportsMap = new Map<string, any>();
 
       // Initialize offer reports map with all offers
       for (const offer of offers) {
-        const offerId = offer._id.toString();
+        const offerId = String(offer._id);
         offerReportsMap.set(offerId, {
           id: offerId,
           name: offer.name,
@@ -600,27 +674,132 @@ export class AffiliateService {
         });
       }
 
+      // ------------------------------------------------------------------
+      // Aggregate interactions within the date range (if provided)
+      // ------------------------------------------------------------------
+
+      let interactionMetricsMap = new Map<
+        string,
+        {
+          opens: number;
+          clicks: number;
+          conversions: number;
+          revenue: number;
+        }
+      >();
+
+      if (start || end) {
+        // Build timestamp filter for interactions
+        const timestampFilter: any = {};
+        if (start) {
+          timestampFilter.$gte = start;
+        }
+        if (end) {
+          timestampFilter.$lte = end;
+        }
+
+        const matchStage: any = {
+          "metrics.interactions.campaignId": { $in: campaignIds },
+        };
+        if (Object.keys(timestampFilter).length > 0) {
+          matchStage["metrics.interactions.timestamp"] = timestampFilter;
+        }
+
+        const interactionsAggregation = await Subscriber.aggregate([
+          { $unwind: "$metrics.interactions" },
+          { $match: matchStage },
+          {
+            $group: {
+              _id: "$metrics.interactions.campaignId",
+              opens: {
+                $sum: {
+                  $cond: [
+                    { $eq: ["$metrics.interactions.type", "open"] },
+                    1,
+                    0,
+                  ],
+                },
+              },
+              clicks: {
+                $sum: {
+                  $cond: [
+                    { $eq: ["$metrics.interactions.type", "click"] },
+                    1,
+                    0,
+                  ],
+                },
+              },
+              conversions: {
+                $sum: {
+                  $cond: [
+                    { $eq: ["$metrics.interactions.type", "conversion"] },
+                    1,
+                    0,
+                  ],
+                },
+              },
+              revenue: {
+                $sum: {
+                  $cond: [
+                    { $eq: ["$metrics.interactions.type", "conversion"] },
+                    { $ifNull: ["$metrics.interactions.amount", 0] },
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        ]);
+
+        for (const item of interactionsAggregation) {
+          interactionMetricsMap.set(String(item._id), {
+            opens: item.opens || 0,
+            clicks: item.clicks || 0,
+            conversions: item.conversions || 0,
+            revenue: item.revenue || 0,
+          });
+        }
+      }
+
       // Process each campaign and aggregate metrics by offer
       for (const campaign of campaigns) {
-        const offerId = campaign.offerId?.toString();
-        const campaignId = campaign._id.toString();
+        const offerId = campaign.offerId ? String(campaign.offerId) : undefined;
+        const campaignId = String(campaign._id);
 
         if (!offerId || !offerReportsMap.has(offerId)) continue;
 
         const report = offerReportsMap.get(offerId);
         report.campaignCount += 1;
 
-        // Get unsubscribe count for this campaign
+        // Get unsubscribe count for this campaign (already date-filtered)
         const unsubscribeCount = unsubscribeMap.get(campaignId) || 0;
 
-        // Sum metrics if they exist
-        if (campaign.metrics) {
-          report.metrics.totalSent += campaign.metrics.totalSent || 0;
-          report.metrics.totalOpens += campaign.metrics.totalOpens || 0;
-          report.metrics.totalClicks += campaign.metrics.totalClicks || 0;
-          report.metrics.totalConversions +=
-            campaign.metrics.totalConversions || 0;
-          report.metrics.totalRevenue += campaign.metrics.totalRevenue || 0;
+        if (start || end) {
+          // Use interaction-based metrics when date range supplied
+          const interactionMetrics = interactionMetricsMap.get(campaignId) || {
+            opens: 0,
+            clicks: 0,
+            conversions: 0,
+            revenue: 0,
+          };
+
+          report.metrics.totalOpens += interactionMetrics.opens;
+          report.metrics.totalClicks += interactionMetrics.clicks;
+          report.metrics.totalConversions += interactionMetrics.conversions;
+          report.metrics.totalRevenue += interactionMetrics.revenue;
+
+          // Approximate sent as number of unique engaged subscribers (opens/clicks/conversions)
+          // Alternatively, keep as 0 if you prefer not to approximate.
+        } else {
+          // No date range → fallback to pre-aggregated totals on Campaign
+          if (campaign.metrics) {
+            report.metrics.totalSent += campaign.metrics.totalSent || 0;
+            report.metrics.totalOpens += campaign.metrics.totalOpens || 0;
+            report.metrics.totalClicks += campaign.metrics.totalClicks || 0;
+            report.metrics.totalConversions +=
+              campaign.metrics.totalConversions || 0;
+            report.metrics.totalRevenue += campaign.metrics.totalRevenue || 0;
+          }
         }
 
         // Add unsubscribe count to total metrics
@@ -650,9 +829,9 @@ export class AffiliateService {
       if (offerId) {
         offers = await AffiliateOffer.find({
           _id: offerId,
-        }).lean();
+        });
       } else {
-        offers = await AffiliateOffer.find(offerQuery).lean();
+        offers = await AffiliateOffer.find(offerQuery);
       }
 
       if (!offers || offers.length === 0) {
@@ -665,7 +844,7 @@ export class AffiliateService {
       }
 
       // Get all offer IDs
-      const offerIds = offers.map((offer) => offer._id);
+      const offerIds = offers.map((offer) => offer._id as Types.ObjectId);
 
       // Find all campaigns related to these offers
       const campaignQuery: any = {};
@@ -677,7 +856,7 @@ export class AffiliateService {
         campaignQuery.offerId = { $in: offerIds };
       }
 
-      const campaigns = await Campaign.find(campaignQuery).lean();
+      const campaigns = await Campaign.find(campaignQuery);
 
       if (campaigns.length === 0) {
         return {
