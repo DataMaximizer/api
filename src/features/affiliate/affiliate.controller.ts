@@ -221,7 +221,9 @@ export class AffiliateController {
       const to = req.query.to as string;
 
       const reports = await AffiliateService.getOfferReports(
-        req.user?._id as string
+        req.user?._id as string,
+        from,
+        to
       );
       res.status(200).json({
         success: true,
